@@ -1,0 +1,20 @@
+{
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[python]": {
+    "editor.codeActionsOnSave": {
+      "source.convertImportFormat": "explicit",
+      "source.convertImportStar": "explicit",
+      "source.fixAll.pylance": "explicit",
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit",
+      "source.renameShadowedStdlibImports": "explicit",
+      "source.unusedImports": "explicit"
+    },
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true
+  },
+  "python.analysis.typeCheckingMode": "standard"
+}
