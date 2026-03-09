@@ -1,7 +1,7 @@
 import logging
 from logging.handlers import RotatingFileHandler
 
-from app.paths import LOG_DIR, LOG_FILE
+from ai_plays_slay_the_spire.paths import LOG_DIR, LOG_FILE
 
 
 def init() -> None:

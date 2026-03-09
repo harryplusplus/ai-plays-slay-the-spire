@@ -5,3 +5,7 @@ PROJECT_FILE = PROJECT_DIR / "pyproject.toml"
 
 LOG_DIR = PROJECT_DIR / "logs"
 LOG_FILE = LOG_DIR / "app.log"
+
+CODEX_HOME = PROJECT_DIR / "codex"
+
+AGENT_DIR = PROJECT_DIR / "agent"
