@@ -79,7 +79,7 @@ def main() -> None:
         msg = msg_q.get()
         if msg.kind == Kind.GAME:
             if msg.data is None:
-                # NOTE: game exited
+                # NOTE: game exited.
                 break
 
             if not initialized:
@@ -88,7 +88,8 @@ def main() -> None:
 
             # TODO: handle game messages
 
-        else:  # Kind.CODEX
+        else:
+            assert msg.kind == Kind.CODEX
             if msg.data is None:
                 logger.error("Closed codex stdout.")
                 break
@@ -105,9 +106,9 @@ def main() -> None:
                     break
 
                 codex.send_initialized()
-                initialized = True
 
                 # TODO: handle pending game messages
+                initialized = True
 
     codex.close()
     game_msg_reader.join()
