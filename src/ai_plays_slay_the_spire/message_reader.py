@@ -17,7 +17,10 @@ class Message:
     data: str | None
 
 
-def _main(name: str, kind: Kind, io: IO[str], q: queue.Queue[Message]) -> None:
+MessageQueue = queue.Queue[Message]
+
+
+def _main(name: str, kind: Kind, io: IO[str], q: MessageQueue) -> None:
     logger = logging.getLogger(name)
     logger.info("started.")
 
@@ -30,8 +33,10 @@ def _main(name: str, kind: Kind, io: IO[str], q: queue.Queue[Message]) -> None:
     logger.info("exited.")
 
 
-def start(name: str, kind: Kind, io: IO[str], q: queue.Queue[Message]) -> Thread:
-    t = Thread(target=_main, args=(name, kind, io, q), name=name)
-    t.start()
+class MessageReader:
+    def __init__(self, name: str, kind: Kind, io: IO[str], q: MessageQueue) -> None:
+        self._t = Thread(target=_main, args=(name, kind, io, q), name=name)
+        self._t.start()
 
-    return t
+    def wait(self) -> None:
+        self._t.join()
