@@ -4,7 +4,7 @@ from collections import deque
 from pydantic import ValidationError
 
 from ai_plays_slay_the_spire import log
-from ai_plays_slay_the_spire.codex_common import CodexRequestId, CodexResponse
+from ai_plays_slay_the_spire.codex_common import CodexResponse
 from ai_plays_slay_the_spire.codex_process import CodexProcess
 from ai_plays_slay_the_spire.game_reader import GameReader
 from ai_plays_slay_the_spire.game_writer import GameWriter
@@ -35,14 +35,10 @@ class App:
         self._codex_w = self._codex_p.create_writer()
         self._codex_r = self._codex_p.create_reader(self._msg_q)
 
-        self._req_id = CodexRequestId()
-
     def run(self) -> None:
         pending_game_msgs = deque[str]()
         initialized = False
-        initialize_req_id = self._req_id.next()
-
-        self._codex_w.initialize(initialize_req_id)
+        initialize_req_id = self._codex_w.initialize()
 
         while True:
             msg = self._msg_q.get()
