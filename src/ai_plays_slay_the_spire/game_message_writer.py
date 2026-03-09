@@ -1,4 +1,4 @@
-class GameWriter:
+class GameMessageWriter:
     def _write(self, msg: str) -> None:
         print(msg, flush=True)
 
