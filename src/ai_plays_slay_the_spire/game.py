@@ -3,12 +3,11 @@ import queue
 import sys
 from threading import Thread
 
-logger = logging.getLogger(__name__)
-
 MessageQueue = queue.Queue[str | None]
 
 
-def _main(q: MessageQueue) -> None:
+def _message_reader_main(q: MessageQueue) -> None:
+    logger = logging.getLogger(f"{__name__}.message_reader")
     logger.info("started.")
 
     for line in sys.stdin:
@@ -20,10 +19,20 @@ def _main(q: MessageQueue) -> None:
     logger.info("exited.")
 
 
-class GameMessageReader:
+class MessageReader:
     def __init__(self, q: MessageQueue) -> None:
-        self._t = Thread(target=_main, args=(q,), name="game_message_reader")
+        self._t = Thread(
+            target=_message_reader_main, args=(q,), name="game_message_reader"
+        )
         self._t.start()
 
     def wait(self) -> None:
         self._t.join()
+
+
+class MessageWriter:
+    def _write(self, msg: str) -> None:
+        print(msg, flush=True)
+
+    def ready(self) -> None:
+        self._write("ready")

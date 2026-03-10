@@ -5,10 +5,10 @@ import subprocess
 
 from ai_plays_slay_the_spire.paths import AGENT_DIR, AUTH_JSON, CODEX_HOME
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 
-class CodexExecutor:
+class Executor:
     def __init__(self) -> None:
         if not AUTH_JSON.exists():
             raise FileNotFoundError(AUTH_JSON)
@@ -51,14 +51,16 @@ class CodexExecutor:
             assert p.stdout
             for line in p.stdout:
                 line = line.rstrip()
-                logger.debug(line)
+                _logger.debug(line)
 
             rc = p.wait()
             if rc != 0:
-                logger.error(f"Failed to exec codex with exit code: {rc}")
+                _logger.error(f"Failed to exec codex with exit code: {rc}")
+
         except Exception as e:
-            logger.error(f"Failed to exec codex with error: {e}")
+            _logger.error(f"Failed to exec codex with error: {e}")
             raise
+
         finally:
             if p.stdin and not p.stdin.closed:
                 p.stdin.close()
