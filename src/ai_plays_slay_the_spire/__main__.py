@@ -1,8 +1,7 @@
-from ai_plays_slay_the_spire.app import App
+from ai_plays_slay_the_spire import app
 
 
 def _main() -> None:
-    app = App()
     app.run()
 
 
