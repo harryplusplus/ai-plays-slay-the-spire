@@ -3,7 +3,7 @@ set -euo pipefail
 
 . "/Users/harry/.local/bin/env"
 
-# cd to project dir
+# cd to root dir
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-uv run -m app
+uv run --package bridge -m bridge

@@ -5,16 +5,15 @@
   },
   "[python]": {
     "editor.codeActionsOnSave": {
-      "source.convertImportFormat": "explicit",
-      "source.convertImportStar": "explicit",
-      "source.fixAll.pylance": "explicit",
-      "source.fixAll.ruff": "explicit",
-      "source.organizeImports.ruff": "explicit",
-      "source.renameShadowedStdlibImports": "explicit",
-      "source.unusedImports": "explicit"
+      "source.fixAll": "explicit",
+      "source.organizeImports": "explicit"
     },
     "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.formatOnSave": true
   },
-  "python.analysis.typeCheckingMode": "standard"
+  "[toml]": {
+    "editor.defaultFormatter": "tamasfe.even-better-toml",
+    "editor.formatOnSave": true
+  },
+  "cSpell.words": ["pyright"]
 }

@@ -1,0 +1,12 @@
+[project]
+name = "bridge"
+version = "0.0.0"
+description = "Bridge for AI plays Slay the Spire"
+dependencies = ["fastapi>=0.135.1", "uvicorn>=0.41.0", "core>=0.0.0"]
+
+[tool.uv.sources]
+core = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.10.9,<0.11.0"]
+build-backend = "uv_build"

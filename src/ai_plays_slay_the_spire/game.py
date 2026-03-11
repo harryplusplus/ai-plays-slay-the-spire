@@ -8,7 +8,7 @@ MessageQueue = queue.Queue[str | None]
 
 def _message_reader_main(q: MessageQueue) -> None:
     logger = logging.getLogger(f"{__name__}.message_reader")
-    logger.info("started.")
+    logger.info("Thread started.")
 
     for line in sys.stdin:
         msg = line.rstrip()
@@ -16,7 +16,7 @@ def _message_reader_main(q: MessageQueue) -> None:
         q.put(msg)
 
     q.put(None)
-    logger.info("exited.")
+    logger.info("Thread exited.")
 
 
 class MessageReader:

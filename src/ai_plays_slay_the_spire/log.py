@@ -16,7 +16,7 @@ def init() -> None:
         encoding="utf-8",
     )
 
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
     handler.setFormatter(formatter)
 
     root.addHandler(handler)

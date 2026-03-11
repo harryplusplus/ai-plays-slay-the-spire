@@ -5,7 +5,7 @@ import subprocess
 
 from ai_plays_slay_the_spire.paths import AGENT_DIR, AUTH_JSON, CODEX_HOME
 
-_logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class Executor:
@@ -21,6 +21,7 @@ class Executor:
         env = os.environ.copy()
         env["CODEX_HOME"] = str(CODEX_HOME)
         self._env = env
+
         self._cmd = [
             "codex",
             "exec",
@@ -30,6 +31,10 @@ class Executor:
             "--skip-git-repo-check",
             "--model",
             "gpt-5.4",
+            "--color",
+            "never",
+            # "--output-schema",
+            # str(),
             "-",
         ]
 
@@ -51,14 +56,14 @@ class Executor:
             assert p.stdout
             for line in p.stdout:
                 line = line.rstrip()
-                _logger.debug(line)
+                logger.debug(line)
 
             rc = p.wait()
             if rc != 0:
-                _logger.error(f"Failed to exec codex with exit code: {rc}")
+                logger.error(f"Failed to exec codex with exit code: {rc}")
 
         except Exception as e:
-            _logger.error(f"Failed to exec codex with error: {e}")
+            logger.error(f"Failed to exec codex with error: {e}")
             raise
 
         finally:
