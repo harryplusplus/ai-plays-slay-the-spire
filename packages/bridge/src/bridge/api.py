@@ -8,7 +8,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 
-from bridge.common import Command, CommandQueue, MessageQueue
+from bridge.common import MessageQueue
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,6 @@ async def execute(
 @dataclass(kw_only=True)
 class Context:
     message_queue: MessageQueue
-    command_queue: CommandQueue
     command_id: int = 0
     executing: bool = False
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -57,15 +56,10 @@ async def _execute(app: FastAPI, dto: Execute) -> ExecuteResponse:
         context.executing = True
 
     try:
-        loop = asyncio.get_running_loop()
-        future: asyncio.Future[None] = loop.create_future()
         command_id = context.command_id
         context.command_id += 1
 
-        context.command_queue.put_nowait(
-            Command(id=command_id, command=dto.command, future=future),
-        )
-        await future
+        await asyncio.to_thread(print, dto.command, flush=True)
 
         message = await context.message_queue.get()
         if message.id != command_id:
@@ -97,11 +91,9 @@ def _main(loop: asyncio.AbstractEventLoop, server: uvicorn.Server) -> None:
 def create_thread(
     loop: asyncio.AbstractEventLoop,
     message_queue: MessageQueue,
-    command_queue: CommandQueue,
 ) -> tuple[uvicorn.Server, threading.Thread]:
     app.state.context = Context(
         message_queue=message_queue,
-        command_queue=command_queue,
     )
 
     config = uvicorn.Config(app, access_log=False, log_config=None)
