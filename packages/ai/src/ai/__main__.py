@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import shutil
+import time
 
 from core.paths import (
     AUTH_JSON,
@@ -15,8 +16,8 @@ from ai import api, codex, log
 
 logger = logging.getLogger(__name__)
 
-REQUEST_TIMEOUT = 60
-BRIDGE_BASE_URL = "http://localhost:8000"
+
+DELAY_AFTER_COMMAND = 5
 
 
 class OutputSchema(BaseModel):
@@ -61,6 +62,8 @@ What is the next command to play in Slay the Spire?
             resume=resume,
         )
         message = api.execute(command)
+
+        time.sleep(DELAY_AFTER_COMMAND)
 
 
 if __name__ == "__main__":
