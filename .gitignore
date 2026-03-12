@@ -209,3 +209,4 @@ __marimo__/
 # AI plays Slay the Spire
 /logs/
 /.codex/
+/.temp/
