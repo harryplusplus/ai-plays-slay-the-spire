@@ -62,7 +62,7 @@ What is the next command to play in Slay the Spire?
             resume=resume,
         )
 
-        logger.info("Current game state %s, next command: %s", message, command)
+        logger.info("\nCurrent game state:\n%s\nNext command:\n%s", message, command)
 
         message = api.execute(command)
 
