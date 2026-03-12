@@ -6,10 +6,10 @@ from core.paths import AGENT_DIR, OUTPUT_LAST_MESSAGE, OUTPUT_SCHEMA
 logger = logging.getLogger(__name__)
 
 
-def build_cmd(*, has_session: bool) -> list[str]:
+def _build_cmd(*, resume: bool) -> list[str]:
     cmd = ["codex", "exec"]
 
-    if has_session:
+    if resume:
         cmd += [
             "resume",
             "--last",
@@ -37,14 +37,18 @@ def build_cmd(*, has_session: bool) -> list[str]:
     return cmd
 
 
-def execute_codex(env: dict[str, str], prompt: str, *, has_session: bool) -> None:
+def execute(
+    env: dict[str, str],
+    prompt: str,
+    *,
+    resume: bool,
+) -> str:
     proc = subprocess.Popen(  # noqa: S603
-        build_cmd(has_session=has_session),
+        _build_cmd(resume=resume),
         cwd=AGENT_DIR,
         env=env,
         text=True,
         stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
     )
 
     try:
@@ -54,13 +58,6 @@ def execute_codex(env: dict[str, str], prompt: str, *, has_session: bool) -> Non
         proc.stdin.write(prompt)
         proc.stdin.close()
 
-        if proc.stdout is None:
-            raise RuntimeError("Failed to open stdout for codex process.")
-
-        for line in proc.stdout:
-            json_str = line.rstrip()
-            logger.debug("Received JSON from codex: %s", json_str)
-
         rc = proc.wait()
         if rc != 0:
             logger.error("Failed to run codex process.", extra={"returncode": rc})
@@ -68,8 +65,9 @@ def execute_codex(env: dict[str, str], prompt: str, *, has_session: bool) -> Non
     finally:
         if proc.stdin and not proc.stdin.closed:
             proc.stdin.close()
-        if proc.stdout and not proc.stdout.closed:
-            proc.stdout.close()
         if proc.poll() is None:
             proc.kill()
             proc.wait()
+
+    with OUTPUT_LAST_MESSAGE.open() as f:
+        return f.read()

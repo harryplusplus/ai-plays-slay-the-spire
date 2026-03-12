@@ -3,18 +3,15 @@ import logging
 import os
 import shutil
 
-import requests
 from core.paths import (
     AUTH_JSON,
     CODEX_HOME,
-    OUTPUT_LAST_MESSAGE,
     OUTPUT_SCHEMA,
     SESSIONS_DIR,
 )
 from pydantic import BaseModel, ConfigDict
 
-from ai import log
-from ai.codex import execute_codex
+from ai import api, codex, log
 
 logger = logging.getLogger(__name__)
 
@@ -42,55 +39,30 @@ def main() -> None:
     with OUTPUT_SCHEMA.open("w") as f:
         f.write(json.dumps(OutputSchema.model_json_schema(), indent=2))
 
-    requests.get(
-        f"{BRIDGE_BASE_URL}/health",
-        timeout=REQUEST_TIMEOUT,
-    ).raise_for_status()
-
     env = os.environ.copy()
     env["CODEX_HOME"] = str(CODEX_HOME)
 
-    command = "state"
-    response = requests.post(
-        f"{BRIDGE_BASE_URL}/execute",
-        json={"command": command},
-        timeout=REQUEST_TIMEOUT,
-    )
-    response.raise_for_status()
-    histories = [{"command": command, "response": response.text}]
+    api.health()
+    message = api.execute("state")
 
     while True:
-        has_session = any(SESSIONS_DIR.rglob("*.jsonl"))
-        prompt = ""
-        if histories:
-            prompt = (
-                "Here is the history of commands and responses:\n\n"
-                + "\n".join(
-                    f"command: {history['command']}\nresponse: {history['response']}"
-                    for history in histories
-                )
-                + "\n\n"
-            )
+        resume = any(SESSIONS_DIR.rglob("*.jsonl"))
+        prompt = f"""The current game state is:
+```
+{message}
+```
 
-        prompt += "What is the next command to play in Slay the Spire?"
-        logger.info("Sending prompt to Codex. Prompt:\n%s", prompt)
+What is the next command to play in Slay the Spire?
+"""
 
-        execute_codex(
+        command = codex.execute(
             env,
             prompt,
-            has_session=has_session,
+            resume=resume,
         )
+        logger.info("Command from Codex: %s", command)
 
-        with OUTPUT_LAST_MESSAGE.open() as f:
-            command = f.read()
-
-        response = requests.post(
-            f"{BRIDGE_BASE_URL}/execute",
-            json={"command": command},
-            timeout=REQUEST_TIMEOUT,
-        )
-        response.raise_for_status()
-        histories.append({"command": command, "response": response.text})
+        message = api.execute(command)
 
 
 if __name__ == "__main__":
