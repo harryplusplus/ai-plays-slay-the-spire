@@ -1,8 +1,10 @@
+import copy
 import json
 import logging
 import os
 import shutil
 import time
+from typing import Any, cast
 
 from core.paths import (
     AUTH_JSON,
@@ -17,13 +19,29 @@ from ai import api, codex, log
 logger = logging.getLogger(__name__)
 
 
-DELAY_AFTER_COMMAND = 5
+DELAY = 5
 
 
 class OutputSchema(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     command: str
+
+
+def _prettify_json(json_obj: dict[str, Any]) -> str:
+    return json.dumps(json_obj, indent=2)
+
+
+def state_for_logging(state: dict[str, Any]) -> dict[str, Any]:
+    filtered_state = copy.deepcopy(state)
+    game_state = filtered_state.get("game_state")
+
+    if isinstance(game_state, dict):
+        gs = cast("dict[str, Any]", game_state)
+        gs.pop("map", None)
+        gs.pop("deck", None)
+
+    return filtered_state
 
 
 def main() -> None:
@@ -44,14 +62,20 @@ def main() -> None:
     env["CODEX_HOME"] = str(CODEX_HOME)
 
     api.health()
-    message = api.execute("state")
+
+    previous_state: dict[str, Any] | None = None
+    command: str | None = None
+    state = api.execute("state")
 
     while True:
         resume = any(SESSIONS_DIR.rglob("*.jsonl"))
-        prompt = f"""The current game state is:
-```
-{message}
-```
+        prompt = f"""Previous state:
+{_prettify_json(previous_state) if previous_state is not None else "N/A"}
+
+Command: {command if command is not None else "N/A"}
+
+State:
+{_prettify_json(state)}
 
 What is the next command to play in Slay the Spire?
 """
@@ -62,11 +86,17 @@ What is the next command to play in Slay the Spire?
             resume=resume,
         )
 
-        logger.info("\nCurrent game state:\n%s\nNext command:\n%s", message, command)
+        previous_state = state
+        state = api.execute(command)
 
-        message = api.execute(command)
+        logger.info(
+            "\nPrevious state:\n%s\nCommand: %s\nState:\n%s",
+            _prettify_json(state_for_logging(previous_state)),
+            command,
+            _prettify_json(state_for_logging(state)),
+        )
 
-        time.sleep(DELAY_AFTER_COMMAND)
+        time.sleep(DELAY)
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import cast
 
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from pydantic import BaseModel
 
 from bridge.common import MessageQueue
@@ -24,18 +24,14 @@ class Execute(BaseModel):
     command: str
 
 
-class ExecuteResponse(BaseModel):
-    id: int
-    message: str
-
-
 @app.post("/execute")
 async def execute(
     dto: Execute,
     req: Request,
-) -> ExecuteResponse:
+) -> Response:
     app: FastAPI = req.app
-    return await _execute(app, dto)
+    message = await _execute(app, dto)
+    return Response(content=message, media_type="application/json")
 
 
 @dataclass(kw_only=True)
@@ -46,7 +42,7 @@ class Context:
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
-async def _execute(app: FastAPI, dto: Execute) -> ExecuteResponse:
+async def _execute(app: FastAPI, dto: Execute) -> str:
     context: Context = app.state.context
 
     async with context.lock:
@@ -67,7 +63,7 @@ async def _execute(app: FastAPI, dto: Execute) -> ExecuteResponse:
                 f"Unexpected message id: {message.id} (expected: {command_id})",
             )
 
-        return ExecuteResponse(id=message.id, message=message.message)
+        return message.message
     finally:
         async with context.lock:
             context.executing = False

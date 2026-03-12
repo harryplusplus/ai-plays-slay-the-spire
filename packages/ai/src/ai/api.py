@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import requests
 
@@ -15,11 +16,11 @@ def health() -> None:
     ).raise_for_status()
 
 
-def execute(command: str) -> str:
+def execute(command: str) -> dict[str, Any]:
     response = requests.post(
         f"{BRIDGE_BASE_URL}/execute",
         json={"command": command},
         timeout=REQUEST_TIMEOUT,
     )
     response.raise_for_status()
-    return response.text
+    return response.json()
