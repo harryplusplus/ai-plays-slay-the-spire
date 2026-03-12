@@ -1,0 +1,15 @@
+[project]
+name = "ai"
+version = "0.0.0"
+description = "AI for playing Slay the Spire"
+dependencies = [
+    "core>=0.0.0",
+    "requests>=2.32.5",
+]
+
+[tool.uv.sources]
+core = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.10.9,<0.11.0"]
+build-backend = "uv_build"
