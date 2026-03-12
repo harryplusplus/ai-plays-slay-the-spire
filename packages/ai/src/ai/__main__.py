@@ -17,7 +17,7 @@ from ai import api, codex, log
 logger = logging.getLogger(__name__)
 
 
-DELAY_AFTER_COMMAND = 10
+DELAY_AFTER_COMMAND = 5
 
 
 class OutputSchema(BaseModel):
