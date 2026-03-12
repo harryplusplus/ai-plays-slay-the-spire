@@ -50,22 +50,24 @@ def main() -> None:
     env = os.environ.copy()
     env["CODEX_HOME"] = str(CODEX_HOME)
 
+    command = "state"
     response = requests.post(
         f"{BRIDGE_BASE_URL}/execute",
-        json={"command": "state"},
+        json={"command": command},
         timeout=REQUEST_TIMEOUT,
     )
     response.raise_for_status()
-    responses = [response.text]
+    histories = [{"command": command, "response": response.text}]
 
     while True:
         has_session = any(SESSIONS_DIR.rglob("*.jsonl"))
         prompt = ""
-        if responses:
+        if histories:
             prompt = (
-                "Here is the history of responses from the game:\n\n"
-                + "\n\n".join(
-                    responses,
+                "Here is the history of commands and responses:\n\n"
+                + "\n".join(
+                    f"command: {history['command']}\nresponse: {history['response']}"
+                    for history in histories
                 )
                 + "\n\n"
             )
@@ -88,7 +90,7 @@ def main() -> None:
             timeout=REQUEST_TIMEOUT,
         )
         response.raise_for_status()
-        responses.append(response.text)
+        histories.append({"command": command, "response": response.text})
 
 
 if __name__ == "__main__":
