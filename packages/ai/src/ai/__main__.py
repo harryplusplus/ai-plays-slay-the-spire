@@ -17,7 +17,7 @@ from ai import api, codex, log
 logger = logging.getLogger(__name__)
 
 
-DELAY_AFTER_COMMAND = 5
+DELAY_AFTER_COMMAND = 10
 
 
 class OutputSchema(BaseModel):
@@ -61,6 +61,9 @@ What is the next command to play in Slay the Spire?
             prompt,
             resume=resume,
         )
+
+        logger.info("Current game state %s, next command: %s", message, command)
+
         message = api.execute(command)
 
         time.sleep(DELAY_AFTER_COMMAND)

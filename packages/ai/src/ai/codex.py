@@ -49,6 +49,7 @@ def execute(
         env=env,
         text=True,
         stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
     )
 
     try:
@@ -58,6 +59,12 @@ def execute(
         proc.stdin.write(prompt)
         proc.stdin.close()
 
+        if proc.stdout is None:
+            raise RuntimeError("Failed to open stdout for codex process.")
+
+        for _ in proc.stdout:
+            pass
+
         rc = proc.wait()
         if rc != 0:
             logger.error("Failed to run codex process.", extra={"returncode": rc})
@@ -65,6 +72,8 @@ def execute(
     finally:
         if proc.stdin and not proc.stdin.closed:
             proc.stdin.close()
+        if proc.stdout and not proc.stdout.closed:
+            proc.stdout.close()
         if proc.poll() is None:
             proc.kill()
             proc.wait()
