@@ -60,8 +60,6 @@ What is the next command to play in Slay the Spire?
             prompt,
             resume=resume,
         )
-        logger.info("Command from Codex: %s", command)
-
         message = api.execute(command)
 
 
