@@ -1,65 +1,32 @@
+import asyncio
 import logging
 import sys
 import threading
-from collections import deque
 
-from bridge import command
-
-Message = str
+from bridge.common import Message, MessageQueue
 
 logger = logging.getLogger(__name__)
 
 
-def _check_running(*, running: bool) -> None:
-    if not running:
-        raise RuntimeError(
-            "Message runner is not running.",
+def _main(loop: asyncio.AbstractEventLoop, message_queue: MessageQueue) -> None:
+    logger.info("Started.")
+
+    for message_id, line in enumerate(sys.stdin):
+        message = line.rstrip()
+        loop.call_soon_threadsafe(
+            message_queue.put_nowait,
+            Message(id=message_id, message=message),
         )
 
-
-class Context:
-    def __init__(self) -> None:
-        self.messages = deque[Message]()
-        self.running = False
-        self.lock = threading.Lock()
+    logger.info("Exited.")
 
 
-class Accessor:
-    def __init__(self, context: Context) -> None:
-        self._context = context
-
-    def get_all(self) -> list[Message]:
-        with self._context.lock:
-            _check_running(running=self._context.running)
-            return list[Message](self._context.messages)
-
-
-class Runner:
-    def __init__(self, command_writer: command.Writer) -> None:
-        self._context = Context()
-        self._command_writer = command_writer
-
-    def run(self) -> None:
-        with self._context.lock:
-            if self._context.running:
-                raise RuntimeError(
-                    "Message runner is already running.",
-                )
-
-            self._context.running = True
-
-        logger.info("Started. Press Ctrl+D to exit.")
-        self._command_writer.write_sync("ready")
-
-        for line in sys.stdin:
-            message = line.rstrip()
-            with self._context.lock:
-                self._context.messages.append(message)
-
-        with self._context.lock:
-            self._context.running = False
-
-        logger.info("Exited.")
-
-    def accessor(self) -> Accessor:
-        return Accessor(self._context)
+def create_thread(
+    loop: asyncio.AbstractEventLoop,
+    message_queue: MessageQueue,
+) -> threading.Thread:
+    return threading.Thread(
+        name="message_thread",
+        target=_main,
+        args=(loop, message_queue),
+    )

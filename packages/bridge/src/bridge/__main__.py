@@ -1,6 +1,8 @@
+import asyncio
 import logging
 
 from bridge import api, command, log, message
+from bridge.common import CommandQueue, MessageQueue, Sentinel
 
 logger = logging.getLogger(__name__)
 
@@ -9,17 +11,29 @@ def main() -> None:
     log.init()
     logger.info("Started.")
 
-    command_runner = command.ThreadRunner()
-    message_runner = message.Runner(command_runner.writer())
-    api_runner = api.ThreadRunner(message_runner.accessor(), command_runner.writer())
+    loop = asyncio.new_event_loop()
+    message_queue = MessageQueue()
+    command_queue = CommandQueue()
 
-    command_runner.start()
-    api_runner.start()
+    message_thread = message.create_thread(loop, message_queue)
+    command_thread = command.create_thread(loop, command_queue)
+    server, api_thread = api.create_thread(
+        loop,
+        message_queue,
+        command_queue,
+    )
 
-    message_runner.run()
+    message_thread.start()
+    command_thread.start()
+    api_thread.start()
 
-    api_runner.stop()
-    command_runner.stop()
+    message_thread.join()
+
+    server.should_exit = True
+    api_thread.join()
+
+    command_queue.put(Sentinel())
+    command_thread.join()
 
     logger.info("Exited.")
 
