@@ -2,36 +2,44 @@ import logging
 import subprocess
 
 from core.paths import AGENT_DIR, OUTPUT_LAST_MESSAGE, OUTPUT_SCHEMA
-from pydantic import BaseModel, ConfigDict
 
 logger = logging.getLogger(__name__)
 
 
-class OutputSchema(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+def build_cmd(*, has_session: bool) -> list[str]:
+    cmd = ["codex", "exec"]
 
-    command: str
-
-
-def execute_codex(env: dict[str, str], prompt: str) -> None:
-    proc = subprocess.Popen(  # noqa: S603
-        [  # noqa: S607
-            "codex",
-            "exec",
-            # "resume",
-            # "--last",
-            "--json",
-            "--skip-git-repo-check",
-            "--model",
-            "gpt-5.4",
+    if has_session:
+        cmd += [
+            "resume",
+            "--last",
+        ]
+    else:
+        cmd += [
             "--color",
             "never",
+            "--sandbox",
+            "workspace-write",
             "--output-schema",
             str(OUTPUT_SCHEMA),
-            "--output-last-message",
-            str(OUTPUT_LAST_MESSAGE),
-            "-",
-        ],
+        ]
+
+    cmd += [
+        "--json",
+        "--skip-git-repo-check",
+        "--model",
+        "gpt-5.4",
+        "--output-last-message",
+        str(OUTPUT_LAST_MESSAGE),
+        "-",
+    ]
+
+    return cmd
+
+
+def execute_codex(env: dict[str, str], prompt: str, *, has_session: bool) -> None:
+    proc = subprocess.Popen(  # noqa: S603
+        build_cmd(has_session=has_session),
         cwd=AGENT_DIR,
         env=env,
         text=True,
@@ -51,7 +59,7 @@ def execute_codex(env: dict[str, str], prompt: str) -> None:
 
         for line in proc.stdout:
             json_str = line.rstrip()
-            logger.info(json_str)
+            logger.debug("Received JSON from codex: %s", json_str)
 
         rc = proc.wait()
         if rc != 0:
