@@ -6,7 +6,7 @@
 AI, Bridge, Mod입니다.
 
 AI는 게임을 플레이하는 AI 에이전트입니다.
-OpenAI의 Codex CLI를 사용합니다.
+내부적으로 OpenAI의 Codex CLI를 사용합니다.
 
 Bridge는 AI가 명령을 호출하고 메시지를 받을 수 있도록 하는 중계자입니다.
 Bridge는 AI로부터 HTTP 요청을 받고 Mod와 표준 입출력으로 통신합니다.
