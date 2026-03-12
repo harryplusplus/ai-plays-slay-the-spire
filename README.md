@@ -88,6 +88,11 @@ main->>api: start
 
 par Request processing
     ai->>+api: Execute command
+
+    opt Processing in progress
+        api-->>ai: error
+    end
+
     api->>+stdout: Write command on ThreadPoolExecutor
     stdout-->>-api: done
 
