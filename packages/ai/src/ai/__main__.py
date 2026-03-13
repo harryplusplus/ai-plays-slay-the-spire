@@ -19,7 +19,7 @@ from ai import api, codex, log
 logger = logging.getLogger(__name__)
 
 
-DELAY = 5
+DELAY = 0
 
 
 class OutputSchema(BaseModel):
@@ -40,6 +40,9 @@ def state_for_logging(state: dict[str, Any]) -> dict[str, Any]:
         gs = cast("dict[str, Any]", game_state)
         gs.pop("map", None)
         gs.pop("deck", None)
+        gs.pop("relics", None)
+        gs.pop("potions", None)
+        gs.pop("combat_state", None)
 
     return filtered_state
 

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import signal
 
 import uvicorn
 
@@ -10,7 +11,14 @@ from bridge.bridge import Bridge
 logger = logging.getLogger(__name__)
 
 
+def on_signal(*_, **__):
+    logger.info("AAAA")
+
+
 async def _main() -> None:
+    signal.signal(signal.SIGTERM, on_signal)
+    signal.signal(signal.SIGINT, on_signal)
+
     config = uvicorn.Config(app, access_log=False, log_config=None)
     server = uvicorn.Server(config)
     bridge = Bridge(server)

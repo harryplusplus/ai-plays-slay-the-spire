@@ -6,4 +6,4 @@ set -euo pipefail
 # cd to root dir
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-uv run --package bridge -m bridge
+exec .venv/bin/python -m bridge
