@@ -68,8 +68,6 @@ class Bridge:
         if self._command_transport is not None:
             self._command_transport.close()
 
-        self._fail_pending_commands(self._create_eof_error())
-
     async def execute(self, command: str) -> str:
         if self._closed:
             raise RuntimeError("Bridge is closed.")
@@ -98,6 +96,7 @@ class Bridge:
         current_command: Command | None = None
         message_task: asyncio.Task[bytes] | None = None
         command_task: asyncio.Task[Command] | None = None
+        loop_error: Exception | None = None
 
         try:
             message_task = self._create_message_task()
@@ -150,14 +149,18 @@ class Bridge:
                     )
 
                     current_command = None
+        except Exception as e:
+            loop_error = e
+            raise
         finally:
             self._closed = True
             self._server.should_exit = True
 
+            e = loop_error or self._create_eof_error()
             if current_command is not None and not current_command.future.done():
-                current_command.future.set_exception(
-                    self._create_eof_error(),
-                )
+                current_command.future.set_exception(e)
+
+            self._fail_pending_commands(e)
 
             for task in (message_task, command_task):
                 if task is not None:
