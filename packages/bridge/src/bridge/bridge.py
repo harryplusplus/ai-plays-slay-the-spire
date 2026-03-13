@@ -162,6 +162,15 @@ class Bridge:
 
             self._fail_pending_commands(e)
 
+            if (
+                command_task is not None
+                and command_task.done()
+                and not command_task.cancelled()
+            ):
+                with suppress(asyncio.InvalidStateError):
+                    stale_command = command_task.result()
+                    stale_command.future.set_exception(e)
+
             for task in (message_task, command_task):
                 if task is not None:
                     task.cancel()
