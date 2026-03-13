@@ -121,13 +121,10 @@ class Bridge:
                 message = await self._message_queue.get()
 
                 logger.info(
-                    "\nCommand id: %s command: %s, stale message ids: %s"
-                    "\nMessage id: %s, message: %s",
-                    command.id,
-                    command.command,
-                    [m.id for m in stale_messages],
-                    message.id,
-                    message.message,
+                    "\nCommand: %s,\nMessage: %s\nStale messages: %s",
+                    (command.id, command.command),
+                    (message.id, message.message),
+                    [(m.id, m.message) for m in stale_messages],
                 )
 
                 if not command.future.done():
