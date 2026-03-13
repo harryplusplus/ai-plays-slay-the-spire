@@ -16,9 +16,9 @@ async def _main() -> None:
     bridge = Bridge(server)
     app.state.bridge = bridge
 
-    await bridge.start()
-    await bridge.execute("ready")
     try:
+        await bridge.start()
+        await bridge.execute("ready")
         await server.serve()
     finally:
         await bridge.close()
