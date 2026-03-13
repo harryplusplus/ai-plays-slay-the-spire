@@ -1,14 +1,11 @@
-import asyncio
 import logging
-import threading
-from dataclasses import dataclass, field
-from typing import cast
+from typing import TYPE_CHECKING
 
-import uvicorn
 from fastapi import FastAPI, Request, Response
 from pydantic import BaseModel
 
-from bridge.common import MessageQueue
+if TYPE_CHECKING:
+    from bridge.bridge import Bridge
 
 logger = logging.getLogger(__name__)
 
@@ -30,70 +27,6 @@ async def execute(
     req: Request,
 ) -> Response:
     app: FastAPI = req.app
-    message = await _execute(app, dto)
+    bridge: Bridge = app.state.bridge
+    message = await bridge.execute(dto.command)
     return Response(content=message, media_type="application/json")
-
-
-@dataclass(kw_only=True)
-class Context:
-    message_queue: MessageQueue
-    command_id: int = 0
-    executing: bool = False
-    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-
-
-async def _execute(app: FastAPI, dto: Execute) -> str:
-    context: Context = app.state.context
-
-    async with context.lock:
-        if context.executing:
-            raise RuntimeError("Command is already executing.")
-
-        context.executing = True
-
-    try:
-        command_id = context.command_id
-        context.command_id += 1
-
-        await asyncio.to_thread(print, dto.command, flush=True)
-
-        message = await context.message_queue.get()
-        if message.id != command_id:
-            raise RuntimeError(
-                f"Unexpected message id: {message.id} (expected: {command_id})",
-            )
-
-        return message.message
-    finally:
-        async with context.lock:
-            context.executing = False
-
-
-async def _run(server: uvicorn.Server) -> None:
-    app = cast("FastAPI", server.config.app)
-    await _execute(app, Execute(command="ready"))
-    await server.serve()
-
-
-def _main(loop: asyncio.AbstractEventLoop, server: uvicorn.Server) -> None:
-    logger.info("Started.")
-
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(_run(server))
-
-    logger.info("Exited.")
-
-
-def create_thread(
-    loop: asyncio.AbstractEventLoop,
-    message_queue: MessageQueue,
-) -> tuple[uvicorn.Server, threading.Thread]:
-    app.state.context = Context(
-        message_queue=message_queue,
-    )
-
-    config = uvicorn.Config(app, access_log=False, log_config=None)
-    server = uvicorn.Server(config)
-    thread = threading.Thread(name="api_thread", target=_main, args=(loop, server))
-
-    return server, thread

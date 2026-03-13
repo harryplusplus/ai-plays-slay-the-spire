@@ -29,7 +29,8 @@ def init() -> None:
     handler.addFilter(_add_timestamp)
 
     formatter = logging.Formatter(
-        "%(timestamp)s %(levelname)s [%(name)s][%(threadName)s][%(pathname)s:%(lineno)d] %(message)s",
+        "%(timestamp)s %(levelname)s [%(name)s] %(message)s\n"
+        "  at %(pathname)s:%(lineno)d",
     )
     handler.setFormatter(formatter)
 

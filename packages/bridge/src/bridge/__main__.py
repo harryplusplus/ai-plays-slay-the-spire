@@ -1,37 +1,33 @@
 import asyncio
 import logging
-import sys
 
-from bridge import api, log
-from bridge.common import Message, MessageQueue
+import uvicorn
+
+from bridge import log
+from bridge.api import app
+from bridge.bridge import Bridge
 
 logger = logging.getLogger(__name__)
+
+
+async def _main() -> None:
+    config = uvicorn.Config(app, access_log=False, log_config=None)
+    server = uvicorn.Server(config)
+    bridge = Bridge(server)
+    app.state.bridge = bridge
+
+    await bridge.start()
+    await bridge.execute("ready")
+    try:
+        await server.serve()
+    finally:
+        await bridge.close()
 
 
 def main() -> None:
     log.init()
     logger.info("Started.")
-
-    loop = asyncio.new_event_loop()
-    message_queue = MessageQueue()
-
-    server, api_thread = api.create_thread(
-        loop,
-        message_queue,
-    )
-
-    api_thread.start()
-
-    for message_id, line in enumerate(sys.stdin):
-        message = line.rstrip()
-        loop.call_soon_threadsafe(
-            message_queue.put_nowait,
-            Message(id=message_id, message=message),
-        )
-
-    server.should_exit = True
-    api_thread.join()
-
+    asyncio.run(_main())
     logger.info("Exited.")
 
 
