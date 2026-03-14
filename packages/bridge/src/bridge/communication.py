@@ -1,7 +1,13 @@
 import asyncio
+import select
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from typing import TextIO
+
+
+def has_data(in_: TextIO) -> bool:
+    r, _, _ = select.select([in_], [], [], 0)
+    return bool(r)
 
 
 class Communicator:
@@ -12,6 +18,17 @@ class Communicator:
     def communicate(self, command: str) -> str:
         self._out.write(f"{command}\n")
         self._out.flush()
+
+        message = self._readline()
+
+        # NOTE: If more data is available after `readline()`, the line we just
+        # read is stale.
+        while has_data(self._in):
+            message = self._readline()
+
+        return message
+
+    def _readline(self) -> str:
         line = self._in.readline()
         if line == "":
             raise RuntimeError("Unexpected EOF from stdin.")

@@ -16,10 +16,11 @@ def health() -> None:
     ).raise_for_status()
 
 
-def execute(command: str) -> dict[str, Any]:
+def communicate(command: str) -> dict[str, Any]:
     response = requests.post(
-        f"{BRIDGE_BASE_URL}/execute",
-        json={"command": command},
+        f"{BRIDGE_BASE_URL}/communicate",
+        data=command,
+        headers={"Content-Type": "text/plain"},
         timeout=REQUEST_TIMEOUT,
     )
     response.raise_for_status()

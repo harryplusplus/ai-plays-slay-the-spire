@@ -4,7 +4,7 @@ import logging
 import os
 import shutil
 import time
-from typing import Any, cast
+from typing import Any
 
 from core.paths import (
     AUTH_JSON,
@@ -34,15 +34,17 @@ def _prettify_json(json_obj: dict[str, Any]) -> str:
 
 def state_for_logging(state: dict[str, Any]) -> dict[str, Any]:
     filtered_state = copy.deepcopy(state)
-    game_state = filtered_state.get("game_state")
+    filtered_state.pop("game_state", None)
 
-    if isinstance(game_state, dict):
-        gs = cast("dict[str, Any]", game_state)
-        gs.pop("map", None)
-        gs.pop("deck", None)
-        gs.pop("relics", None)
-        gs.pop("potions", None)
-        gs.pop("combat_state", None)
+    # game_state = filtered_state.get("game_state")
+
+    # if isinstance(game_state, dict):
+    #     gs = cast("dict[str, Any]", game_state)
+    #     gs.pop("map", None)
+    #     gs.pop("deck", None)
+    #     gs.pop("relics", None)
+    #     gs.pop("potions", None)
+    #     gs.pop("combat_state", None)
 
     return filtered_state
 
@@ -68,7 +70,7 @@ def main() -> None:
 
     previous_state: dict[str, Any] | None = None
     command: str | None = None
-    state = api.execute("state")
+    state = api.communicate("state")
 
     while True:
         resume = any(SESSIONS_DIR.rglob("*.jsonl"))
@@ -90,7 +92,7 @@ What is the next command to play in Slay the Spire?
         )
 
         previous_state = state
-        state = api.execute(command)
+        state = api.communicate(command)
 
         logger.info(
             "\nPrevious state:\n%s\nCommand: %s\nState:\n%s",

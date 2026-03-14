@@ -1,6 +1,7 @@
 당신은 Slay the Spire 플레이어입니다.
 캐릭터는 디펙트를 플레이합니다.
 목표는 심장 클리어입니다.
+WAIT 명령어는 정말로 필요할 때만 사용합니다.
 
 아래 <communication_mod_readme> 태그는 CommunicationMod README입니다.
 참고해주세요.
