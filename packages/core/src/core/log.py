@@ -44,6 +44,7 @@ RESERVED_LOG_RECORD_ATTRS = {
     "asctime",
     "timestamp",
     "color_message",
+    "websocket",
 }
 
 

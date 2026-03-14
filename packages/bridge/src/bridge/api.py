@@ -3,24 +3,36 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import Body, Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, WebSocket
 
-from bridge.communication import Orchestrator
+from bridge.command import ThreadedSender
+from bridge.connection import ConnectionManager
+from bridge.message import (
+    ThreadedReceiver,
+)
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    orchestrator = Orchestrator()
-    await orchestrator.communicate("ready")
-    app.state.orchestrator = orchestrator
+    sender = ThreadedSender()
+    connection_manager = ConnectionManager(sender)
+    app.state.connection_manager = connection_manager
+
+    receiver = ThreadedReceiver(connection_manager)
+    receiver.start()
+
+    await sender.send("ready")
+
     yield
-    orchestrator.close()
+
+    await connection_manager.close()
+    sender.close()
 
 
-def get_orchestrator(request: Request) -> Orchestrator:
-    return request.app.state.orchestrator
+def get_connection_manager(websocket: WebSocket) -> ConnectionManager:
+    return websocket.app.state.connection_manager
 
 
 app = FastAPI(lifespan=lifespan)
@@ -31,10 +43,9 @@ async def health() -> str:
     return "ok"
 
 
-@app.post("/communicate")
-async def communicate(
-    command: Annotated[str, Body(media_type="text/plain")],
-    orchestrator: Annotated[Orchestrator, Depends(get_orchestrator)],
-) -> Response:
-    message = await orchestrator.communicate(command)
-    return Response(content=message, media_type="application/json")
+@app.websocket("/ws")
+async def on_connect(
+    websocket: WebSocket,
+    connection_manager: Annotated[ConnectionManager, Depends(get_connection_manager)],
+) -> None:
+    await connection_manager.on_connect(websocket)
