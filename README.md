@@ -151,7 +151,7 @@ end
 다음 예제와 같이 작성합니다:
 
 ```sh
-command=/your/absolute/path/ai-plays-slay-the-spire/scripts/bridge.sh
+command=/your/project/.venv/bin/python -m bridge
 runAtGameStart=true
 ```
 
