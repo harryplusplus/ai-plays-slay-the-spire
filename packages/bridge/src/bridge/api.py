@@ -1,15 +1,29 @@
 import logging
-from typing import TYPE_CHECKING
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from typing import Annotated
 
-from fastapi import FastAPI, Request, Response
-from pydantic import BaseModel
+from fastapi import Body, Depends, FastAPI, Request, Response
 
-if TYPE_CHECKING:
-    from bridge.bridge import Bridge
+from bridge.communication import Orchestrator
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    orchestrator = Orchestrator()
+    await orchestrator.communicate("ready")
+    app.state.orchestrator = orchestrator
+    yield
+    orchestrator.close()
+
+
+def get_orchestrator(request: Request) -> Orchestrator:
+    return request.app.state.orchestrator
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 @app.get("/health")
@@ -17,16 +31,10 @@ async def health() -> str:
     return "ok"
 
 
-class Execute(BaseModel):
-    command: str
-
-
-@app.post("/execute")
-async def execute(
-    dto: Execute,
-    req: Request,
+@app.post("/communicate")
+async def communicate(
+    command: Annotated[str, Body(media_type="text/plain")],
+    orchestrator: Annotated[Orchestrator, Depends(get_orchestrator)],
 ) -> Response:
-    app: FastAPI = req.app
-    bridge: Bridge = app.state.bridge
-    message = await bridge.execute(dto.command)
+    message = await orchestrator.communicate(command)
     return Response(content=message, media_type="application/json")

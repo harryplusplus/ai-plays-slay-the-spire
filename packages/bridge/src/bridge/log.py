@@ -1,4 +1,5 @@
 import datetime
+import json
 import logging
 from logging.handlers import RotatingFileHandler
 
@@ -11,6 +12,50 @@ def _add_timestamp(record: logging.LogRecord) -> bool:
         .astimezone()
         .isoformat(timespec="milliseconds")
     )
+    return True
+
+
+def _add_source(record: logging.LogRecord) -> bool:
+    record.source = f"{record.pathname}:{record.lineno}"
+    return True
+
+
+RESERVED_LOG_RECORD_ATTRS = {
+    "name",
+    "msg",
+    "args",
+    "levelname",
+    "levelno",
+    "pathname",
+    "filename",
+    "module",
+    "exc_info",
+    "exc_text",
+    "stack_info",
+    "lineno",
+    "funcName",
+    "created",
+    "msecs",
+    "relativeCreated",
+    "thread",
+    "threadName",
+    "processName",
+    "process",
+    "message",
+    "asctime",
+    "timestamp",
+    "color_message",
+}
+
+
+def _add_metadata_json(record: logging.LogRecord) -> bool:
+    metadata = {}
+    for key, value in record.__dict__.items():
+        if key in RESERVED_LOG_RECORD_ATTRS or key.startswith("_"):
+            continue
+        metadata[key] = value
+
+    record.metadata_json = json.dumps(metadata, ensure_ascii=False, default=str)
     return True
 
 
@@ -27,10 +72,11 @@ def init() -> None:
         encoding="utf-8",
     )
     handler.addFilter(_add_timestamp)
+    handler.addFilter(_add_source)
+    handler.addFilter(_add_metadata_json)
 
     formatter = logging.Formatter(
-        "%(timestamp)s %(levelname)s [%(name)s] %(message)s\n"
-        "  at %(pathname)s:%(lineno)d",
+        "%(timestamp)s %(levelname)s %(name)s %(message)s | %(metadata_json)s",
     )
     handler.setFormatter(formatter)
 
