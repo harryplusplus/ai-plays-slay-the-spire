@@ -134,13 +134,12 @@ end
 
 ## 요구사항
 
-### 모드 설치
+### 스팀 워크숍 모드
 
-아래 모드들을 설치합니다:
+아래 모드들을 구독합니다:
 
 - [ModTheSpire](https://steamcommunity.com/sharedfiles/filedetails/?id=1605060445)
 - [BaseMod](https://steamcommunity.com/sharedfiles/filedetails/?id=1605833019)
-- [Communication Mod](https://steamcommunity.com/sharedfiles/filedetails/?id=2131373661)
 
 ### 설정 구성
 
