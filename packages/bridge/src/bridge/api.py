@@ -19,10 +19,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     sender = ThreadedSender()
     connection_manager = ConnectionManager(sender)
     app.state.connection_manager = connection_manager
-
     receiver = ThreadedReceiver(connection_manager)
     receiver.start()
-
     await sender.send("ready")
 
     yield
