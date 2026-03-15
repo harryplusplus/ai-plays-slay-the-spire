@@ -10,6 +10,10 @@ from bridge import command, connection, message
 logger = logging.getLogger(__name__)
 
 
+def get_connection_manager(websocket: WebSocket) -> connection.Manager:
+    return websocket.app.state.connection_manager
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     command_sender = command.ThreadedSender()
@@ -23,10 +27,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     await connection_manager.close()
     command_sender.close()
-
-
-def get_connection_manager(websocket: WebSocket) -> connection.Manager:
-    return websocket.app.state.connection_manager
 
 
 app = FastAPI(lifespan=lifespan)
