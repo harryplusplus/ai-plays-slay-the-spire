@@ -20,6 +20,16 @@ members = ["packages/*"]
 typeCheckingMode = "strict"
 reportImplicitOverride = true
 
+[tool.pytest.ini_options]
+addopts = "--cov --cov-report=term-missing"
+
+[tool.coverage.run]
+source = [
+    "packages/ai/src/ai",
+    "packages/bridge/src/bridge",
+    "packages/core/src/core",
+]
+
 [tool.ruff]
 target-version = "py311"
 
