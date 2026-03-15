@@ -32,30 +32,24 @@ def isolated_root_logger() -> Iterator[logging.Logger]:
             root_logger.addHandler(handler)
 
 
-def test_init_sets_root_logger_level_and_creates_logs_dir(
+def test_init_sets_root_logger_level_and_adds_handler(
     isolated_root_logger: logging.Logger,
-    tmp_path: Path,
 ) -> None:
-    logs_dir = tmp_path / "logs"
     handler = logging.StreamHandler(io.StringIO())
 
-    log.init(handler=handler, logs_dir=logs_dir)
+    log.init(handler=handler)
 
-    assert logs_dir.is_dir()
     assert isolated_root_logger.level == logging.INFO
     assert handler in isolated_root_logger.handlers
 
 
 def test_init_emits_timestamp_source_and_public_metadata(
-    tmp_path: Path,
     isolated_root_logger: logging.Logger,
 ) -> None:
-    logs_dir = tmp_path / "logs"
-
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
 
-    log.init(handler=handler, logs_dir=logs_dir)
+    log.init(handler=handler)
 
     logger = logging.getLogger("core.log.test")
     assert handler in isolated_root_logger.handlers

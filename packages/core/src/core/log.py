@@ -1,9 +1,6 @@
 import datetime
 import json
 import logging
-from pathlib import Path
-
-from core.paths import LOGS_DIR
 
 
 def _add_timestamp(record: logging.LogRecord) -> bool:
@@ -60,11 +57,9 @@ def _add_metadata_json(record: logging.LogRecord) -> bool:
     return True
 
 
-def init(*, handler: logging.Handler, logs_dir: Path = LOGS_DIR) -> None:
+def init(*, handler: logging.Handler) -> None:
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
-
-    logs_dir.mkdir(exist_ok=True, parents=True)
 
     handler.addFilter(_add_timestamp)
     handler.addFilter(_add_source)
