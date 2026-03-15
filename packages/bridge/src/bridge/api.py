@@ -5,31 +5,27 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, WebSocket
 
-from bridge.command import ThreadedSender
-from bridge.connection import ConnectionManager
-from bridge.message import (
-    ThreadedReceiver,
-)
+from bridge import command, connection, message
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    sender = ThreadedSender()
-    connection_manager = ConnectionManager(sender)
+    command_sender = command.ThreadedSender()
+    connection_manager = connection.Manager(command_sender.sender())
     app.state.connection_manager = connection_manager
-    receiver = ThreadedReceiver(connection_manager)
-    receiver.start()
-    await sender.send("ready")
+    message_receiver = message.ThreadedReceiver(connection_manager.message_handler())
+    message_receiver.start()
+    await command_sender.sender()("ready")
 
     yield
 
     await connection_manager.close()
-    sender.close()
+    command_sender.close()
 
 
-def get_connection_manager(websocket: WebSocket) -> ConnectionManager:
+def get_connection_manager(websocket: WebSocket) -> connection.Manager:
     return websocket.app.state.connection_manager
 
 
@@ -42,8 +38,8 @@ async def health() -> str:
 
 
 @app.websocket("/ws")
-async def on_connect(
+async def websocket_endpoint(
     websocket: WebSocket,
-    connection_manager: Annotated[ConnectionManager, Depends(get_connection_manager)],
+    connection_manager: Annotated[connection.Manager, Depends(get_connection_manager)],
 ) -> None:
-    await connection_manager.on_connect(websocket)
+    await connection_manager.on_websocket(websocket)

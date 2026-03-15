@@ -2,30 +2,37 @@ import asyncio
 import logging
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from typing import TextIO
+from typing import Protocol, TextIO
 
 logger = logging.getLogger(__name__)
 
 
-class Sender:
+class Writer:
     def __init__(self, out: TextIO | None = None) -> None:
         self._out: TextIO = out if out is not None else sys.stdout
 
-    def send(self, command: str) -> None:
+    def __call__(self, command: str) -> None:
         self._out.write(f"{command}\n")
         self._out.flush()
 
 
+class Sender(Protocol):
+    async def __call__(self, command: str) -> None: ...
+
+
 class ThreadedSender:
-    def __init__(self, sender: Sender | None = None) -> None:
+    def __init__(self, writer: Writer | None = None) -> None:
         self._executor = ThreadPoolExecutor(max_workers=1)
-        self._sender = sender if sender is not None else Sender()
+        self._writer = writer if writer is not None else Writer()
 
     def close(self) -> None:
-        logger.info("ThreadedSender shutting down...")
+        logger.info("ThreadedSender closing...")
         self._executor.shutdown()
-        logger.info("ThreadedSender shut down.")
+        logger.info("ThreadedSender closed.")
 
-    async def send(self, command: str) -> None:
+    async def _send(self, command: str) -> None:
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(self._executor, self._sender.send, command)
+        await loop.run_in_executor(self._executor, self._writer, command)
+
+    def sender(self) -> Sender:
+        return self._send

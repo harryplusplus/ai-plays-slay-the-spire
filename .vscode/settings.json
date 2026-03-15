@@ -15,5 +15,6 @@
     "editor.defaultFormatter": "tamasfe.even-better-toml",
     "editor.formatOnSave": true
   },
-  "cSpell.words": ["pyright"]
+  "cSpell.words": ["pyright"],
+  "python.analysis.autoImportCompletions": false
 }

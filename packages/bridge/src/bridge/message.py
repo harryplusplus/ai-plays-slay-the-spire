@@ -3,32 +3,41 @@ import concurrent.futures
 import logging
 import sys
 import threading
-from typing import TextIO
-
-from bridge.connection import ConnectionManager
+from typing import Protocol, TextIO
 
 logger = logging.getLogger(__name__)
 
 
-class Receiver:
+class Reader:
     def __init__(self, in_: TextIO | None = None) -> None:
         self._in: TextIO = in_ if in_ is not None else sys.stdin
 
-    def receive(self) -> str:
+    def __call__(self) -> str:
         line = self._in.readline()
         if line == "":
-            raise EOFError("message.Receiver reached EOF.")
+            raise EOFError("message.Reader reached EOF.")
         return line.rstrip()
+
+
+def _on_done(future: concurrent.futures.Future[None]) -> None:
+    try:
+        future.result()
+    except Exception:
+        logger.exception("Error sending message to connection.")
+
+
+class Handler(Protocol):
+    async def __call__(self, message: str) -> None: ...
 
 
 class ThreadedReceiver:
     def __init__(
         self,
-        connection: ConnectionManager,
-        receiver: Receiver | None = None,
+        handler: Handler,
+        reader: Reader | None = None,
     ) -> None:
-        self._connection = connection
-        self._receiver = receiver if receiver is not None else Receiver()
+        self._handler = handler
+        self._reader = reader if reader is not None else Reader()
         self._thread: threading.Thread | None = None
 
     def start(self) -> None:
@@ -43,7 +52,7 @@ class ThreadedReceiver:
     def _run(self, loop: asyncio.AbstractEventLoop) -> None:
         while True:
             try:
-                message = self._receiver.receive()
+                message = self._reader()
             except EOFError:
                 logger.info(
                     "Stopping ThreadedReceiver loop due to EOFError.",
@@ -51,13 +60,7 @@ class ThreadedReceiver:
                 break
 
             future = asyncio.run_coroutine_threadsafe(
-                self._connection.send(message),
+                self._handler(message),
                 loop,
             )
-            future.add_done_callback(self._on_future_done)
-
-    def _on_future_done(self, future: concurrent.futures.Future[None]) -> None:
-        try:
-            future.result()
-        except Exception:
-            logger.exception("Error sending message to connection.")
+            future.add_done_callback(_on_done)
