@@ -1,9 +1,9 @@
+import asyncio
 import copy
 import json
 import logging
 import os
 import shutil
-import time
 from typing import Any
 
 from core.paths import (
@@ -38,7 +38,7 @@ def state_for_logging(state: dict[str, Any]) -> dict[str, Any]:
     return filtered_state
 
 
-def main() -> None:
+async def main() -> None:
     log.init()
 
     if not AUTH_JSON.exists():
@@ -55,15 +55,14 @@ def main() -> None:
     env = os.environ.copy()
     env["CODEX_HOME"] = str(CODEX_HOME)
 
-    api.health()
-
     previous_state: dict[str, Any] | None = None
     command: str | None = None
-    state = api.communicate("state")
+    async with api.connect() as session:
+        state = await session.communicate("state")
 
-    while True:
-        resume = any(SESSIONS_DIR.rglob("*.jsonl"))
-        prompt = f"""Previous state:
+        while True:
+            resume = any(SESSIONS_DIR.rglob("*.jsonl"))
+            prompt = f"""Previous state:
 {_prettify_json(previous_state) if previous_state is not None else "N/A"}
 
 Command: {command if command is not None else "N/A"}
@@ -74,24 +73,24 @@ State:
 What is the next command to play in Slay the Spire?
 """
 
-        command = codex.execute(
-            env,
-            prompt,
-            resume=resume,
-        )
+            command = codex.execute(
+                env,
+                prompt,
+                resume=resume,
+            )
 
-        previous_state = state
-        state = api.communicate(command)
+            previous_state = state
+            state = await session.communicate(command)
 
-        logger.info(
-            "\nPrevious state:\n%s\nCommand: %s\nState:\n%s",
-            _prettify_json(state_for_logging(previous_state)),
-            command,
-            _prettify_json(state_for_logging(state)),
-        )
+            logger.info(
+                "\nPrevious state:\n%s\nCommand: %s\nState:\n%s",
+                _prettify_json(state_for_logging(previous_state)),
+                command,
+                _prettify_json(state_for_logging(state)),
+            )
 
-        time.sleep(DELAY)
+            await asyncio.sleep(DELAY)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

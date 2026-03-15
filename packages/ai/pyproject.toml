@@ -2,10 +2,7 @@
 name = "ai"
 version = "0.0.0"
 description = "AI for playing Slay the Spire"
-dependencies = [
-    "core>=0.0.0",
-    "requests>=2.32.5",
-]
+dependencies = ["core>=0.0.0", "websockets>=16.0"]
 
 [tool.uv.sources]
 core = { workspace = true }

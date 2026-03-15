@@ -59,11 +59,6 @@ def create_app(
     return app
 
 
-@router.get("/health")
-async def health() -> str:
-    return "ok"
-
-
 @router.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket,

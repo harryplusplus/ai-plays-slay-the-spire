@@ -9,8 +9,6 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from typing_extensions import override
 
-HTTP_OK = 200
-
 
 class _FakeSenderService(command.SenderService):
     def __init__(self) -> None:
@@ -76,14 +74,10 @@ def test_get_connection_manager_reads_app_state() -> None:
     assert api.get_connection_manager(cast("Any", websocket)) is manager
 
 
-def test_health_route_runs_lifespan_and_closes_resources() -> None:
+def test_test_client_runs_lifespan_and_closes_resources() -> None:
     app, resources = _create_test_app()
 
-    with TestClient(app) as client:
-        response = client.get("/health")
-
-        assert response.status_code == HTTP_OK
-        assert response.json() == "ok"
+    with TestClient(app):
         assert resources.command_sender is not None
         assert resources.message_receiver is not None
         assert resources.command_sender.commands == ["ready"]
