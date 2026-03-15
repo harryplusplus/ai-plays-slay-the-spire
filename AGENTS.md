@@ -31,4 +31,12 @@
 - `uv run pyright`
 - `uv run pytest`
 - 테스트 코드를 작성할 때는 `unittest` 모듈과 `pytest.MonkeyPatch`를 사용하지 않습니다.
-- 테스트 가능성을 높이기 위해 의존성 주입을 우선적으로 사용합니다.
+- 테스트를 위해 아래와 같은 우회를 사용하지 않습니다.
+```python
+# Don't
+sys.stdin = io.StringIO("...")
+module.global_dependency = fake
+patch("package.module.some_dependency")
+```
+- 테스트는 우회가 아니라 설계로 해결합니다. 먼저 의존성 주입으로 풀고, 어렵다면 의존성을 주입할 수 있게 구조를 리팩터링합니다.
+- 테스트용 fake는 가능하면 production `Protocol`을 직접 구현합니다. 테스트 코드도 실제 인터페이스 변경을 빨리 드러낼 수 있어야 합니다.
