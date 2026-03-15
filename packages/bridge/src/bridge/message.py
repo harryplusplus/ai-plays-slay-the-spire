@@ -5,6 +5,8 @@ import sys
 import threading
 from typing import Protocol, TextIO
 
+from typing_extensions import override
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,7 +32,11 @@ class Handler(Protocol):
     async def __call__(self, message: str) -> None: ...
 
 
-class ThreadedReceiver:
+class ReceiverService(Protocol):
+    def start(self) -> None: ...
+
+
+class ThreadedReceiverService(ReceiverService):
     def __init__(
         self,
         handler: Handler,
@@ -40,6 +46,7 @@ class ThreadedReceiver:
         self._reader = reader if reader is not None else Reader()
         self._thread: threading.Thread | None = None
 
+    @override
     def start(self) -> None:
         loop = asyncio.get_running_loop()
         self._thread = threading.Thread(
@@ -55,7 +62,7 @@ class ThreadedReceiver:
                 message = self._reader()
             except EOFError:
                 logger.info(
-                    "Stopping ThreadedReceiver loop due to EOFError.",
+                    "Stopping ThreadedReceiverService loop due to EOFError.",
                 )
                 break
 

@@ -30,5 +30,5 @@
 - `uv run ruff format`
 - `uv run pyright`
 - `uv run pytest`
-- 테스트 코드를 작성할 때는 `pytest.MonkeyPatch`를 사용하지 않습니다.
+- 테스트 코드를 작성할 때는 `unittest` 모듈과 `pytest.MonkeyPatch`를 사용하지 않습니다.
 - 테스트 가능성을 높이기 위해 의존성 주입을 우선적으로 사용합니다.
