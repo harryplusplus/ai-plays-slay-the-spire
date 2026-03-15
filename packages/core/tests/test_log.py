@@ -1,5 +1,3 @@
-# ruff: noqa: S101
-
 import datetime
 import inspect
 import io
@@ -10,11 +8,6 @@ from pathlib import Path
 
 import pytest
 from core import log
-
-
-class _StringableValue:
-    def __str__(self) -> str:
-        return "stringable"
 
 
 @pytest.fixture
@@ -75,7 +68,7 @@ def test_init_emits_timestamp_source_and_public_metadata(
             "_private": "hidden",
             "count": 3,
             "user": "테스터",
-            "value": _StringableValue(),
+            "value": Path("stringable"),
         },
     )
     handler.flush()

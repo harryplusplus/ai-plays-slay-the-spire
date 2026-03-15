@@ -19,6 +19,10 @@ members = ["packages/*"]
 [tool.pyright]
 typeCheckingMode = "strict"
 reportImplicitOverride = true
+include = [
+    "packages/*/src",
+    "packages/*/tests",
+]
 
 [tool.pytest.ini_options]
 addopts = "--cov --cov-report=term-missing"
@@ -42,3 +46,6 @@ include = [
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = ["D", "EM101", "EM102", "TRY003"]
+
+[tool.ruff.lint.per-file-ignores]
+"packages/*/tests/**/*.py" = ["INP001", "S101"]

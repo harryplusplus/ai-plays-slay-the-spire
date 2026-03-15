@@ -19,7 +19,16 @@
 
 ## 테스트 및 Python 지침
 - 테스트 커버리지는 유지보수 품질을 높이기 위한 수단으로 관리합니다. 커버리지를 높이기 위해 구현을 왜곡하거나 테스트를 해킹하지 않습니다.
-- Python 코드를 수정하는 작업에서는 변경 범위에 대해 `uv run ruff check --fix <관련 경로>`와 `uv run pytest <관련 경로>`로 검증합니다.
-- 검증은 항상 변경 범위에 맞는 최소 경로부터 시작하고, 영향 범위가 넓거나 커밋 전에는 필요한 범위까지 확장합니다.
+- Python 코드를 수정하는 작업에서는 변경 범위에 대해 다음 순서로 검증합니다.
+- `uv run ruff check --fix <관련 경로>`
+- `uv run ruff format <관련 경로>`
+- `uv run pyright <관련 경로>`
+- `uv run pytest <관련 경로>`
+- 검증은 항상 변경 범위에 맞는 최소 경로부터 시작합니다.
+- 영향 범위가 넓거나 커밋 전에는 전체 범위 검증으로 확장합니다.
+- `uv run ruff check`
+- `uv run ruff format`
+- `uv run pyright`
+- `uv run pytest`
 - 테스트 코드를 작성할 때는 `pytest.MonkeyPatch`를 사용하지 않습니다.
 - 테스트 가능성을 높이기 위해 의존성 주입을 우선적으로 사용합니다.
