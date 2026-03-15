@@ -35,17 +35,6 @@ def _prettify_json(json_obj: dict[str, Any]) -> str:
 def state_for_logging(state: dict[str, Any]) -> dict[str, Any]:
     filtered_state = copy.deepcopy(state)
     filtered_state.pop("game_state", None)
-
-    # game_state = filtered_state.get("game_state")
-
-    # if isinstance(game_state, dict):
-    #     gs = cast("dict[str, Any]", game_state)
-    #     gs.pop("map", None)
-    #     gs.pop("deck", None)
-    #     gs.pop("relics", None)
-    #     gs.pop("potions", None)
-    #     gs.pop("combat_state", None)
-
     return filtered_state
 
 
