@@ -2,7 +2,7 @@ import asyncio
 from typing import cast
 
 import pytest
-from bridge import connection
+from bridge.connection import ConnectionManagerService, ConnectionManagerServiceImpl
 from fastapi import WebSocket
 from starlette.websockets import WebSocketDisconnect
 
@@ -57,10 +57,12 @@ def _as_websocket(websocket: _FakeWebSocket) -> WebSocket:
 
 
 async def _connect(
-    manager: connection.ManagerService,
+    connection_manager_service: ConnectionManagerService,
     websocket: _FakeWebSocket,
 ) -> asyncio.Task[None]:
-    task = asyncio.create_task(manager.on_websocket(_as_websocket(websocket)))
+    task = asyncio.create_task(
+        connection_manager_service.on_websocket(_as_websocket(websocket)),
+    )
     await asyncio.wait_for(websocket.accepted_event.wait(), timeout=1)
     await asyncio.sleep(0)
     return task
@@ -75,11 +77,11 @@ async def test_on_websocket_accepts_receives_and_discards_connection() -> None:
         received_commands.append(command)
         command_received.set()
 
-    manager = connection.ManagerServiceImpl(command_sender)
+    connection_manager_service = ConnectionManagerServiceImpl(command_sender)
     websocket = _FakeWebSocket()
     websocket.queue_receive("play")
 
-    task = await _connect(manager, websocket)
+    task = await _connect(connection_manager_service, websocket)
     await asyncio.wait_for(command_received.wait(), timeout=1)
     websocket.queue_receive(WebSocketDisconnect(code=DISCONNECT_CODE))
     await task
@@ -87,7 +89,7 @@ async def test_on_websocket_accepts_receives_and_discards_connection() -> None:
     assert websocket.accepted is True
     assert received_commands == ["play"]
 
-    await manager.broadcast("hello")
+    await connection_manager_service.broadcast("hello")
     assert websocket.sent_messages == []
 
 
@@ -96,13 +98,13 @@ async def test_on_websocket_rejects_duplicate_connection() -> None:
     async def command_sender(command: str) -> None:
         _ = command
 
-    manager = connection.ManagerServiceImpl(command_sender)
+    connection_manager_service = ConnectionManagerServiceImpl(command_sender)
     websocket = _FakeWebSocket()
 
-    task = await _connect(manager, websocket)
+    task = await _connect(connection_manager_service, websocket)
 
     with pytest.raises(RuntimeError, match=r"WebSocket is already connected\."):
-        await manager.on_websocket(_as_websocket(websocket))
+        await connection_manager_service.on_websocket(_as_websocket(websocket))
 
     websocket.queue_receive(WebSocketDisconnect(code=DISCONNECT_CODE))
     await task
@@ -113,24 +115,24 @@ async def test_close_is_idempotent_and_rejects_future_operations() -> None:
     async def command_sender(command: str) -> None:
         _ = command
 
-    manager = connection.ManagerServiceImpl(command_sender)
+    connection_manager_service = ConnectionManagerServiceImpl(command_sender)
     healthy_websocket = _FakeWebSocket()
     failing_websocket = _FakeWebSocket(close_exception=RuntimeError("boom"))
 
-    healthy_task = await _connect(manager, healthy_websocket)
-    failing_task = await _connect(manager, failing_websocket)
+    healthy_task = await _connect(connection_manager_service, healthy_websocket)
+    failing_task = await _connect(connection_manager_service, failing_websocket)
 
-    await manager.close()
-    await manager.close()
+    await connection_manager_service.close()
+    await connection_manager_service.close()
 
     assert healthy_websocket.close_calls == [(CLOSE_CODE, CLOSE_REASON)]
     assert failing_websocket.close_calls == [(CLOSE_CODE, CLOSE_REASON)]
 
     with pytest.raises(RuntimeError, match=r"Connection manager is closed\."):
-        await manager.broadcast("hello")
+        await connection_manager_service.broadcast("hello")
 
     with pytest.raises(RuntimeError, match=r"Connection manager is closed\."):
-        await manager.on_websocket(_as_websocket(_FakeWebSocket()))
+        await connection_manager_service.on_websocket(_as_websocket(_FakeWebSocket()))
 
     healthy_websocket.queue_receive(WebSocketDisconnect(code=DISCONNECT_CODE))
     failing_websocket.queue_receive(WebSocketDisconnect(code=DISCONNECT_CODE))
@@ -143,16 +145,16 @@ async def test_message_handler_broadcasts_and_removes_stale_websockets() -> None
     async def command_sender(command: str) -> None:
         _ = command
 
-    manager = connection.ManagerServiceImpl(command_sender)
+    connection_manager_service = ConnectionManagerServiceImpl(command_sender)
     healthy_websocket = _FakeWebSocket()
     stale_websocket = _FakeWebSocket(send_exception=RuntimeError("gone"))
 
-    healthy_task = await _connect(manager, healthy_websocket)
-    stale_task = await _connect(manager, stale_websocket)
+    healthy_task = await _connect(connection_manager_service, healthy_websocket)
+    stale_task = await _connect(connection_manager_service, stale_websocket)
 
-    handler = manager.message_handler()
+    handler = connection_manager_service.message_handler()
     await handler("hello")
-    await manager.broadcast("again")
+    await connection_manager_service.broadcast("again")
 
     assert healthy_websocket.sent_messages == ["hello", "again"]
     assert stale_websocket.send_calls == 1

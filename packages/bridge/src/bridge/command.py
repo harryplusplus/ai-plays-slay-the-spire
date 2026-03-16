@@ -9,7 +9,7 @@ from typing_extensions import override
 logger = logging.getLogger(__name__)
 
 
-class Writer:
+class CommandWriter:
     def __init__(self, out: TextIO | None = None) -> None:
         self._out: TextIO = out if out is not None else sys.stdout
 
@@ -18,32 +18,33 @@ class Writer:
         self._out.flush()
 
 
-class Sender(Protocol):
+class CommandSender(Protocol):
     async def __call__(self, command: str) -> None: ...
 
 
-class SenderService(Protocol):
-    def sender(self) -> Sender: ...
-
+class CommandSenderService(Protocol):
     def close(self) -> None: ...
+    def command_sender(self) -> CommandSender: ...
 
 
-class SenderServiceImpl(SenderService):
-    def __init__(self, writer: Writer | None = None) -> None:
+class CommandSenderServiceImpl(CommandSenderService):
+    def __init__(self, command_writer: CommandWriter | None = None) -> None:
         self._executor = ThreadPoolExecutor(max_workers=1)
-        self._writer = writer if writer is not None else Writer()
-        self._logger = logger.getChild("SenderServiceImpl")
+        self._command_writer = (
+            command_writer if command_writer is not None else CommandWriter()
+        )
+        self._logger = logger.getChild("CommandSenderServiceImpl")
 
     @override
     def close(self) -> None:
-        self._logger.info("SenderServiceImpl closing...")
+        self._logger.info("Closing...")
         self._executor.shutdown()
-        self._logger.info("SenderServiceImpl closed.")
+        self._logger.info("Closed.")
 
     async def _send(self, command: str) -> None:
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(self._executor, self._writer, command)
+        await loop.run_in_executor(self._executor, self._command_writer, command)
 
     @override
-    def sender(self) -> Sender:
+    def command_sender(self) -> CommandSender:
         return self._send

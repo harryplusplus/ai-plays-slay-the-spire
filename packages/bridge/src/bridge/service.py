@@ -2,50 +2,54 @@ from typing import Protocol
 
 from typing_extensions import override
 
-from bridge import command, connection, message
+from bridge.command import CommandSenderService, CommandSenderServiceImpl
+from bridge.connection import ConnectionManagerService, ConnectionManagerServiceImpl
+from bridge.message import MessageReceiverService, MessageReceiverServiceImpl
 
 
-class Registry(Protocol):
+class ServiceRegistry(Protocol):
     async def start(self) -> None: ...
     async def close(self) -> None: ...
-    def connection_manager(self) -> connection.ManagerService: ...
+    def connection_manager_service(self) -> ConnectionManagerService: ...
 
 
-class RegistryImpl(Registry):
+class ServiceRegistryImpl(ServiceRegistry):
     def __init__(
         self,
-        command_sender: command.SenderService | None = None,
-        connection_manager: connection.ManagerService | None = None,
-        message_receiver: message.ReceiverService | None = None,
+        command_sender_service: CommandSenderService | None = None,
+        connection_manager_service: ConnectionManagerService | None = None,
+        message_receiver_service: MessageReceiverService | None = None,
     ) -> None:
-        self._command_sender = (
-            command_sender
-            if command_sender is not None
-            else command.SenderServiceImpl()
+        self._command_sender_service = (
+            command_sender_service
+            if command_sender_service is not None
+            else CommandSenderServiceImpl()
         )
-        self._connection_manager = (
-            connection_manager
-            if connection_manager is not None
-            else connection.ManagerServiceImpl(self._command_sender.sender())
+        self._connection_manager_service = (
+            connection_manager_service
+            if connection_manager_service is not None
+            else ConnectionManagerServiceImpl(
+                self._command_sender_service.command_sender(),
+            )
         )
-        self._message_receiver = (
-            message_receiver
-            if message_receiver is not None
-            else message.ReceiverServiceImpl(
-                self._connection_manager.message_handler(),
+        self._message_receiver_service = (
+            message_receiver_service
+            if message_receiver_service is not None
+            else MessageReceiverServiceImpl(
+                self._connection_manager_service.message_handler(),
             )
         )
 
     @override
     async def start(self) -> None:
-        self._message_receiver.start()
-        await self._command_sender.sender()("ready")
+        self._message_receiver_service.start()
+        await self._command_sender_service.command_sender()("ready")
 
     @override
     async def close(self) -> None:
-        await self._connection_manager.close()
-        self._command_sender.close()
+        await self._connection_manager_service.close()
+        self._command_sender_service.close()
 
     @override
-    def connection_manager(self) -> connection.ManagerService:
-        return self._connection_manager
+    def connection_manager_service(self) -> ConnectionManagerService:
+        return self._connection_manager_service

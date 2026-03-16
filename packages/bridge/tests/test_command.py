@@ -2,14 +2,14 @@ import io
 from contextlib import redirect_stdout
 
 import pytest
-from bridge import command
+from bridge.command import CommandSenderServiceImpl, CommandWriter
 
 
 def test_writer_writes_command_with_trailing_newline() -> None:
     out = io.StringIO()
-    writer = command.Writer(out)
+    command_writer = CommandWriter(out)
 
-    writer("play")
+    command_writer("play")
 
     assert out.getvalue() == "play\n"
 
@@ -18,8 +18,8 @@ def test_writer_uses_stdout_when_output_is_not_provided() -> None:
     out = io.StringIO()
 
     with redirect_stdout(out):
-        writer = command.Writer()
-        writer("ready")
+        command_writer = CommandWriter()
+        command_writer("ready")
 
     assert out.getvalue() == "ready\n"
 
@@ -27,12 +27,12 @@ def test_writer_uses_stdout_when_output_is_not_provided() -> None:
 @pytest.mark.anyio
 async def test_threaded_sender_service_sends_with_injected_writer() -> None:
     out = io.StringIO()
-    threaded_sender = command.SenderServiceImpl(command.Writer(out))
+    command_sender_service = CommandSenderServiceImpl(CommandWriter(out))
 
     try:
-        await threaded_sender.sender()("play")
+        await command_sender_service.command_sender()("play")
     finally:
-        threaded_sender.close()
+        command_sender_service.close()
 
     assert out.getvalue() == "play\n"
 
@@ -44,10 +44,10 @@ async def test_threaded_sender_service_uses_stdout_when_writer_is_not_provided()
     out = io.StringIO()
 
     with redirect_stdout(out):
-        threaded_sender = command.SenderServiceImpl()
+        command_sender_service = CommandSenderServiceImpl()
         try:
-            await threaded_sender.sender()("ready")
+            await command_sender_service.command_sender()("ready")
         finally:
-            threaded_sender.close()
+            command_sender_service.close()
 
     assert out.getvalue() == "ready\n"

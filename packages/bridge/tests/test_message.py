@@ -4,22 +4,22 @@ import logging
 import sys
 
 import pytest
-from bridge import message
+from bridge.message import MessageReader, MessageReceiverServiceImpl
 
 EXPECTED_MESSAGE_COUNT = 2
 
 
 def test_reader_returns_stripped_line_from_injected_input() -> None:
-    reader = message.Reader(io.StringIO("hello\n"))
+    message_reader = MessageReader(io.StringIO("hello\n"))
 
-    assert reader() == "hello"
+    assert message_reader() == "hello"
 
 
 def test_reader_raises_eof_error_when_input_reaches_eof() -> None:
-    reader = message.Reader(io.StringIO(""))
+    message_reader = MessageReader(io.StringIO(""))
 
-    with pytest.raises(EOFError, match=r"message\.Reader reached EOF\."):
-        reader()
+    with pytest.raises(EOFError, match=r"MessageReader reached EOF\."):
+        message_reader()
 
 
 def test_reader_uses_stdin_when_input_is_not_provided() -> None:
@@ -27,8 +27,8 @@ def test_reader_uses_stdin_when_input_is_not_provided() -> None:
     sys.stdin = io.StringIO("ready\n")
 
     try:
-        reader = message.Reader()
-        assert reader() == "ready"
+        message_reader = MessageReader()
+        assert message_reader() == "ready"
     finally:
         sys.stdin = original_stdin
 
@@ -40,23 +40,23 @@ async def test_threaded_receiver_service_reads_messages_until_eof(
     received_messages: list[str] = []
     received_all_messages = asyncio.Event()
 
-    async def handler(message: str) -> None:
+    async def message_handler(message: str) -> None:
         received_messages.append(message)
         if len(received_messages) == EXPECTED_MESSAGE_COUNT:
             received_all_messages.set()
 
-    receiver = message.ReceiverServiceImpl(
-        handler=handler,
-        reader=message.Reader(io.StringIO("first\nsecond\n")),
+    message_receiver_service = MessageReceiverServiceImpl(
+        message_handler=message_handler,
+        message_reader=MessageReader(io.StringIO("first\nsecond\n")),
     )
 
     with caplog.at_level(logging.INFO, logger="bridge.message"):
-        receiver.start()
+        message_receiver_service.start()
         await asyncio.wait_for(received_all_messages.wait(), timeout=1)
         await asyncio.sleep(0)
 
     assert received_messages == ["first", "second"]
-    assert "Stopping ReceiverServiceImpl loop due to EOFError." in caplog.text
+    assert "Stopping loop due to EOFError." in caplog.text
 
 
 @pytest.mark.anyio
@@ -65,18 +65,18 @@ async def test_threaded_receiver_service_logs_handler_exceptions(
 ) -> None:
     handler_started = asyncio.Event()
 
-    async def handler(message: str) -> None:
+    async def message_handler(message: str) -> None:
         assert message == "boom"
         handler_started.set()
         raise RuntimeError("boom")
 
-    receiver = message.ReceiverServiceImpl(
-        handler=handler,
-        reader=message.Reader(io.StringIO("boom\n")),
+    message_receiver_service = MessageReceiverServiceImpl(
+        message_handler=message_handler,
+        message_reader=MessageReader(io.StringIO("boom\n")),
     )
 
     with caplog.at_level(logging.ERROR, logger="bridge.message"):
-        receiver.start()
+        message_receiver_service.start()
         await asyncio.wait_for(handler_started.wait(), timeout=1)
         await asyncio.sleep(0)
 

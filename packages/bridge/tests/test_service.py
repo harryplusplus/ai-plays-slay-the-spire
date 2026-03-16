@@ -1,10 +1,13 @@
 import pytest
-from bridge import command, connection, message, service
+from bridge.command import CommandSender, CommandSenderService
+from bridge.connection import ConnectionManagerService
+from bridge.message import MessageHandler, MessageReceiverService
+from bridge.service import ServiceRegistryImpl
 from fastapi import WebSocket
 from typing_extensions import override
 
 
-class _FakeSenderService(command.SenderService):
+class _FakeCommandSenderService(CommandSenderService):
     def __init__(self) -> None:
         self.commands: list[str] = []
         self.closed = False
@@ -13,7 +16,7 @@ class _FakeSenderService(command.SenderService):
         self.commands.append(command)
 
     @override
-    def sender(self) -> command.Sender:
+    def command_sender(self) -> CommandSender:
         return self._send
 
     @override
@@ -21,7 +24,7 @@ class _FakeSenderService(command.SenderService):
         self.closed = True
 
 
-class _FakeConnectionManager(connection.ManagerService):
+class _FakeConnectionManagerService(ConnectionManagerService):
     def __init__(self) -> None:
         self.closed = False
 
@@ -38,11 +41,11 @@ class _FakeConnectionManager(connection.ManagerService):
         self.closed = True
 
     @override
-    def message_handler(self) -> message.Handler:
+    def message_handler(self) -> MessageHandler:
         return self.broadcast
 
 
-class _FakeReceiverService(message.ReceiverService):
+class _FakeMessageReceiverService(MessageReceiverService):
     def __init__(self) -> None:
         self.started = False
 
@@ -53,43 +56,43 @@ class _FakeReceiverService(message.ReceiverService):
 
 @pytest.mark.anyio
 async def test_registry_impl_starts_receiver_and_sends_ready() -> None:
-    sender = _FakeSenderService()
-    manager = _FakeConnectionManager()
-    receiver = _FakeReceiverService()
-    registry = service.RegistryImpl(
-        command_sender=sender,
-        connection_manager=manager,
-        message_receiver=receiver,
+    command_sender_service = _FakeCommandSenderService()
+    connection_manager_service = _FakeConnectionManagerService()
+    message_receiver_service = _FakeMessageReceiverService()
+    service_registry = ServiceRegistryImpl(
+        command_sender_service=command_sender_service,
+        connection_manager_service=connection_manager_service,
+        message_receiver_service=message_receiver_service,
     )
 
-    await registry.start()
+    await service_registry.start()
 
-    assert receiver.started is True
-    assert sender.commands == ["ready"]
+    assert message_receiver_service.started is True
+    assert command_sender_service.commands == ["ready"]
 
 
 @pytest.mark.anyio
 async def test_registry_impl_closes_connection_manager_and_sender() -> None:
-    sender = _FakeSenderService()
-    manager = _FakeConnectionManager()
-    registry = service.RegistryImpl(
-        command_sender=sender,
-        connection_manager=manager,
-        message_receiver=_FakeReceiverService(),
+    command_sender_service = _FakeCommandSenderService()
+    connection_manager_service = _FakeConnectionManagerService()
+    service_registry = ServiceRegistryImpl(
+        command_sender_service=command_sender_service,
+        connection_manager_service=connection_manager_service,
+        message_receiver_service=_FakeMessageReceiverService(),
     )
 
-    await registry.close()
+    await service_registry.close()
 
-    assert manager.closed is True
-    assert sender.closed is True
+    assert connection_manager_service.closed is True
+    assert command_sender_service.closed is True
 
 
 def test_registry_impl_returns_connection_manager() -> None:
-    manager = _FakeConnectionManager()
-    registry = service.RegistryImpl(
-        command_sender=_FakeSenderService(),
-        connection_manager=manager,
-        message_receiver=_FakeReceiverService(),
+    connection_manager_service = _FakeConnectionManagerService()
+    service_registry = ServiceRegistryImpl(
+        command_sender_service=_FakeCommandSenderService(),
+        connection_manager_service=connection_manager_service,
+        message_receiver_service=_FakeMessageReceiverService(),
     )
 
-    assert registry.connection_manager() is manager
+    assert service_registry.connection_manager_service() is connection_manager_service

@@ -1,12 +1,13 @@
-from dataclasses import dataclass
-
-from bridge import api, connection, message, service
+from bridge.api import create_app
+from bridge.connection import ConnectionManagerService
+from bridge.message import MessageHandler
+from bridge.service import ServiceRegistry
 from fastapi import FastAPI, WebSocket
 from fastapi.testclient import TestClient
 from typing_extensions import override
 
 
-class _FakeConnectionManager(connection.ManagerService):
+class _FakeConnectionManagerService(ConnectionManagerService):
     def __init__(self) -> None:
         self.received_commands: list[str] = []
         self.closed = False
@@ -25,15 +26,18 @@ class _FakeConnectionManager(connection.ManagerService):
         self.closed = True
 
     @override
-    def message_handler(self) -> message.Handler:
+    def message_handler(self) -> MessageHandler:
         return self.broadcast
 
 
-@dataclass
-class _FakeRegistry(service.Registry):
-    connection_manager_service: connection.ManagerService
-    started: bool = False
-    closed: bool = False
+class _FakeServiceRegistry(ServiceRegistry):
+    def __init__(
+        self,
+        connection_manager_service: ConnectionManagerService,
+    ) -> None:
+        self._connection_manager_service = connection_manager_service
+        self.started = False
+        self.closed = False
 
     @override
     async def start(self) -> None:
@@ -44,24 +48,26 @@ class _FakeRegistry(service.Registry):
         self.closed = True
 
     @override
-    def connection_manager(self) -> connection.ManagerService:
-        return self.connection_manager_service
+    def connection_manager_service(self) -> ConnectionManagerService:
+        return self._connection_manager_service
 
 
 def test_test_client_runs_registry_lifecycle() -> None:
-    registry = _FakeRegistry(_FakeConnectionManager())
-    app = api.create_app(registry=registry)
+    service_registry = _FakeServiceRegistry(_FakeConnectionManagerService())
+    app = create_app(service_registry=service_registry)
 
     with TestClient(app):
-        assert registry.started is True
-        assert app.state.registry is registry
+        assert service_registry.started is True
+        assert app.state.service_registry is service_registry
 
-    assert registry.closed is True
+    assert service_registry.closed is True
 
 
 def test_websocket_route_forwards_commands_to_connection_manager() -> None:
-    manager = _FakeConnectionManager()
-    app = api.create_app(registry=_FakeRegistry(manager))
+    connection_manager_service = _FakeConnectionManagerService()
+    app = create_app(
+        service_registry=_FakeServiceRegistry(connection_manager_service),
+    )
 
     with (
         TestClient(app) as client,
@@ -69,11 +75,11 @@ def test_websocket_route_forwards_commands_to_connection_manager() -> None:
     ):
         websocket.send_text("play")
 
-    assert manager.received_commands == ["play"]
+    assert connection_manager_service.received_commands == ["play"]
 
 
 def test_create_app_uses_default_registry_when_not_provided() -> None:
-    app = api.create_app()
+    app = create_app()
 
     assert isinstance(app, FastAPI)
     assert app.router.routes

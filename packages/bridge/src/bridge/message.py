@@ -10,14 +10,14 @@ from typing_extensions import override
 logger = logging.getLogger(__name__)
 
 
-class Reader:
+class MessageReader:
     def __init__(self, in_: TextIO | None = None) -> None:
         self._in: TextIO = in_ if in_ is not None else sys.stdin
 
     def __call__(self) -> str:
         line = self._in.readline()
         if line == "":
-            raise EOFError("message.Reader reached EOF.")
+            raise EOFError("MessageReader reached EOF.")
         return line.rstrip()
 
 
@@ -28,24 +28,26 @@ def _on_done(future: concurrent.futures.Future[None]) -> None:
         logger.exception("Error sending message to connection.")
 
 
-class Handler(Protocol):
+class MessageHandler(Protocol):
     async def __call__(self, message: str) -> None: ...
 
 
-class ReceiverService(Protocol):
+class MessageReceiverService(Protocol):
     def start(self) -> None: ...
 
 
-class ReceiverServiceImpl(ReceiverService):
+class MessageReceiverServiceImpl(MessageReceiverService):
     def __init__(
         self,
-        handler: Handler,
-        reader: Reader | None = None,
+        message_handler: MessageHandler,
+        message_reader: MessageReader | None = None,
     ) -> None:
-        self._handler = handler
-        self._reader = reader if reader is not None else Reader()
+        self._message_handler = message_handler
+        self._message_reader = (
+            message_reader if message_reader is not None else MessageReader()
+        )
         self._thread: threading.Thread | None = None
-        self._logger = logger.getChild("ReceiverServiceImpl")
+        self._logger = logger.getChild("MessageReceiverServiceImpl")
 
     @override
     def start(self) -> None:
@@ -60,15 +62,15 @@ class ReceiverServiceImpl(ReceiverService):
     def _run(self, loop: asyncio.AbstractEventLoop) -> None:
         while True:
             try:
-                message = self._reader()
+                message = self._message_reader()
             except EOFError:
                 self._logger.info(
-                    "Stopping ReceiverServiceImpl loop due to EOFError.",
+                    "Stopping loop due to EOFError.",
                 )
                 break
 
             future = asyncio.run_coroutine_threadsafe(
-                self._handler(message),
+                self._message_handler(message),
                 loop,
             )
             future.add_done_callback(_on_done)
