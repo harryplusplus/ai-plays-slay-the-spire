@@ -57,7 +57,7 @@ def _as_websocket(websocket: _FakeWebSocket) -> WebSocket:
 
 
 async def _connect(
-    manager: connection.Manager,
+    manager: connection.ManagerService,
     websocket: _FakeWebSocket,
 ) -> asyncio.Task[None]:
     task = asyncio.create_task(manager.on_websocket(_as_websocket(websocket)))
@@ -75,7 +75,7 @@ async def test_on_websocket_accepts_receives_and_discards_connection() -> None:
         received_commands.append(command)
         command_received.set()
 
-    manager = connection.Manager(command_sender)
+    manager = connection.ManagerServiceImpl(command_sender)
     websocket = _FakeWebSocket()
     websocket.queue_receive("play")
 
@@ -96,7 +96,7 @@ async def test_on_websocket_rejects_duplicate_connection() -> None:
     async def command_sender(command: str) -> None:
         _ = command
 
-    manager = connection.Manager(command_sender)
+    manager = connection.ManagerServiceImpl(command_sender)
     websocket = _FakeWebSocket()
 
     task = await _connect(manager, websocket)
@@ -113,7 +113,7 @@ async def test_close_is_idempotent_and_rejects_future_operations() -> None:
     async def command_sender(command: str) -> None:
         _ = command
 
-    manager = connection.Manager(command_sender)
+    manager = connection.ManagerServiceImpl(command_sender)
     healthy_websocket = _FakeWebSocket()
     failing_websocket = _FakeWebSocket(close_exception=RuntimeError("boom"))
 
@@ -143,7 +143,7 @@ async def test_message_handler_broadcasts_and_removes_stale_websockets() -> None
     async def command_sender(command: str) -> None:
         _ = command
 
-    manager = connection.Manager(command_sender)
+    manager = connection.ManagerServiceImpl(command_sender)
     healthy_websocket = _FakeWebSocket()
     stale_websocket = _FakeWebSocket(send_exception=RuntimeError("gone"))
 

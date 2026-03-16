@@ -36,7 +36,7 @@ class ReceiverService(Protocol):
     def start(self) -> None: ...
 
 
-class ThreadedReceiverService(ReceiverService):
+class ReceiverServiceImpl(ReceiverService):
     def __init__(
         self,
         handler: Handler,
@@ -45,6 +45,7 @@ class ThreadedReceiverService(ReceiverService):
         self._handler = handler
         self._reader = reader if reader is not None else Reader()
         self._thread: threading.Thread | None = None
+        self._logger = logger.getChild("ReceiverServiceImpl")
 
     @override
     def start(self) -> None:
@@ -61,8 +62,8 @@ class ThreadedReceiverService(ReceiverService):
             try:
                 message = self._reader()
             except EOFError:
-                logger.info(
-                    "Stopping ThreadedReceiverService loop due to EOFError.",
+                self._logger.info(
+                    "Stopping ReceiverServiceImpl loop due to EOFError.",
                 )
                 break
 

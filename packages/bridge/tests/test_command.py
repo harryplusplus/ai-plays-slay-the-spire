@@ -27,7 +27,7 @@ def test_writer_uses_stdout_when_output_is_not_provided() -> None:
 @pytest.mark.anyio
 async def test_threaded_sender_service_sends_with_injected_writer() -> None:
     out = io.StringIO()
-    threaded_sender = command.ThreadedSenderService(command.Writer(out))
+    threaded_sender = command.SenderServiceImpl(command.Writer(out))
 
     try:
         await threaded_sender.sender()("play")
@@ -44,7 +44,7 @@ async def test_threaded_sender_service_uses_stdout_when_writer_is_not_provided()
     out = io.StringIO()
 
     with redirect_stdout(out):
-        threaded_sender = command.ThreadedSenderService()
+        threaded_sender = command.SenderServiceImpl()
         try:
             await threaded_sender.sender()("ready")
         finally:

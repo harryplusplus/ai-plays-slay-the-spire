@@ -45,7 +45,7 @@ async def test_threaded_receiver_service_reads_messages_until_eof(
         if len(received_messages) == EXPECTED_MESSAGE_COUNT:
             received_all_messages.set()
 
-    receiver = message.ThreadedReceiverService(
+    receiver = message.ReceiverServiceImpl(
         handler=handler,
         reader=message.Reader(io.StringIO("first\nsecond\n")),
     )
@@ -56,7 +56,7 @@ async def test_threaded_receiver_service_reads_messages_until_eof(
         await asyncio.sleep(0)
 
     assert received_messages == ["first", "second"]
-    assert "Stopping ThreadedReceiverService loop due to EOFError." in caplog.text
+    assert "Stopping ReceiverServiceImpl loop due to EOFError." in caplog.text
 
 
 @pytest.mark.anyio
@@ -70,7 +70,7 @@ async def test_threaded_receiver_service_logs_handler_exceptions(
         handler_started.set()
         raise RuntimeError("boom")
 
-    receiver = message.ThreadedReceiverService(
+    receiver = message.ReceiverServiceImpl(
         handler=handler,
         reader=message.Reader(io.StringIO("boom\n")),
     )

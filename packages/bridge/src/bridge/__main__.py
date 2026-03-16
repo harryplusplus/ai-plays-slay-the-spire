@@ -4,10 +4,10 @@ if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 
     from bridge import log
-    from bridge.api import app
+    from bridge.api import create_app
 
     logger = logging.getLogger(__name__)
     log.init()
     logger.info("Started.")
-    uvicorn.run(app, log_config=None)
+    uvicorn.run(create_app(), log_config=None)
     logger.info("Exited.")

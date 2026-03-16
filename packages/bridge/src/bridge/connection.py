@@ -1,19 +1,29 @@
 import logging
 from contextlib import suppress
+from typing import Protocol
 
 from fastapi import WebSocket, WebSocketDisconnect
+from typing_extensions import override
 
 from bridge import command, message
 
 logger = logging.getLogger(__name__)
 
 
-class Manager:
+class ManagerService(Protocol):
+    async def on_websocket(self, websocket: WebSocket) -> None: ...
+    async def broadcast(self, message: str) -> None: ...
+    async def close(self) -> None: ...
+    def message_handler(self) -> message.Handler: ...
+
+
+class ManagerServiceImpl(ManagerService):
     def __init__(self, command_sender: command.Sender) -> None:
         self._websockets: set[WebSocket] = set()
         self._command_sender = command_sender
         self._closed = False
 
+    @override
     async def close(self) -> None:
         if self._closed:
             return
@@ -27,6 +37,7 @@ class Manager:
             with suppress(WebSocketDisconnect, RuntimeError):
                 await websocket.close(1001, "Connection manager is closed.")
 
+    @override
     async def on_websocket(self, websocket: WebSocket) -> None:
         self._check_closed()
 
@@ -47,6 +58,7 @@ class Manager:
         finally:
             self._websockets.discard(websocket)
 
+    @override
     async def broadcast(self, message: str) -> None:
         self._check_closed()
 
@@ -65,5 +77,6 @@ class Manager:
         if self._closed:
             raise RuntimeError("Connection manager is closed.")
 
+    @override
     def message_handler(self) -> message.Handler:
         return self.broadcast

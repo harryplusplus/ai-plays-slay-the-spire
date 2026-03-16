@@ -28,16 +28,17 @@ class SenderService(Protocol):
     def close(self) -> None: ...
 
 
-class ThreadedSenderService(SenderService):
+class SenderServiceImpl(SenderService):
     def __init__(self, writer: Writer | None = None) -> None:
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._writer = writer if writer is not None else Writer()
+        self._logger = logger.getChild("SenderServiceImpl")
 
     @override
     def close(self) -> None:
-        logger.info("ThreadedSenderService closing...")
+        self._logger.info("SenderServiceImpl closing...")
         self._executor.shutdown()
-        logger.info("ThreadedSenderService closed.")
+        self._logger.info("SenderServiceImpl closed.")
 
     async def _send(self, command: str) -> None:
         loop = asyncio.get_running_loop()
