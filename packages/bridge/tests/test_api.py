@@ -72,6 +72,8 @@ def test_websocket_route_forwards_commands_to_connection_manager() -> None:
     assert manager.received_commands == ["play"]
 
 
-def test_module_level_app_uses_create_app() -> None:
-    assert isinstance(api.app, FastAPI)
-    assert api.app.router.routes
+def test_create_app_uses_default_registry_when_not_provided() -> None:
+    app = api.create_app()
+
+    assert isinstance(app, FastAPI)
+    assert app.router.routes
