@@ -20,10 +20,7 @@ members = ["packages/*"]
 [tool.pyright]
 typeCheckingMode = "strict"
 reportImplicitOverride = true
-include = [
-    "packages/*/src",
-    "packages/*/tests",
-]
+include = ["packages/*/src", "packages/*/tests"]
 
 [tool.pytest.ini_options]
 addopts = "--cov --cov-report=term-missing"
@@ -50,3 +47,7 @@ ignore = ["COM812", "COM819", "D", "EM101", "EM102", "TRY003"]
 
 [tool.ruff.lint.per-file-ignores]
 "packages/*/tests/**/*.py" = ["INP001", "S101"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"unittest".msg = "unittest대신 pytest를 사용합니다. unittest.mock대신 의존성 주입을 사용합니다."
+"pytest.MonkeyPatch".msg = "monkeypatch대신 의존성 주입을 사용합니다."
