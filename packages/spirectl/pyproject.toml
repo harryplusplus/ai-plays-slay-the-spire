@@ -1,0 +1,19 @@
+[project]
+name = "spirectl"
+version = "0.0.0"
+description = "CLI tool for AI plays Slay the Spire"
+dependencies = [
+    "core>=0.0.0",
+    "typer>=0.24.1",
+    "websockets>=16.0",
+]
+
+[project.scripts]
+spirectl = "spirectl.cli:main"
+
+[tool.uv.sources]
+core = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.10.9,<0.11.0"]
+build-backend = "uv_build"

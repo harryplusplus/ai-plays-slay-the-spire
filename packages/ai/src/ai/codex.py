@@ -1,7 +1,11 @@
 import logging
 import subprocess
 
-from core.paths import AGENT_DIR, OUTPUT_LAST_MESSAGE, OUTPUT_SCHEMA
+from core.paths import (
+    AGENT_DIR,
+    OUTPUT_LAST_MESSAGE_FILE,
+    OUTPUT_SCHEMA_FILE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +25,7 @@ def _build_cmd(*, resume: bool) -> list[str]:
             "--sandbox",
             "workspace-write",
             "--output-schema",
-            str(OUTPUT_SCHEMA),
+            str(OUTPUT_SCHEMA_FILE),
         ]
 
     cmd += [
@@ -30,7 +34,7 @@ def _build_cmd(*, resume: bool) -> list[str]:
         "--model",
         "gpt-5.4",
         "--output-last-message",
-        str(OUTPUT_LAST_MESSAGE),
+        str(OUTPUT_LAST_MESSAGE_FILE),
         "-",
     ]
 
@@ -78,5 +82,5 @@ def execute(
             proc.kill()
             proc.wait()
 
-    with OUTPUT_LAST_MESSAGE.open() as f:
+    with OUTPUT_LAST_MESSAGE_FILE.open() as f:
         return f.read()
