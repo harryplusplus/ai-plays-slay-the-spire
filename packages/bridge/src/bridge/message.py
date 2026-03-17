@@ -3,7 +3,6 @@ import concurrent.futures
 import logging
 import sys
 import threading
-from logging import Logger
 from typing import Protocol, TextIO
 
 from typing_extensions import override
@@ -33,18 +32,13 @@ class MessageReceiverServiceImpl(MessageReceiverService):
         self,
         message_handler: MessageHandler,
         message_reader: MessageReader | None = None,
-        logger: Logger | None = None,
     ) -> None:
         self._message_handler = message_handler
         self._message_reader = (
             message_reader if message_reader is not None else MessageReader()
         )
         self._thread: threading.Thread | None = None
-        self._logger = (
-            logger
-            if logger is not None
-            else logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        )
+        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     @override
     def start(self) -> None:
