@@ -3,11 +3,10 @@ import concurrent.futures
 import logging
 import sys
 import threading
+from logging import Logger
 from typing import Protocol, TextIO
 
 from typing_extensions import override
-
-logger = logging.getLogger(__name__)
 
 
 class MessageReader:
@@ -19,13 +18,6 @@ class MessageReader:
         if line == "":
             raise EOFError("MessageReader reached EOF.")
         return line.rstrip()
-
-
-def _on_done(future: concurrent.futures.Future[None]) -> None:
-    try:
-        future.result()
-    except Exception:
-        logger.exception("Error sending message to connection.")
 
 
 class MessageHandler(Protocol):
@@ -41,13 +33,18 @@ class MessageReceiverServiceImpl(MessageReceiverService):
         self,
         message_handler: MessageHandler,
         message_reader: MessageReader | None = None,
+        logger: Logger | None = None,
     ) -> None:
         self._message_handler = message_handler
         self._message_reader = (
             message_reader if message_reader is not None else MessageReader()
         )
         self._thread: threading.Thread | None = None
-        self._logger = logger.getChild("MessageReceiverServiceImpl")
+        self._logger = (
+            logger
+            if logger is not None
+            else logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        )
 
     @override
     def start(self) -> None:
@@ -73,4 +70,10 @@ class MessageReceiverServiceImpl(MessageReceiverService):
                 self._message_handler(message),
                 loop,
             )
-            future.add_done_callback(_on_done)
+            future.add_done_callback(self._on_done)
+
+    def _on_done(self, future: concurrent.futures.Future[None]) -> None:
+        try:
+            future.result()
+        except Exception:
+            self._logger.exception("Error sending message to connection.")

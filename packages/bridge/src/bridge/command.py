@@ -2,11 +2,10 @@ import asyncio
 import logging
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from logging import Logger
 from typing import Protocol, TextIO
 
 from typing_extensions import override
-
-logger = logging.getLogger(__name__)
 
 
 class CommandWriter:
@@ -28,12 +27,20 @@ class CommandSenderService(Protocol):
 
 
 class CommandSenderServiceImpl(CommandSenderService):
-    def __init__(self, command_writer: CommandWriter | None = None) -> None:
+    def __init__(
+        self,
+        command_writer: CommandWriter | None = None,
+        logger: Logger | None = None,
+    ) -> None:
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._command_writer = (
             command_writer if command_writer is not None else CommandWriter()
         )
-        self._logger = logger.getChild("CommandSenderServiceImpl")
+        self._logger = (
+            logger
+            if logger is not None
+            else logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        )
 
     @override
     def close(self) -> None:

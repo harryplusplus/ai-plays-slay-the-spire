@@ -4,10 +4,11 @@ if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 
     from bridge import log
-    from bridge.api import create_app
+    from bridge.api import AppFactory
 
     logger = logging.getLogger(__name__)
     log.init()
     logger.info("Started.")
-    uvicorn.run(create_app(), log_config=None)
+    app_factory = AppFactory()
+    uvicorn.run(app_factory(), log_config=None, ws="websockets")
     logger.info("Exited.")

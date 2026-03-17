@@ -2,51 +2,60 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, WebSocket
+from starlette.datastructures import State
 
 from bridge.service import ServiceRegistry, ServiceRegistryImpl
 
 router = APIRouter()
 
 
-def _set_service_registry(
-    app: FastAPI,
-    service_registry: ServiceRegistry,
-) -> None:
-    app.state.service_registry = service_registry
-
-
-def _get_service_registry(app: FastAPI) -> ServiceRegistry:
-    return app.state.service_registry
-
-
 @router.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket,
 ) -> None:
+    state_accessor = _StateAccessor(websocket.app.state)
     await (
-        _get_service_registry(websocket.app)
+        state_accessor.get_service_registry()
         .connection_manager_service()
         .on_websocket(websocket)
     )
 
 
-def create_app(
-    *,
-    service_registry: ServiceRegistry | None = None,
-) -> FastAPI:
-    if service_registry is None:
-        service_registry = ServiceRegistryImpl()
+class _StateAccessor:
+    def __init__(self, state: State) -> None:
+        self._state = state
 
-    @asynccontextmanager
-    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        _set_service_registry(app, service_registry)
-        await service_registry.start()
-        yield
-        await service_registry.close()
+    def set_service_registry(self, service_registry: ServiceRegistry) -> None:
+        self._state.service_registry = service_registry
 
-    app = FastAPI(
-        lifespan=lifespan,
-    )
-    app.include_router(router)
+    def get_service_registry(self) -> ServiceRegistry:
+        return self._state.service_registry
 
-    return app
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    service_registry = _StateAccessor(app.state).get_service_registry()
+    await service_registry.start()
+    yield
+    await service_registry.close()
+
+
+class AppFactory:
+    def __init__(
+        self,
+        service_registry: ServiceRegistry | None = None,
+    ) -> None:
+        self._service_registry = (
+            service_registry if service_registry is not None else ServiceRegistryImpl()
+        )
+
+    def __call__(
+        self,
+    ) -> FastAPI:
+        app = FastAPI(
+            lifespan=_lifespan,
+        )
+        _StateAccessor(app.state).set_service_registry(self._service_registry)
+        app.include_router(router)
+
+        return app
