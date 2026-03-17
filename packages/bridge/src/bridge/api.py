@@ -16,7 +16,7 @@ async def websocket_endpoint(
 ) -> None:
     state_accessor = _StateAccessor(websocket.app.state)
     await (
-        state_accessor.get_service_registry()
+        state_accessor.service_registry()
         .connection_manager_service()
         .on_connection(WebSocketConnection(websocket))
     )
@@ -29,13 +29,13 @@ class _StateAccessor:
     def set_service_registry(self, service_registry: ServiceRegistry) -> None:
         self._state.service_registry = service_registry
 
-    def get_service_registry(self) -> ServiceRegistry:
+    def service_registry(self) -> ServiceRegistry:
         return self._state.service_registry
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    service_registry = _StateAccessor(app.state).get_service_registry()
+    service_registry = _StateAccessor(app.state).service_registry()
     await service_registry.start()
     yield
     await service_registry.close()
