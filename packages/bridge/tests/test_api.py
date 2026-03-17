@@ -1,8 +1,8 @@
-from bridge.api import create_app
-from bridge.connection import ConnectionManagerService
+from bridge.api import AppFactory
+from bridge.connection import Connection, ConnectionManagerService
 from bridge.message import MessageHandler
 from bridge.service import ServiceRegistry
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from typing_extensions import override
 
@@ -13,9 +13,9 @@ class _FakeConnectionManagerService(ConnectionManagerService):
         self.closed = False
 
     @override
-    async def on_websocket(self, websocket: WebSocket) -> None:
-        await websocket.accept()
-        self.received_commands.append(await websocket.receive_text())
+    async def on_connection(self, connection: Connection) -> None:
+        await connection.accept()
+        self.received_commands.append(await connection.receive_text())
 
     @override
     async def broadcast(self, message: str) -> None:
@@ -54,7 +54,7 @@ class _FakeServiceRegistry(ServiceRegistry):
 
 def test_test_client_runs_registry_lifecycle() -> None:
     service_registry = _FakeServiceRegistry(_FakeConnectionManagerService())
-    app = create_app(service_registry=service_registry)
+    app = AppFactory(service_registry)()
 
     with TestClient(app):
         assert service_registry.started is True
@@ -65,9 +65,7 @@ def test_test_client_runs_registry_lifecycle() -> None:
 
 def test_websocket_route_forwards_commands_to_connection_manager() -> None:
     connection_manager_service = _FakeConnectionManagerService()
-    app = create_app(
-        service_registry=_FakeServiceRegistry(connection_manager_service),
-    )
+    app = AppFactory(_FakeServiceRegistry(connection_manager_service))()
 
     with (
         TestClient(app) as client,
@@ -78,8 +76,8 @@ def test_websocket_route_forwards_commands_to_connection_manager() -> None:
     assert connection_manager_service.received_commands == ["play"]
 
 
-def test_create_app_uses_default_registry_when_not_provided() -> None:
-    app = create_app()
+def test_app_factory_uses_default_registry_when_not_provided() -> None:
+    app = AppFactory()()
 
     assert isinstance(app, FastAPI)
     assert app.router.routes

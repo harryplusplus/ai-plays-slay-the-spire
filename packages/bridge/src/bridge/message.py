@@ -76,4 +76,4 @@ class MessageReceiverServiceImpl(MessageReceiverService):
         try:
             future.result()
         except Exception:
-            self._logger.exception("Error sending message to connection.")
+            self._logger.exception("Error running message handler.")

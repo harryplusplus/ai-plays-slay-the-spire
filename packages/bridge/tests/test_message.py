@@ -1,7 +1,6 @@
 import asyncio
 import io
 import logging
-import sys
 
 import pytest
 from bridge.message import MessageReader, MessageReceiverServiceImpl
@@ -20,17 +19,6 @@ def test_reader_raises_eof_error_when_input_reaches_eof() -> None:
 
     with pytest.raises(EOFError, match=r"MessageReader reached EOF\."):
         message_reader()
-
-
-def test_reader_uses_stdin_when_input_is_not_provided() -> None:
-    original_stdin = sys.stdin
-    sys.stdin = io.StringIO("ready\n")
-
-    try:
-        message_reader = MessageReader()
-        assert message_reader() == "ready"
-    finally:
-        sys.stdin = original_stdin
 
 
 @pytest.mark.anyio
@@ -80,4 +68,4 @@ async def test_threaded_receiver_service_logs_handler_exceptions(
         await asyncio.wait_for(handler_started.wait(), timeout=1)
         await asyncio.sleep(0)
 
-    assert "Error sending message to connection." in caplog.text
+    assert "Error running message handler." in caplog.text

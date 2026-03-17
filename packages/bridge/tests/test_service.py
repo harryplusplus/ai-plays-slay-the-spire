@@ -1,9 +1,8 @@
 import pytest
 from bridge.command import CommandSender, CommandSenderService
-from bridge.connection import ConnectionManagerService
+from bridge.connection import Connection, ConnectionManagerService
 from bridge.message import MessageHandler, MessageReceiverService
 from bridge.service import ServiceRegistryImpl
-from fastapi import WebSocket
 from typing_extensions import override
 
 
@@ -29,8 +28,8 @@ class _FakeConnectionManagerService(ConnectionManagerService):
         self.closed = False
 
     @override
-    async def on_websocket(self, websocket: WebSocket) -> None:
-        _ = websocket
+    async def on_connection(self, connection: Connection) -> None:
+        _ = connection
 
     @override
     async def broadcast(self, message: str) -> None:
