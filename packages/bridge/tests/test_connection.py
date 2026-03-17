@@ -1,4 +1,5 @@
 import asyncio
+from typing import cast
 
 import pytest
 from bridge.connection import (
@@ -6,7 +7,10 @@ from bridge.connection import (
     Connection,
     ConnectionManagerService,
     ConnectionManagerServiceImpl,
+    WebSocketConnection,
 )
+from fastapi import WebSocket
+from starlette.websockets import WebSocketDisconnect
 from typing_extensions import override
 
 CLOSE_CODE = 1001
@@ -58,6 +62,75 @@ class _FakeConnection(Connection):
             raise self._close_exception
 
 
+class _FakeWebSocket:
+    def __init__(
+        self,
+        *,
+        receive_text_value: str = "play",
+        accept_exception: Exception | None = None,
+        receive_text_exception: Exception | None = None,
+        send_text_exception: Exception | None = None,
+        close_exception: Exception | None = None,
+    ) -> None:
+        self.accept_calls = 0
+        self.receive_text_calls = 0
+        self.sent_messages: list[str] = []
+        self.close_calls: list[tuple[int, str]] = []
+        self._receive_text_value = receive_text_value
+        self._accept_exception = accept_exception
+        self._receive_text_exception = receive_text_exception
+        self._send_text_exception = send_text_exception
+        self._close_exception = close_exception
+
+    async def accept(self) -> None:
+        self.accept_calls += 1
+        if self._accept_exception is not None:
+            raise self._accept_exception
+
+    async def receive_text(self) -> str:
+        self.receive_text_calls += 1
+        if self._receive_text_exception is not None:
+            raise self._receive_text_exception
+        return self._receive_text_value
+
+    async def send_text(self, message: str) -> None:
+        if self._send_text_exception is not None:
+            raise self._send_text_exception
+        self.sent_messages.append(message)
+
+    async def close(self, code: int, reason: str) -> None:
+        self.close_calls.append((code, reason))
+        if self._close_exception is not None:
+            raise self._close_exception
+
+
+def _as_websocket(fake_websocket: _FakeWebSocket) -> WebSocket:
+    return cast("WebSocket", fake_websocket)
+
+
+async def _run_websocket_operation(
+    connection: WebSocketConnection,
+    operation: str,
+) -> None:
+    if operation == "accept":
+        await connection.accept()
+        return
+
+    if operation == "receive_text":
+        await connection.receive_text()
+        return
+
+    if operation == "send_text":
+        await connection.send_text("world")
+        return
+
+    if operation == "close":
+        await connection.close(1000, "done")
+        return
+
+    raise AssertionError(f"Unsupported operation: {operation}")
+
+
 async def _connect(
     connection_manager_service: ConnectionManagerService,
     connection: _FakeConnection,
@@ -68,6 +141,48 @@ async def _connect(
     await asyncio.wait_for(connection.accepted_event.wait(), timeout=1)
     await asyncio.sleep(0)
     return task
+
+
+@pytest.mark.anyio
+async def test_websocket_connection_forwards_calls() -> None:
+    fake_websocket = _FakeWebSocket(receive_text_value="hello")
+    connection = WebSocketConnection(_as_websocket(fake_websocket))
+
+    await connection.accept()
+    assert await connection.receive_text() == "hello"
+    await connection.send_text("world")
+    await connection.close(1000, "done")
+
+    assert fake_websocket.accept_calls == 1
+    assert fake_websocket.receive_text_calls == 1
+    assert fake_websocket.sent_messages == ["world"]
+    assert fake_websocket.close_calls == [(1000, "done")]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("operation", "exception"),
+    [
+        ("accept", RuntimeError("boom")),
+        ("receive_text", WebSocketDisconnect(code=1000)),
+        ("send_text", RuntimeError("boom")),
+        ("close", WebSocketDisconnect(code=1000)),
+    ],
+)
+async def test_websocket_connection_translates_transport_errors(
+    operation: str,
+    exception: Exception,
+) -> None:
+    fake_websocket = _FakeWebSocket(
+        accept_exception=exception if operation == "accept" else None,
+        receive_text_exception=exception if operation == "receive_text" else None,
+        send_text_exception=exception if operation == "send_text" else None,
+        close_exception=exception if operation == "close" else None,
+    )
+    connection = WebSocketConnection(_as_websocket(fake_websocket))
+
+    with pytest.raises(BridgeConnectionError):
+        await _run_websocket_operation(connection, operation)
 
 
 @pytest.mark.anyio
