@@ -20,7 +20,7 @@ members = ["packages/*"]
 [tool.pyright]
 typeCheckingMode = "strict"
 reportImplicitOverride = true
-include = ["packages/*/src", "packages/*/tests"]
+include = ["packages/*/src/**/*.py", "packages/*/tests/**/*.py"]
 
 [tool.pytest.ini_options]
 addopts = "--cov --cov-report=term-missing"
