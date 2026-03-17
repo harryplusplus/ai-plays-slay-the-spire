@@ -2,7 +2,7 @@ from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from typing import ParamSpec, Protocol, TypeVar
 
-from fastapi import WebSocketDisconnect
+from fastapi import WebSocket, WebSocketDisconnect
 from typing_extensions import override
 
 from bridge.command import CommandSender
@@ -31,7 +31,7 @@ class ConnectionManagerService(Protocol):
 
 
 class WebSocketConnection(Connection):
-    def __init__(self, websocket: Connection) -> None:
+    def __init__(self, websocket: WebSocket) -> None:
         self._websocket = websocket
 
     @override

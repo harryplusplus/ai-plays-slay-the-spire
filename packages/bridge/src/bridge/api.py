@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI, WebSocket
 from starlette.datastructures import State
 
+from bridge.connection import WebSocketConnection
 from bridge.service import ServiceRegistry, ServiceRegistryImpl
 
 router = APIRouter()
@@ -17,7 +18,7 @@ async def websocket_endpoint(
     await (
         state_accessor.get_service_registry()
         .connection_manager_service()
-        .on_websocket(websocket)
+        .on_connection(WebSocketConnection(websocket))
     )
 
 
