@@ -1,20 +1,18 @@
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[4]
-LOGS_DIR = ROOT_DIR / "logs"
-
-
-BRIDGE_LOG_FILE = LOGS_DIR / "bridge.log"
-
-
+WORK_DIR = ROOT_DIR / ".work"
 AGENT_DIR = ROOT_DIR / "agent"
-CODEX_HOME_DIR = AGENT_DIR / ".codex"
-SESSIONS_DIR = CODEX_HOME_DIR / "sessions"
 
-OUTPUT_SCHEMA_FILE = AGENT_DIR / "output_schema.json"
-OUTPUT_LAST_MESSAGE_FILE = AGENT_DIR / "output_last_message.json"
+LOGS_DIR = WORK_DIR / "logs"
+BRIDGE_LOG_FILE = WORK_DIR / "bridge.log"
 
-AGENT_WORK_DIR = AGENT_DIR / "work"
+CODEX_DIR = WORK_DIR / "codex"
+SESSIONS_DIR = CODEX_DIR / "sessions"
 
+OUTPUT_SCHEMA_FILE = WORK_DIR / "output_schema.json"
+OUTPUT_LAST_MESSAGE_FILE = WORK_DIR / "output_last_message.json"
 
-AUTH_JSON_FILE = Path.home() / ".codex" / "auth.json"
+USER_AUTH_JSON_FILE = Path.home() / ".codex" / "auth.json"
+
+DB_SQLITE_FILE = WORK_DIR / "db.sqlite"

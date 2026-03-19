@@ -8,9 +8,9 @@ from typing import Any
 
 import websockets
 from core.paths import (
-    AUTH_JSON_FILE,
-    CODEX_HOME_DIR,
+    CODEX_DIR,
     OUTPUT_SCHEMA_FILE,
+    USER_AUTH_JSON_FILE,
 )
 from pydantic import BaseModel, ConfigDict
 from websockets.asyncio.client import connect
@@ -41,7 +41,7 @@ def state_for_logging(state: dict[str, Any]) -> dict[str, Any]:
 
 async def main() -> None:
     env = os.environ.copy()
-    env["CODEX_HOME"] = str(CODEX_HOME_DIR)
+    env["CODEX_HOME"] = str(CODEX_DIR)
 
     async for websocket in connect(BRIDGE_WS_URL):
         await websocket.send("state")
@@ -90,13 +90,13 @@ async def main() -> None:
 if __name__ == "__main__":
     log.init()
 
-    if not AUTH_JSON_FILE.exists():
+    if not USER_AUTH_JSON_FILE.exists():
         raise FileNotFoundError(
-            f"Please login using `codex login` and ensure {AUTH_JSON_FILE} exists.",
+            f"Please login using `codex login` and ensure {USER_AUTH_JSON_FILE} exists.",
         )
 
-    CODEX_HOME_DIR.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(AUTH_JSON_FILE, CODEX_HOME_DIR)
+    CODEX_DIR.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(USER_AUTH_JSON_FILE, CODEX_DIR)
 
     with OUTPUT_SCHEMA_FILE.open("w") as f:
         f.write(json.dumps(OutputSchema.model_json_schema(), indent=2))

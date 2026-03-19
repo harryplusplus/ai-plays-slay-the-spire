@@ -207,7 +207,4 @@ marimo/_lsp/
 __marimo__/
 
 # AI plays Slay the Spire
-/logs/
-/.codex/
-/.temp/
-/CommunicationMod/
+/.work/
