@@ -1,8 +1,9 @@
 import asyncio
 import logging
 import threading
+from collections.abc import Callable
 from contextlib import suppress
-from typing import TextIO
+from typing import Protocol, TextIO
 
 logger = logging.getLogger(__name__)
 
@@ -10,9 +11,17 @@ logger = logging.getLogger(__name__)
 MessageQueue = asyncio.Queue[str | None]
 
 
+class MessageLoop(Protocol):
+    def call_soon_threadsafe(
+        self,
+        callback: Callable[..., object],
+        *args: object,
+    ) -> object: ...
+
+
 def forward_next_message(
     input_stream: TextIO,
-    loop: asyncio.AbstractEventLoop,
+    loop: MessageLoop,
     queue: MessageQueue,
 ) -> bool:
     line = input_stream.readline()
@@ -29,7 +38,7 @@ def forward_next_message(
 
 def run_message_thread(
     input_stream: TextIO,
-    loop: asyncio.AbstractEventLoop,
+    loop: MessageLoop,
     queue: MessageQueue,
 ) -> None:
     logger.info("Message thread started.")
@@ -45,7 +54,7 @@ def run_message_thread(
 
 def start_message_thread(
     input_stream: TextIO,
-    loop: asyncio.AbstractEventLoop,
+    loop: MessageLoop,
     queue: MessageQueue,
 ) -> threading.Thread:
     thread = threading.Thread(
