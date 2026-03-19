@@ -15,6 +15,13 @@
     "editor.defaultFormatter": "tamasfe.even-better-toml",
     "editor.formatOnSave": true
   },
-  "cSpell.words": ["pyright"],
-  "python.analysis.autoImportCompletions": false
+  "cSpell.words": ["pyright", "sessionmaker"],
+  "python.analysis.autoImportCompletions": false,
+  "python.analysis.packageIndexDepths": [
+    {
+      "depth": 3,
+      "includeAllSymbols": true,
+      "name": ""
+    }
+  ]
 }

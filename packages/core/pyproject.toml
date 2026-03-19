@@ -4,6 +4,7 @@ version = "0.0.0"
 description = "Core for AI plays Slay the Spire"
 dependencies = [
     "aiosqlite>=0.22.1",
+    "sqlalchemy[asyncio]>=2.0.48",
 ]
 
 [build-system]
