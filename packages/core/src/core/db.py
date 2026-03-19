@@ -19,6 +19,10 @@ def create_engine(sqlite_file: Path) -> AsyncEngine:
     return create_async_engine(f"sqlite+aiosqlite:///{sqlite_file}")
 
 
+async def close_engine(engine: AsyncEngine) -> None:
+    await engine.dispose()
+
+
 def create_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(engine, expire_on_commit=False)
 
