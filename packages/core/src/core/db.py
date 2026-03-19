@@ -38,8 +38,11 @@ async def close_engine(engine: AsyncEngine) -> None:
     await engine.dispose()
 
 
-def create_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
-    return async_sessionmaker(engine, expire_on_commit=False)
+AsyncSessionmaker = async_sessionmaker[AsyncSession]
+
+
+def create_sessionmaker(engine: AsyncEngine) -> AsyncSessionmaker:
+    return AsyncSessionmaker(engine, expire_on_commit=False)
 
 
 async def set_journal_mode(connection: AsyncConnection) -> str:
