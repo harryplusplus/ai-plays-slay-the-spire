@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 import aiosqlite
@@ -17,9 +18,18 @@ async def set_journal_mode(connection: Connection) -> str:
     return str(mode)
 
 
+@dataclass(init=False)
+class JournalModeError(Exception):
+    mode: str
+
+    def __init__(self, mode: str) -> None:
+        self.mode = mode
+        super().__init__("Failed to set journal_mode to WAL")
+
+
 def check_journal_mode(mode: str) -> None:
     if mode.lower() != "wal":
-        raise RuntimeError(f"Failed to set journal_mode to WAL, got {mode}")
+        raise JournalModeError(mode)
 
 
 async def configure(connection: Connection) -> None:
