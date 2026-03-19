@@ -1,10 +1,8 @@
-from typing import Literal, Protocol, override
+from typing import Protocol, override
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.models import Event
-
-EventKind = Literal["command", "message"]
+from core.models import Event, EventKind
 
 
 class EventRepository(Protocol):

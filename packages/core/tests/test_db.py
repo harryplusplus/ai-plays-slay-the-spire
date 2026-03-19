@@ -48,7 +48,9 @@ async def test_init_sets_expected_sqlite_pragmas(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_schema_dev_creates_events_table(tmp_path: Path) -> None:
+async def test_create_schema_dev_creates_events_and_pending_commands_tables(
+    tmp_path: Path,
+) -> None:
     engine = db.create_engine(tmp_path / "schema.sqlite")
 
     try:
@@ -66,6 +68,16 @@ async def test_create_schema_dev_creates_events_table(tmp_path: Path) -> None:
                 )
                 == "events"
             )
+            assert (
+                await read_scalar(
+                    connection,
+                    (
+                        "SELECT name FROM sqlite_master "
+                        "WHERE type='table' AND name='pending_commands';"
+                    ),
+                )
+                == "pending_commands"
+            )
     finally:
         await db.close_engine(engine)
 
@@ -82,7 +94,7 @@ async def test_create_sessionmaker_persists_event_rows(tmp_path: Path) -> None:
 
         async with sessionmaker() as session:
             event = Event(
-                kind="command",
+                kind="command_recorded",
                 data='{"command":"state","floor":1}',
             )
             session.add(event)
@@ -98,7 +110,7 @@ async def test_create_sessionmaker_persists_event_rows(tmp_path: Path) -> None:
             loaded_event = await session.get(Event, event_id)
 
             assert loaded_event is not None
-            assert loaded_event.kind == "command"
+            assert loaded_event.kind == "command_recorded"
             assert loaded_event.data == '{"command":"state","floor":1}'
     finally:
         await db.close_engine(engine)

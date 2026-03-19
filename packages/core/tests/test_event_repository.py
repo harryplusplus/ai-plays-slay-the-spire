@@ -18,7 +18,7 @@ async def test_add_persists_events_and_returns_ids(tmp_path: Path) -> None:
 
         async with sessionmaker.begin() as session:
             repository = AlchemyEventRepository(session)
-            command_event_id = await repository.add("command", "state")
+            command_event_id = await repository.add("command_recorded", "state")
             message_event_id = await repository.add("message", "battle started")
 
         assert command_event_id == 1
@@ -29,7 +29,7 @@ async def test_add_persists_events_and_returns_ids(tmp_path: Path) -> None:
             message_event = await session.get(Event, message_event_id)
 
             assert command_event is not None
-            assert command_event.kind == "command"
+            assert command_event.kind == "command_recorded"
             assert command_event.data == "state"
 
             assert message_event is not None
