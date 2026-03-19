@@ -1,18 +1,11 @@
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 from core import db
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
-from sqlalchemy.orm import Mapped, mapped_column
 
 BUSY_TIMEOUT_MS = 5000
-
-
-class ExampleNote(db.Base):
-    __tablename__ = "example_note"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column()
 
 
 async def read_scalar(connection: AsyncConnection, query: str) -> object | None:
@@ -37,7 +30,24 @@ async def test_create_engine_connects_to_sqlite_file(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_schema_dev_creates_registered_tables(tmp_path: Path) -> None:
+async def test_init_sets_expected_sqlite_pragmas(tmp_path: Path) -> None:
+    engine = db.create_engine(tmp_path / "init.sqlite")
+
+    try:
+        await db.init(engine)
+
+        async with engine.connect() as connection:
+            assert await read_scalar(connection, "PRAGMA journal_mode;") == "wal"
+            assert await read_scalar(connection, "PRAGMA synchronous;") == 1
+            assert (
+                await read_scalar(connection, "PRAGMA busy_timeout;") == BUSY_TIMEOUT_MS
+            )
+    finally:
+        await db.close_engine(engine)
+
+
+@pytest.mark.asyncio
+async def test_create_schema_dev_creates_events_table(tmp_path: Path) -> None:
     engine = db.create_engine(tmp_path / "schema.sqlite")
 
     try:
@@ -50,20 +60,18 @@ async def test_create_schema_dev_creates_registered_tables(tmp_path: Path) -> No
                     connection,
                     (
                         "SELECT name FROM sqlite_master "
-                        "WHERE type='table' AND name='example_note';"
+                        "WHERE type='table' AND name='events';"
                     ),
                 )
-                == "example_note"
+                == "events"
             )
     finally:
         await db.close_engine(engine)
 
 
 @pytest.mark.asyncio
-async def test_create_sessionmaker_persists_rows_without_expiring_attributes(
-    tmp_path: Path,
-) -> None:
-    engine = db.create_engine(tmp_path / "session.sqlite")
+async def test_create_sessionmaker_persists_event_rows(tmp_path: Path) -> None:
+    engine = db.create_engine(tmp_path / "events.sqlite")
 
     try:
         async with engine.begin() as connection:
@@ -72,20 +80,25 @@ async def test_create_sessionmaker_persists_rows_without_expiring_attributes(
         sessionmaker = db.create_sessionmaker(engine)
 
         async with sessionmaker() as session:
-            note = ExampleNote(name="first")
-            session.add(note)
+            event = db.Event(
+                kind="command",
+                data='{"command":"state","floor":1}',
+            )
+            session.add(event)
 
             await session.commit()
 
-            note_id = note.id
-            assert note_id == 1
-            assert note.name == "first"
+            event_id = event.id
+            assert event_id == 1
+            assert isinstance(event.created_at, datetime)
+            assert isinstance(event.updated_at, datetime)
 
         async with sessionmaker() as session:
-            loaded_note = await session.get(ExampleNote, note_id)
+            loaded_event = await session.get(db.Event, event_id)
 
-            assert loaded_note is not None
-            assert loaded_note.name == "first"
+            assert loaded_event is not None
+            assert loaded_event.kind == "command"
+            assert loaded_event.data == '{"command":"state","floor":1}'
     finally:
         await db.close_engine(engine)
 
@@ -113,20 +126,3 @@ def test_check_journal_mode_raises_for_non_wal_mode() -> None:
 
     assert str(exc_info.value) == "Failed to set journal_mode to WAL"
     assert exc_info.value.mode == "delete"
-
-
-@pytest.mark.asyncio
-async def test_configure_sets_expected_sqlite_pragmas(tmp_path: Path) -> None:
-    engine = db.create_engine(tmp_path / "configure.sqlite")
-
-    try:
-        async with engine.connect() as connection:
-            await db.configure(connection)
-
-            assert await read_scalar(connection, "PRAGMA journal_mode;") == "wal"
-            assert await read_scalar(connection, "PRAGMA synchronous;") == 1
-            assert (
-                await read_scalar(connection, "PRAGMA busy_timeout;") == BUSY_TIMEOUT_MS
-            )
-    finally:
-        await db.close_engine(engine)
