@@ -5,7 +5,7 @@ WORK_DIR = ROOT_DIR / ".work"
 AGENT_DIR = ROOT_DIR / "agent"
 
 LOGS_DIR = WORK_DIR / "logs"
-BRIDGE_LOG_FILE = WORK_DIR / "bridge.log"
+BRIDGE_LOG_FILE = LOGS_DIR / "bridge.log"
 
 CODEX_DIR = WORK_DIR / "codex"
 SESSIONS_DIR = CODEX_DIR / "sessions"

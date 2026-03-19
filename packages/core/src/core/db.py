@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import event
@@ -11,28 +10,11 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.pool import ConnectionPoolEntry
 
+from core.models import Base
+
 BUSY_TIMEOUT_MS = 5000
-
-
-class Base(DeclarativeBase):
-    pass
-
-
-def utc_now() -> datetime:
-    return datetime.now(UTC)
-
-
-class Event(Base):
-    __tablename__ = "events"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    kind: Mapped[str] = mapped_column()
-    data: Mapped[str] = mapped_column()
-    created_at: Mapped[datetime] = mapped_column(default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)
 
 
 def create_engine(sqlite_file: Path) -> AsyncEngine:

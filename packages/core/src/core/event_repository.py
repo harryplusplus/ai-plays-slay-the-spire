@@ -1,8 +1,8 @@
-from typing import Literal, Protocol
+from typing import Literal, Protocol, override
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.db import Event
+from core.models import Event
 
 EventKind = Literal["command", "message"]
 
@@ -11,10 +11,11 @@ class EventRepository(Protocol):
     async def add(self, kind: EventKind, data: str) -> int: ...
 
 
-class AlchemyEventRepository:
+class AlchemyEventRepository(EventRepository):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
+    @override
     async def add(self, kind: EventKind, data: str) -> int:
         event = Event(kind=kind, data=data)
         self._session.add(event)

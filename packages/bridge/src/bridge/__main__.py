@@ -1,14 +1,25 @@
-if __name__ == "__main__":  # pragma: no cover
-    import logging
+import asyncio
+import logging
 
-    import uvicorn
+from core import db
+from core.paths import DB_SQLITE_FILE
 
-    from bridge import log
-    from bridge.api import AppFactory
+from bridge import log
 
-    logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
+
+
+async def main(engine: db.AsyncEngine) -> None:
+    try:
+        await db.init(engine)
+        await db.init_dev(engine)
+    finally:
+        await db.close_engine(engine)
+
+
+if __name__ == "__main__":
     log.init()
-    logger.info("Started.")
-    app_factory = AppFactory()
-    uvicorn.run(app_factory(), log_config=None, ws="websockets")
-    logger.info("Exited.")
+    logger.info("Bridge started.")
+    engine = db.create_engine(DB_SQLITE_FILE)
+    asyncio.run(main(engine))
+    logger.info("Bridge closed.")

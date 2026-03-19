@@ -40,9 +40,10 @@ RESERVED_LOG_RECORD_ATTRS = {
     "process",
     "message",
     "asctime",
+    # Custom attributes
     "timestamp",
-    "color_message",
-    "websocket",
+    # Third-party attributes
+    "taskName",
 }
 
 

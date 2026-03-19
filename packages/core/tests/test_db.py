@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 from core import db
+from core.models import Event
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 BUSY_TIMEOUT_MS = 5000
@@ -80,7 +81,7 @@ async def test_create_sessionmaker_persists_event_rows(tmp_path: Path) -> None:
         sessionmaker = db.create_sessionmaker(engine)
 
         async with sessionmaker() as session:
-            event = db.Event(
+            event = Event(
                 kind="command",
                 data='{"command":"state","floor":1}',
             )
@@ -94,7 +95,7 @@ async def test_create_sessionmaker_persists_event_rows(tmp_path: Path) -> None:
             assert isinstance(event.updated_at, datetime)
 
         async with sessionmaker() as session:
-            loaded_event = await session.get(db.Event, event_id)
+            loaded_event = await session.get(Event, event_id)
 
             assert loaded_event is not None
             assert loaded_event.kind == "command"

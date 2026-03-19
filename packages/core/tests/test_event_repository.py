@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 from core import db
 from core.event_repository import AlchemyEventRepository
+from core.models import Event
 
 
 @pytest.mark.asyncio
@@ -24,8 +25,8 @@ async def test_add_persists_events_and_returns_ids(tmp_path: Path) -> None:
         assert message_event_id == command_event_id + 1
 
         async with sessionmaker() as session:
-            command_event = await session.get(db.Event, command_event_id)
-            message_event = await session.get(db.Event, message_event_id)
+            command_event = await session.get(Event, command_event_id)
+            message_event = await session.get(Event, message_event_id)
 
             assert command_event is not None
             assert command_event.kind == "command"
