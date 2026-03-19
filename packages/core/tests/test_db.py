@@ -1,42 +1,106 @@
 from pathlib import Path
 
 import pytest
-from aiosqlite import Connection
 from core import db
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
+from sqlalchemy.orm import Mapped, mapped_column
 
 BUSY_TIMEOUT_MS = 5000
 
 
-async def read_scalar(connection: Connection, query: str) -> object | None:
-    async with connection.execute(query) as cursor:
-        row = await cursor.fetchone()
+class ExampleNote(db.Base):
+    __tablename__ = "example_note"
 
-    return None if row is None else row[0]
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column()
+
+
+async def read_scalar(connection: AsyncConnection, query: str) -> object | None:
+    result = await connection.exec_driver_sql(query)
+    return result.scalar_one_or_none()
 
 
 @pytest.mark.asyncio
-async def test_create_returns_open_connection(tmp_path: Path) -> None:
+async def test_create_engine_connects_to_sqlite_file(tmp_path: Path) -> None:
     sqlite_file = tmp_path / "test.sqlite"
-
-    connection = await db.create(sqlite_file)
+    engine = db.create_engine(sqlite_file)
 
     try:
+        assert isinstance(engine, AsyncEngine)
+
+        async with engine.connect() as connection:
+            assert await read_scalar(connection, "SELECT 1;") == 1
+
         assert sqlite_file.exists()
-        assert await read_scalar(connection, "SELECT 1;") == 1
     finally:
-        await connection.close()
+        await db.close_engine(engine)
+
+
+@pytest.mark.asyncio
+async def test_create_schema_dev_creates_registered_tables(tmp_path: Path) -> None:
+    engine = db.create_engine(tmp_path / "schema.sqlite")
+
+    try:
+        async with engine.begin() as connection:
+            await db.create_schema_dev(connection)
+
+        async with engine.connect() as connection:
+            assert (
+                await read_scalar(
+                    connection,
+                    (
+                        "SELECT name FROM sqlite_master "
+                        "WHERE type='table' AND name='example_note';"
+                    ),
+                )
+                == "example_note"
+            )
+    finally:
+        await db.close_engine(engine)
+
+
+@pytest.mark.asyncio
+async def test_create_sessionmaker_persists_rows_without_expiring_attributes(
+    tmp_path: Path,
+) -> None:
+    engine = db.create_engine(tmp_path / "session.sqlite")
+
+    try:
+        async with engine.begin() as connection:
+            await db.create_schema_dev(connection)
+
+        sessionmaker = db.create_sessionmaker(engine)
+
+        async with sessionmaker() as session:
+            note = ExampleNote(name="first")
+            session.add(note)
+
+            await session.commit()
+
+            note_id = note.id
+            assert note_id == 1
+            assert note.name == "first"
+
+        async with sessionmaker() as session:
+            loaded_note = await session.get(ExampleNote, note_id)
+
+            assert loaded_note is not None
+            assert loaded_note.name == "first"
+    finally:
+        await db.close_engine(engine)
 
 
 @pytest.mark.asyncio
 async def test_set_journal_mode_returns_wal(tmp_path: Path) -> None:
-    connection = await db.create(tmp_path / "journal.sqlite")
+    engine = db.create_engine(tmp_path / "journal.sqlite")
 
     try:
-        mode = await db.set_journal_mode(connection)
+        async with engine.connect() as connection:
+            mode = await db.set_journal_mode(connection)
 
         assert mode == "wal"
     finally:
-        await connection.close()
+        await db.close_engine(engine)
 
 
 def test_check_journal_mode_accepts_wal_case_insensitively() -> None:
@@ -53,63 +117,16 @@ def test_check_journal_mode_raises_for_non_wal_mode() -> None:
 
 @pytest.mark.asyncio
 async def test_configure_sets_expected_sqlite_pragmas(tmp_path: Path) -> None:
-    connection = await db.create(tmp_path / "configure.sqlite")
+    engine = db.create_engine(tmp_path / "configure.sqlite")
 
     try:
-        await db.configure(connection)
+        async with engine.connect() as connection:
+            await db.configure(connection)
 
-        assert await read_scalar(connection, "PRAGMA journal_mode;") == "wal"
-        assert await read_scalar(connection, "PRAGMA synchronous;") == 1
-        assert await read_scalar(connection, "PRAGMA busy_timeout;") == BUSY_TIMEOUT_MS
-    finally:
-        await connection.close()
-
-
-@pytest.mark.asyncio
-async def test_try_init_runs_initializer_and_keeps_connection_open(
-    tmp_path: Path,
-) -> None:
-    connection = await db.create(tmp_path / "init-success.sqlite")
-    initialized_connection: Connection | None = None
-
-    async def initializer(candidate: Connection) -> None:
-        nonlocal initialized_connection
-
-        initialized_connection = candidate
-        await candidate.execute("CREATE TABLE initialized(id INTEGER PRIMARY KEY);")
-
-    try:
-        await db.try_init(connection, initializer)
-
-        assert initialized_connection is connection
-        assert (
-            await read_scalar(
-                connection,
-                (
-                    "SELECT name FROM sqlite_master "
-                    "WHERE type='table' AND name='initialized';"
-                ),
+            assert await read_scalar(connection, "PRAGMA journal_mode;") == "wal"
+            assert await read_scalar(connection, "PRAGMA synchronous;") == 1
+            assert (
+                await read_scalar(connection, "PRAGMA busy_timeout;") == BUSY_TIMEOUT_MS
             )
-            == "initialized"
-        )
     finally:
-        await connection.close()
-
-
-@pytest.mark.asyncio
-async def test_try_init_closes_connection_and_raises_init_error(
-    tmp_path: Path,
-) -> None:
-    connection = await db.create(tmp_path / "init-failure.sqlite")
-    cause = ValueError("boom")
-
-    async def initializer(_: Connection) -> None:
-        raise cause
-
-    with pytest.raises(db.InitError) as exc_info:
-        await db.try_init(connection, initializer)
-
-    assert exc_info.value.__cause__ is cause
-
-    with pytest.raises(ValueError, match="no active connection"):
-        await connection.execute("SELECT 1;")
+        await db.close_engine(engine)

@@ -27,9 +27,8 @@ def create_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]
     return async_sessionmaker(engine, expire_on_commit=False)
 
 
-async def create_schema_dev(engine: AsyncEngine) -> None:
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+async def create_schema_dev(connection: AsyncConnection) -> None:
+    await connection.run_sync(Base.metadata.create_all)
 
 
 async def set_journal_mode(connection: AsyncConnection) -> str:
