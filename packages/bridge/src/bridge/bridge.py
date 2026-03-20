@@ -64,12 +64,13 @@ async def process_after_write_command(
 
 async def process_next_pending_command(
     sessionmaker: AsyncSessionmaker,
+    output: TextIO | None = None,
 ) -> bool:
     pending_command = await get_next_pending_command(sessionmaker)
     if pending_command is None:
         return False
 
-    write_command(pending_command.command)
+    write_command(pending_command.command, output)
     await process_after_write_command(
         sessionmaker,
         pending_command.id,
@@ -82,6 +83,7 @@ async def process_next(
     sessionmaker: AsyncSessionmaker,
     message_queue: message.Queue,
     stop_event: asyncio.Event,
+    output: TextIO | None = None,
 ) -> bool:
     if stop_event.is_set():
         return False
@@ -101,7 +103,7 @@ async def process_next(
         await record_message_event(sessionmaker, message)
         return True
 
-    if await process_next_pending_command(sessionmaker):
+    if await process_next_pending_command(sessionmaker, output):
         return True
 
     await asyncio.sleep(IDLE_LOOP_SLEEP_SECONDS)
@@ -112,6 +114,7 @@ async def run(
     sessionmaker: AsyncSessionmaker,
     message_queue: message.Queue,
     stop_event: asyncio.Event,
+    output: TextIO | None = None,
 ) -> None:
     await skip_pending_commands(sessionmaker)
 
@@ -119,5 +122,6 @@ async def run(
         sessionmaker,
         message_queue,
         stop_event,
+        output,
     ):
         pass

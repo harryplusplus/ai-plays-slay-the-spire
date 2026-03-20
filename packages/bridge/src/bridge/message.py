@@ -31,10 +31,10 @@ class ToAsyncQueue:
 
 
 def process_next(
-    input_stream: TextIO,
+    input_: TextIO,
     queue: ToAsyncQueue,
 ) -> bool:
-    line = input_stream.readline()
+    line = input_.readline()
     if line == "":
         return False
 
@@ -47,12 +47,12 @@ def process_next(
 
 
 def run(
-    input_stream: TextIO,
+    input_: TextIO,
     queue: ToAsyncQueue,
 ) -> None:
     logger.info("Message thread started.")
 
-    while process_next(input_stream, queue):
+    while process_next(input_, queue):
         pass
 
     with suppress(ClosedError):
@@ -61,10 +61,10 @@ def run(
     logger.info("Message thread closed.")
 
 
-def start_thread(input_stream: TextIO, queue: ToAsyncQueue) -> threading.Thread:
+def start_thread(input_: TextIO, queue: ToAsyncQueue) -> threading.Thread:
     thread = threading.Thread(
         target=run,
-        args=(input_stream, queue),
+        args=(input_, queue),
         daemon=True,
     )
     thread.start()
