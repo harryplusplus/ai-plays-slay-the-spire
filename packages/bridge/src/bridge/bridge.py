@@ -92,9 +92,10 @@ async def process_next(
     has_message = False
     try:
         message = message_queue.get_nowait()
-        has_message = True
     except asyncio.QueueEmpty:
-        has_message = False
+        pass
+    else:
+        has_message = True
 
     if has_message:
         if message is None:
