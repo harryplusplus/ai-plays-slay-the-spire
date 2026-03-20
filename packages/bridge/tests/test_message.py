@@ -32,9 +32,9 @@ class ClosedLoop:
 def test_forward_next_message_enqueues_stripped_line() -> None:
     input_stream = io.StringIO("play\n")
     loop = ImmediateLoop()
-    queue = message.MessageQueue()
+    queue = message.Queue()
 
-    should_continue = message.forward_next_message(input_stream, loop, queue)
+    should_continue = message.process_next(input_stream, loop, queue)
 
     assert should_continue is True
     assert queue.get_nowait() == "play"
@@ -43,9 +43,9 @@ def test_forward_next_message_enqueues_stripped_line() -> None:
 def test_forward_next_message_returns_false_at_eof() -> None:
     input_stream = io.StringIO("")
     loop = ImmediateLoop()
-    queue = message.MessageQueue()
+    queue = message.Queue()
 
-    should_continue = message.forward_next_message(input_stream, loop, queue)
+    should_continue = message.process_next(input_stream, loop, queue)
 
     assert should_continue is False
     assert queue.empty() is True
@@ -54,9 +54,9 @@ def test_forward_next_message_returns_false_at_eof() -> None:
 def test_forward_next_message_returns_false_when_loop_is_closed() -> None:
     input_stream = io.StringIO("play\n")
     loop = ClosedLoop()
-    queue = message.MessageQueue()
+    queue = message.Queue()
 
-    should_continue = message.forward_next_message(input_stream, loop, queue)
+    should_continue = message.process_next(input_stream, loop, queue)
 
     assert should_continue is False
     assert queue.empty() is True
@@ -65,7 +65,7 @@ def test_forward_next_message_returns_false_when_loop_is_closed() -> None:
 def test_run_message_thread_forwards_messages_and_enqueues_eof() -> None:
     input_stream = io.StringIO("play\nstate\n")
     loop = ImmediateLoop()
-    queue = message.MessageQueue()
+    queue = message.Queue()
 
     message.run_message_thread(input_stream, loop, queue)
 
@@ -77,7 +77,7 @@ def test_run_message_thread_forwards_messages_and_enqueues_eof() -> None:
 def test_run_message_thread_suppresses_closed_loop_on_eof() -> None:
     input_stream = io.StringIO("")
     loop = ClosedLoop()
-    queue = message.MessageQueue()
+    queue = message.Queue()
 
     message.run_message_thread(input_stream, loop, queue)
 
@@ -87,7 +87,7 @@ def test_run_message_thread_suppresses_closed_loop_on_eof() -> None:
 def test_start_message_thread_starts_and_finishes_thread() -> None:
     input_stream = io.StringIO("")
     loop = ImmediateLoop()
-    queue = message.MessageQueue()
+    queue = message.Queue()
 
     thread = message.start_message_thread(input_stream, loop, queue)
     thread.join(timeout=1)

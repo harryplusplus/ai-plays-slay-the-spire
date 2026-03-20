@@ -1,65 +1,70 @@
 import asyncio
 import logging
 import threading
-from collections.abc import Callable
 from contextlib import suppress
-from typing import Protocol, TextIO
+from typing import TextIO
 
 logger = logging.getLogger(__name__)
 
 
-MessageQueue = asyncio.Queue[str | None]
+Queue = asyncio.Queue[str | None]
 
 
-class MessageLoop(Protocol):
-    def call_soon_threadsafe(
+class ClosedError(Exception):
+    pass
+
+
+class ToAsyncQueue:
+    def __init__(
         self,
-        callback: Callable[..., object],
-        *args: object,
-    ) -> object: ...
+        loop: asyncio.AbstractEventLoop,
+        queue: Queue,
+    ) -> None:
+        self._loop = loop
+        self._queue = queue
+
+    def put_nowait(self, item: str | None) -> None:
+        try:
+            self._loop.call_soon_threadsafe(self._queue.put_nowait, item)
+        except RuntimeError as e:
+            raise ClosedError("Message queue is closed.") from e
 
 
-def forward_next_message(
+def process_next(
     input_stream: TextIO,
-    loop: MessageLoop,
-    queue: MessageQueue,
+    queue: ToAsyncQueue,
 ) -> bool:
     line = input_stream.readline()
     if line == "":
         return False
 
     try:
-        loop.call_soon_threadsafe(queue.put_nowait, line.rstrip())
-    except RuntimeError:
+        queue.put_nowait(line.rstrip())
+    except ClosedError:
         return False
 
     return True
 
 
-def run_message_thread(
+def run(
     input_stream: TextIO,
-    loop: MessageLoop,
-    queue: MessageQueue,
+    queue: ToAsyncQueue,
 ) -> None:
     logger.info("Message thread started.")
 
-    while forward_next_message(input_stream, loop, queue):
+    while process_next(input_stream, queue):
         pass
 
-    with suppress(RuntimeError):
-        loop.call_soon_threadsafe(queue.put_nowait, None)
+    with suppress(ClosedError):
+        queue.put_nowait(None)
 
     logger.info("Message thread closed.")
 
 
-def start_message_thread(
-    input_stream: TextIO,
-    loop: MessageLoop,
-    queue: MessageQueue,
-) -> threading.Thread:
+def start_thread(input_stream: TextIO, queue: ToAsyncQueue) -> threading.Thread:
     thread = threading.Thread(
-        target=run_message_thread,
-        args=(input_stream, loop, queue),
+        target=run,
+        args=(input_stream, queue),
         daemon=True,
     )
     thread.start()

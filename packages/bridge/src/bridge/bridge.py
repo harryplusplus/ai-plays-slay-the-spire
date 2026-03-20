@@ -1,18 +1,19 @@
 import asyncio
+import sys
 from typing import TextIO
 
-from core import db
+from core.db import AsyncSessionmaker
 from core.event_repository import AlchemyEventRepository
 from core.models import PendingCommand
 from core.pending_command_repository import AlchemyPendingCommandRepository
 
-from bridge.message import MessageQueue
+from bridge import message
 
-IDLE_LOOP_SLEEP_SECONDS = 0.0
+IDLE_LOOP_SLEEP_SECONDS = 0.1
 
 
 async def record_message_event(
-    sessionmaker: db.AsyncSessionmaker,
+    sessionmaker: AsyncSessionmaker,
     message: str,
 ) -> int:
     async with sessionmaker.begin() as session:
@@ -20,8 +21,8 @@ async def record_message_event(
         return await repository.add("message", message)
 
 
-async def skip_pending_commands_at_startup(
-    sessionmaker: db.AsyncSessionmaker,
+async def skip_pending_commands(
+    sessionmaker: AsyncSessionmaker,
 ) -> int:
     async with sessionmaker.begin() as session:
         event_repository = AlchemyEventRepository(session)
@@ -35,20 +36,21 @@ async def skip_pending_commands_at_startup(
 
 
 async def get_next_pending_command(
-    sessionmaker: db.AsyncSessionmaker,
+    sessionmaker: AsyncSessionmaker,
 ) -> PendingCommand | None:
     async with sessionmaker() as session:
         repository = AlchemyPendingCommandRepository(session)
         return await repository.get_next_pending()
 
 
-def write_command(output_stream: TextIO, command: str) -> None:
-    output_stream.write(f"{command}\n")
-    output_stream.flush()
+def write_command(command: str, output: TextIO | None = None) -> None:
+    resolved = output if output is not None else sys.stdout
+    resolved.write(f"{command}\n")
+    resolved.flush()
 
 
-async def record_command_event_and_mark_pending_command_recorded(
-    sessionmaker: db.AsyncSessionmaker,
+async def process_after_write_command(
+    sessionmaker: AsyncSessionmaker,
     pending_command_id: int,
     command: str,
 ) -> int:
@@ -61,15 +63,14 @@ async def record_command_event_and_mark_pending_command_recorded(
 
 
 async def process_next_pending_command(
-    sessionmaker: db.AsyncSessionmaker,
-    output_stream: TextIO,
+    sessionmaker: AsyncSessionmaker,
 ) -> bool:
     pending_command = await get_next_pending_command(sessionmaker)
     if pending_command is None:
         return False
 
-    write_command(output_stream, pending_command.command)
-    await record_command_event_and_mark_pending_command_recorded(
+    write_command(pending_command.command)
+    await process_after_write_command(
         sessionmaker,
         pending_command.id,
         pending_command.command,
@@ -77,22 +78,21 @@ async def process_next_pending_command(
     return True
 
 
-async def process_next_iteration(
-    sessionmaker: db.AsyncSessionmaker,
-    message_queue: MessageQueue,
+async def process_next(
+    sessionmaker: AsyncSessionmaker,
+    message_queue: message.Queue,
     stop_event: asyncio.Event,
-    output_stream: TextIO,
 ) -> bool:
     if stop_event.is_set():
         return False
 
+    message: str | None = None
+    has_message = False
     try:
         message = message_queue.get_nowait()
-    except asyncio.QueueEmpty:
-        message = None
-        has_message = False
-    else:
         has_message = True
+    except asyncio.QueueEmpty:
+        has_message = False
 
     if has_message:
         if message is None:
@@ -101,7 +101,7 @@ async def process_next_iteration(
         await record_message_event(sessionmaker, message)
         return True
 
-    if await process_next_pending_command(sessionmaker, output_stream):
+    if await process_next_pending_command(sessionmaker):
         return True
 
     await asyncio.sleep(IDLE_LOOP_SLEEP_SECONDS)
@@ -109,17 +109,15 @@ async def process_next_iteration(
 
 
 async def run(
-    sessionmaker: db.AsyncSessionmaker,
-    message_queue: MessageQueue,
+    sessionmaker: AsyncSessionmaker,
+    message_queue: message.Queue,
     stop_event: asyncio.Event,
-    output_stream: TextIO,
 ) -> None:
-    await skip_pending_commands_at_startup(sessionmaker)
+    await skip_pending_commands(sessionmaker)
 
-    while await process_next_iteration(
+    while await process_next(
         sessionmaker,
         message_queue,
         stop_event,
-        output_stream,
     ):
         pass

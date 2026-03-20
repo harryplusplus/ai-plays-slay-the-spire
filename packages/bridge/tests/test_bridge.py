@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 from bridge import bridge
-from bridge.message import MessageQueue
+from bridge.message import Queue
 from core import db
 from core.models import Event, PendingCommand
 from core.pending_command_repository import AlchemyPendingCommandRepository
@@ -14,7 +14,7 @@ SKIPPED_PENDING_COMMANDS = 2
 
 @pytest.mark.asyncio
 async def test_process_next_iteration_stops_when_stop_event_is_set() -> None:
-    message_queue = MessageQueue()
+    message_queue = Queue()
     stop_event = asyncio.Event()
     stop_event.set()
 
@@ -22,7 +22,7 @@ async def test_process_next_iteration_stops_when_stop_event_is_set() -> None:
     sessionmaker = db.create_sessionmaker(engine)
 
     try:
-        should_continue = await bridge.process_next_iteration(
+        should_continue = await bridge.process_next(
             sessionmaker,
             message_queue,
             stop_event,
@@ -41,7 +41,7 @@ async def test_process_next_iteration_prioritizes_message_over_pending_command(
     sqlite_file = tmp_path / "iteration-priority.sqlite"
     engine = db.create_engine(sqlite_file)
     sessionmaker = db.create_sessionmaker(engine)
-    message_queue = MessageQueue()
+    message_queue = Queue()
     stop_event = asyncio.Event()
     output_stream = io.StringIO()
 
@@ -55,7 +55,7 @@ async def test_process_next_iteration_prioritizes_message_over_pending_command(
 
         message_queue.put_nowait("state")
 
-        should_continue = await bridge.process_next_iteration(
+        should_continue = await bridge.process_next(
             sessionmaker,
             message_queue,
             stop_event,
@@ -85,7 +85,7 @@ async def test_process_next_iteration_processes_pending_command_without_message(
     sqlite_file = tmp_path / "iteration-pending.sqlite"
     engine = db.create_engine(sqlite_file)
     sessionmaker = db.create_sessionmaker(engine)
-    message_queue = MessageQueue()
+    message_queue = Queue()
     stop_event = asyncio.Event()
     output_stream = io.StringIO()
 
@@ -97,7 +97,7 @@ async def test_process_next_iteration_processes_pending_command_without_message(
             repository = AlchemyPendingCommandRepository(session)
             pending_command_id = await repository.add("play")
 
-        should_continue = await bridge.process_next_iteration(
+        should_continue = await bridge.process_next(
             sessionmaker,
             message_queue,
             stop_event,
@@ -137,7 +137,7 @@ async def test_skip_pending_commands_at_startup_records_skipped_events(
             first_pending_command_id = await repository.add("play")
             second_pending_command_id = await repository.add("state")
 
-        skipped_count = await bridge.skip_pending_commands_at_startup(
+        skipped_count = await bridge.skip_pending_commands(
             sessionmaker,
         )
 
@@ -238,7 +238,7 @@ async def test_process_next_iteration_sleeps_when_message_and_pending_are_absent
     sqlite_file = tmp_path / "idle-iteration.sqlite"
     engine = db.create_engine(sqlite_file)
     sessionmaker = db.create_sessionmaker(engine)
-    message_queue = MessageQueue()
+    message_queue = Queue()
     stop_event = asyncio.Event()
     output_stream = io.StringIO()
 
@@ -246,7 +246,7 @@ async def test_process_next_iteration_sleeps_when_message_and_pending_are_absent
         await db.init(engine)
         await db.init_dev(engine)
 
-        should_continue = await bridge.process_next_iteration(
+        should_continue = await bridge.process_next(
             sessionmaker,
             message_queue,
             stop_event,

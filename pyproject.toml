@@ -27,11 +27,8 @@ include = ["packages/*/src/**/*.py", "packages/*/tests/**/*.py"]
 addopts = "--cov --cov-report=term-missing"
 
 [tool.coverage.run]
-source = [
-    "packages/ai/src/ai",
-    "packages/bridge/src/bridge",
-    "packages/core/src/core",
-]
+source_pkgs = ["ai", "bridge", "core"]
+omit = ["packages/*/src/*/__main__.py"]
 
 [tool.ruff]
 target-version = "py312"
