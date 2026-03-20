@@ -24,7 +24,7 @@ reportImplicitOverride = true
 include = ["packages/*/src/**/*.py", "packages/*/tests/**/*.py"]
 
 [tool.pytest.ini_options]
-addopts = "--cov --cov-report=term-missing"
+addopts = "--import-mode=importlib --cov --cov-report=term-missing"
 
 [tool.coverage.run]
 source_pkgs = ["ai", "bridge", "core"]

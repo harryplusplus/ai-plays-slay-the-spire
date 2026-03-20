@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 from sqlalchemy import event
-from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.ext.asyncio import (
     AsyncConnection,
     AsyncEngine,
@@ -10,18 +10,26 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.pool import ConnectionPoolEntry
 
 from core.models import Base
 
 BUSY_TIMEOUT_MS = 5000
 
 
+class OnConnectCursor(Protocol):
+    def execute(self, query: str) -> object: ...
+    def close(self) -> None: ...
+
+
+class OnConnectDBAPIConnection(Protocol):
+    def cursor(self) -> OnConnectCursor: ...
+
+
 def create_engine(sqlite_file: Path) -> AsyncEngine:
     return create_async_engine(f"sqlite+aiosqlite:///{sqlite_file}")
 
 
-def on_connect(dbapi_connection: DBAPIConnection, _: ConnectionPoolEntry) -> None:
+def on_connect(dbapi_connection: OnConnectDBAPIConnection, _: object) -> None:
     cursor = dbapi_connection.cursor()
     try:
         cursor.execute("PRAGMA synchronous=NORMAL;")

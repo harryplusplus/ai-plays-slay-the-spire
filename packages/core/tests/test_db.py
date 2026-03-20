@@ -14,6 +14,31 @@ async def read_scalar(connection: AsyncConnection, query: str) -> object | None:
     return result.scalar_one_or_none()
 
 
+class RecordingCursor:
+    queries: list[str]
+    closed: bool
+
+    def __init__(self) -> None:
+        self.queries = []
+        self.closed = False
+
+    def execute(self, query: str) -> None:
+        self.queries.append(query)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class RecordingDBAPIConnection:
+    cursor_: RecordingCursor
+
+    def __init__(self) -> None:
+        self.cursor_ = RecordingCursor()
+
+    def cursor(self) -> RecordingCursor:
+        return self.cursor_
+
+
 @pytest.mark.asyncio
 async def test_create_engine_connects_to_sqlite_file(tmp_path: Path) -> None:
     sqlite_file = tmp_path / "test.sqlite"
@@ -45,6 +70,18 @@ async def test_init_sets_expected_sqlite_pragmas(tmp_path: Path) -> None:
             )
     finally:
         await db.close_engine(engine)
+
+
+def test_on_connect_sets_pragmas_and_closes_cursor() -> None:
+    connection = RecordingDBAPIConnection()
+
+    db.on_connect(connection, object())
+
+    assert connection.cursor_.queries == [
+        "PRAGMA synchronous=NORMAL;",
+        f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS};",
+    ]
+    assert connection.cursor_.closed is True
 
 
 @pytest.mark.asyncio
