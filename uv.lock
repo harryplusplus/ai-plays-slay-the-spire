@@ -13,7 +13,7 @@ members = [
     "ai-plays-slay-the-spire",
     "bridge",
     "core",
-    "spirectl",
+    "sts",
 ]
 
 [[package]]
@@ -517,23 +517,6 @@ wheels = [
 ]
 
 [[package]]
-name = "spirectl"
-version = "0.0.0"
-source = { editable = "packages/spirectl" }
-dependencies = [
-    { name = "core" },
-    { name = "typer" },
-    { name = "websockets" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "core", editable = "packages/core" },
-    { name = "typer", specifier = ">=0.24.1" },
-    { name = "websockets", specifier = ">=16.0" },
-]
-
-[[package]]
 name = "sqlalchemy"
 version = "2.0.48"
 source = { registry = "https://pypi.org/simple" }
@@ -589,6 +572,21 @@ wheels = [
 [package.optional-dependencies]
 asyncio = [
     { name = "greenlet" },
+]
+
+[[package]]
+name = "sts"
+version = "0.0.0"
+source = { editable = "packages/sts" }
+dependencies = [
+    { name = "core" },
+    { name = "typer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "core", editable = "packages/core" },
+    { name = "typer", specifier = ">=0.24.1" },
 ]
 
 [[package]]

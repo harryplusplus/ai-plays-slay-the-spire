@@ -1,15 +1,11 @@
 [project]
-name = "spirectl"
+name = "sts"
 version = "0.0.0"
 description = "CLI tool for AI plays Slay the Spire"
-dependencies = [
-    "core>=0.0.0",
-    "typer>=0.24.1",
-    "websockets>=16.0",
-]
+dependencies = ["core>=0.0.0", "typer>=0.24.1"]
 
 [project.scripts]
-spirectl = "spirectl.cli:main"
+sts = "sts.main:main"
 
 [tool.uv.sources]
 core = { workspace = true }

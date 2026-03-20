@@ -27,7 +27,7 @@ include = ["packages/*/src/**/*.py", "packages/*/tests/**/*.py"]
 addopts = "--import-mode=importlib --cov --cov-report=term-missing"
 
 [tool.coverage.run]
-source_pkgs = ["ai", "bridge", "core"]
+source_pkgs = ["ai", "bridge", "core", "sts"]
 omit = ["packages/*/src/*/__main__.py"]
 
 [tool.ruff]
