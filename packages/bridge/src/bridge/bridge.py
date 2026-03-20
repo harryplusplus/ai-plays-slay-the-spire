@@ -117,6 +117,7 @@ async def run(
     stop_event: asyncio.Event,
     output: TextIO | None = None,
 ) -> None:
+    write_command("ready", output)
     await skip_pending_commands(sessionmaker)
 
     while await process_next(
