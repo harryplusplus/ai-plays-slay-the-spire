@@ -5,17 +5,17 @@ from pathlib import Path
 import pytest
 from core.db import Db
 from core.event_repository import AlchemyEventRepository
-from sts import main
+from sts import app
 
 
 def test_format_events_json_returns_empty_array() -> None:
-    assert main._format_events_json([]) == "[]"
+    assert app._format_events_json([]) == "[]"
 
 
 def test_format_timestamp_converts_utc_timestamp_to_local_timezone() -> None:
     timestamp = datetime(2026, 3, 20, 14, 32, 42, 376000, tzinfo=UTC)
 
-    assert main._format_timestamp(timestamp) == timestamp.astimezone().isoformat(
+    assert app._format_timestamp(timestamp) == timestamp.astimezone().isoformat(
         timespec="milliseconds"
     )
 
@@ -25,7 +25,7 @@ def test_format_timestamp_assumes_naive_timestamp_is_utc() -> None:
         tzinfo=None
     )
 
-    assert main._format_timestamp(timestamp) == timestamp.replace(
+    assert app._format_timestamp(timestamp) == timestamp.replace(
         tzinfo=UTC
     ).astimezone().isoformat(timespec="milliseconds")
 
@@ -43,7 +43,7 @@ async def test_format_recent_events_json_returns_oldest_first_json_array(
             await repository.add("message", "second")
             await repository.add("command_skipped", "third")
 
-        json_output = await main._format_recent_events_json(db.sessionmaker, limit=2)
+        json_output = await app._format_recent_events_json(db.sessionmaker, limit=2)
 
     parsed_output = json.loads(json_output)
 

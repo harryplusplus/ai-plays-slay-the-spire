@@ -5,7 +5,7 @@ description = "CLI tool for AI plays Slay the Spire"
 dependencies = ["core>=0.0.0", "typer>=0.24.1"]
 
 [project.scripts]
-sts = "sts.main:cli"
+sts = "sts.__main__:main"
 
 [tool.uv.sources]
 core = { workspace = true }

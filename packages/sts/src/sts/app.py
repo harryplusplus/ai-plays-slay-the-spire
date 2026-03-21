@@ -14,8 +14,6 @@ from core.models import Event
 from core.paths import DB_SQLITE_FILE
 from core.pending_command_repository import AlchemyPendingCommandRepository
 
-from sts import log
-
 app = typer.Typer(add_completion=False, help="Slay the Spire 제어 CLI")
 
 
@@ -77,7 +75,6 @@ async def _format_recent_events_json(
 
 @app.callback()
 def main(context: typer.Context) -> None:
-    log.init()
     context.obj = context.with_resource(_state())
 
 
@@ -105,7 +102,3 @@ def events(
         _format_recent_events_json(state.sessionmaker, limit=limit)
     )
     typer.echo(json_output)
-
-
-def cli() -> None:
-    app()
