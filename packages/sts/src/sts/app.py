@@ -43,11 +43,7 @@ def _serialize_event(event: Event) -> dict[str, int | str]:
 
 
 def _format_events_json(events: list[Event]) -> str:
-    return json.dumps(
-        [_serialize_event(event) for event in events],
-        ensure_ascii=False,
-        indent=2,
-    )
+    return json.dumps([_serialize_event(event) for event in events], ensure_ascii=False)
 
 
 async def _record_command(config: Config, command: str) -> None:
