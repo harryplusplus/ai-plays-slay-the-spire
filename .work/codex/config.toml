@@ -8,4 +8,7 @@ trust_level = "trusted"
 
 [sandbox_workspace_write]
 network_access = true
-writable_roots = ["/Users/harry/.cache/uv"]
+writable_roots = [
+    "/Users/harry/.cache/uv",
+    "/Users/harry/repo/ai-plays-slay-the-spire",
+]
