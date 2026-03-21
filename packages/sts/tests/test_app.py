@@ -1,11 +1,56 @@
+import asyncio
 import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-import pytest
 from core.db import Db
 from core.event_repository import AlchemyEventRepository
+from core.models import PendingCommand
 from sts import app
+from typer.testing import CliRunner
+
+runner = CliRunner()
+
+
+def _create_schema(sqlite_file: Path) -> None:
+    async def run() -> None:
+        async with Db(sqlite_file, should_create_schema=True):
+            return
+
+    asyncio.run(run())
+
+
+def _seed_events(sqlite_file: Path) -> None:
+    async def run() -> None:
+        async with Db(
+            sqlite_file,
+            should_create_schema=True,
+        ) as db, db.sessionmaker.begin() as session:
+            repository = AlchemyEventRepository(session)
+            await repository.add("command_recorded", "first")
+            await repository.add("message", "second")
+            await repository.add("command_skipped", "third")
+
+    asyncio.run(run())
+
+
+def _read_pending_command(
+    sqlite_file: Path, pending_command_id: int
+) -> tuple[int, str, str] | None:
+    async def run() -> tuple[int, str, str] | None:
+        async with Db(sqlite_file) as db, db.sessionmaker() as session:
+            pending_command = await session.get(PendingCommand, pending_command_id)
+
+            if pending_command is None:
+                return None
+
+            return (
+                pending_command.id,
+                pending_command.command,
+                pending_command.status,
+            )
+
+    return asyncio.run(run())
 
 
 def test_format_events_json_returns_empty_array() -> None:
@@ -30,22 +75,45 @@ def test_format_timestamp_assumes_naive_timestamp_is_utc() -> None:
     ).astimezone().isoformat(timespec="milliseconds")
 
 
-@pytest.mark.asyncio
-async def test_format_recent_events_json_returns_oldest_first_json_array(
-    tmp_path: Path,
-) -> None:
-    db = Db(tmp_path / "events.sqlite", should_create_schema=True)
+def test_events_command_requires_config_in_context_object() -> None:
+    result = runner.invoke(app.app, ["events"], catch_exceptions=True)
 
-    async with db:
-        async with db.sessionmaker.begin() as session:
-            repository = AlchemyEventRepository(session)
-            await repository.add("command_recorded", "first")
-            await repository.add("message", "second")
-            await repository.add("command_skipped", "third")
+    assert result.exit_code == 1
+    assert isinstance(result.exception, TypeError)
+    assert str(result.exception) == "sts app requires Config in context.obj"
 
-        json_output = await app._format_recent_events_json(db.sessionmaker, limit=2)
 
-    parsed_output = json.loads(json_output)
+def test_command_command_records_pending_command(tmp_path: Path) -> None:
+    sqlite_file = tmp_path / "command.sqlite"
+    _create_schema(sqlite_file)
+
+    result = runner.invoke(
+        app.app,
+        ["command", "play"],
+        obj=app.Config(sqlite_file=sqlite_file),
+    )
+
+    assert result.exit_code == 0
+    assert _read_pending_command(sqlite_file, pending_command_id=1) == (
+        1,
+        "play",
+        "pending",
+    )
+
+
+def test_events_command_outputs_recent_events_json(tmp_path: Path) -> None:
+    sqlite_file = tmp_path / "events.sqlite"
+    _seed_events(sqlite_file)
+
+    result = runner.invoke(
+        app.app,
+        ["events", "--limit", "2"],
+        obj=app.Config(sqlite_file=sqlite_file),
+    )
+
+    assert result.exit_code == 0
+
+    parsed_output = json.loads(result.output)
 
     assert [
         {

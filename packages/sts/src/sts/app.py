@@ -1,41 +1,27 @@
 import asyncio
 import json
-from collections.abc import Iterator
-from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated
 
 import typer
-from core import event_loop
-from core.db import AsyncSessionmaker, Db
+from core.db import Db
 from core.event_repository import AlchemyEventRepository
 from core.models import Event
-from core.paths import DB_SQLITE_FILE
 from core.pending_command_repository import AlchemyPendingCommandRepository
 
 app = typer.Typer(add_completion=False, help="Slay the Spire 제어 CLI")
 
 
 @dataclass(frozen=True, kw_only=True)
-class _State:
-    loop: asyncio.AbstractEventLoop
-    sessionmaker: AsyncSessionmaker
+class Config:
+    sqlite_file: Path
 
 
-@contextmanager
-def _state() -> Iterator[_State]:
-    with event_loop.install() as loop:
-        db = Db(DB_SQLITE_FILE)
-        try:
-            loop.run_until_complete(db.open())
-            state = _State(loop=loop, sessionmaker=db.sessionmaker)
-            yield state
-        finally:
-            loop.run_until_complete(db.close())
-
-
-def _get_state(context: typer.Context) -> _State:
+def _get_config(context: typer.Context) -> Config:
+    if not isinstance(context.obj, Config):
+        raise TypeError("sts app requires Config in context.obj")
     return context.obj
 
 
@@ -64,32 +50,25 @@ def _format_events_json(events: list[Event]) -> str:
     )
 
 
-async def _format_recent_events_json(
-    sessionmaker: AsyncSessionmaker, *, limit: int
-) -> str:
-    async with sessionmaker.begin() as session:
+async def _record_command(config: Config, command: str) -> None:
+    async with Db(config.sqlite_file) as db, db.sessionmaker.begin() as session:
+        repository = AlchemyPendingCommandRepository(session)
+        await repository.add(command)
+
+
+async def _read_events_json(config: Config, *, limit: int) -> str:
+    async with Db(config.sqlite_file) as db, db.sessionmaker.begin() as session:
         repository = AlchemyEventRepository(session)
         events = await repository.list_recent(limit=limit)
     return _format_events_json(events)
-
-
-@app.callback()
-def main(context: typer.Context) -> None:
-    context.obj = context.with_resource(_state())
 
 
 @app.command(help="명령을 추가합니다.")
 def command(
     context: typer.Context, command: Annotated[str, typer.Argument(help="추가할 명령")]
 ) -> None:
-    state = _get_state(context)
-
-    async def run() -> None:
-        async with state.sessionmaker.begin() as session:
-            repository = AlchemyPendingCommandRepository(session)
-            await repository.add(command)
-
-    state.loop.run_until_complete(run())
+    config = _get_config(context)
+    asyncio.run(_record_command(config, command))
 
 
 @app.command(help="최근 이벤트를 조회합니다.")
@@ -97,8 +76,5 @@ def events(
     context: typer.Context,
     limit: Annotated[int, typer.Option(help="조회할 이벤트 수")] = 3,
 ) -> None:
-    state = _get_state(context)
-    json_output = state.loop.run_until_complete(
-        _format_recent_events_json(state.sessionmaker, limit=limit)
-    )
-    typer.echo(json_output)
+    config = _get_config(context)
+    typer.echo(asyncio.run(_read_events_json(config, limit=limit)))
