@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -10,6 +10,24 @@ from sts import main
 
 def test_format_events_json_returns_empty_array() -> None:
     assert main._format_events_json([]) == "[]"
+
+
+def test_format_timestamp_converts_utc_timestamp_to_local_timezone() -> None:
+    timestamp = datetime(2026, 3, 20, 14, 32, 42, 376000, tzinfo=UTC)
+
+    assert main._format_timestamp(timestamp) == timestamp.astimezone().isoformat(
+        timespec="milliseconds"
+    )
+
+
+def test_format_timestamp_assumes_naive_timestamp_is_utc() -> None:
+    timestamp = datetime(2026, 3, 20, 14, 32, 42, 376000, tzinfo=UTC).replace(
+        tzinfo=None
+    )
+
+    assert main._format_timestamp(timestamp) == timestamp.replace(
+        tzinfo=UTC
+    ).astimezone().isoformat(timespec="milliseconds")
 
 
 @pytest.mark.asyncio

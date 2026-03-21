@@ -20,24 +20,24 @@ app = typer.Typer(add_completion=False, help="Slay the Spire 제어 CLI")
 
 
 @dataclass(frozen=True, kw_only=True)
-class State:
+class _State:
     loop: asyncio.AbstractEventLoop
     sessionmaker: AsyncSessionmaker
 
 
 @contextmanager
-def state() -> Iterator[State]:
+def _state() -> Iterator[_State]:
     with event_loop.install() as loop:
         db = Db(DB_SQLITE_FILE)
         try:
             loop.run_until_complete(db.open())
-            state = State(loop=loop, sessionmaker=db.sessionmaker)
+            state = _State(loop=loop, sessionmaker=db.sessionmaker)
             yield state
         finally:
             loop.run_until_complete(db.close())
 
 
-def get_state(context: typer.Context) -> State:
+def _get_state(context: typer.Context) -> _State:
     return context.obj
 
 
@@ -45,7 +45,7 @@ def _format_timestamp(timestamp: datetime) -> str:
     utc_timestamp = (
         timestamp if timestamp.tzinfo is not None else timestamp.replace(tzinfo=UTC)
     )
-    return utc_timestamp.isoformat(timespec="milliseconds")
+    return utc_timestamp.astimezone().isoformat(timespec="milliseconds")
 
 
 def _serialize_event(event: Event) -> dict[str, int | str]:
@@ -78,14 +78,14 @@ async def _format_recent_events_json(
 @app.callback()
 def main(context: typer.Context) -> None:
     log.init()
-    context.obj = context.with_resource(state())
+    context.obj = context.with_resource(_state())
 
 
 @app.command(help="명령을 추가합니다.")
 def command(
     context: typer.Context, command: Annotated[str, typer.Argument(help="추가할 명령")]
 ) -> None:
-    state = get_state(context)
+    state = _get_state(context)
 
     async def run() -> None:
         async with state.sessionmaker.begin() as session:
@@ -100,7 +100,7 @@ def events(
     context: typer.Context,
     limit: Annotated[int, typer.Option(help="조회할 이벤트 수")] = 3,
 ) -> None:
-    state = get_state(context)
+    state = _get_state(context)
     json_output = state.loop.run_until_complete(
         _format_recent_events_json(state.sessionmaker, limit=limit)
     )
