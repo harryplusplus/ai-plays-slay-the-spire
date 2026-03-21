@@ -215,3 +215,4 @@ __marimo__/
 /.work/codex/skills/*
 !/.work/codex/skills/use-sts-cli/
 !/.work/codex/skills/use-sts-cli/**
+/agent/_ModTheSpire/
