@@ -2,7 +2,7 @@
 
 ## Command Surface
 
-Use the CLI from the repository root:
+Use the CLI from the current working directory in this workspace. The agent already starts in the correct directory, so do not change directories before running it:
 
 ```bash
 uv run sts --help
@@ -75,6 +75,13 @@ If you need more context, increase `--limit`:
 ```bash
 uv run sts events --limit 10
 ```
+
+Payload notes for newer CommunicationMod builds:
+
+- Do not assume `.game_state.combat_state` exists outside combat.
+- Non-combat screens may expose `.game_state.choice_list`.
+- Event screens may expose structured options under `.game_state.screen_state.options`.
+- Key progress may be available as `.game_state.keys`.
 
 ## Bridge and DB Behavior
 
