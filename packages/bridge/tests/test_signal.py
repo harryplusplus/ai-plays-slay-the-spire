@@ -24,14 +24,35 @@ def restored_signal_handlers() -> Iterator[None]:
 
 
 @pytest.mark.usefixtures("restored_signal_handlers")
-def test_install_handlers_registers_handler_for_sigint_and_sigterm() -> None:
+def test_install_registers_handler_for_default_signals_within_context() -> None:
+    original_sigint = stdlib_signal.getsignal(stdlib_signal.SIGINT)
+    original_sigterm = stdlib_signal.getsignal(stdlib_signal.SIGTERM)
+
     def handler(_: int, __: FrameType | None) -> None:
         pass
 
-    signal.install_handlers(handler)
+    with signal.install(handler):
+        assert stdlib_signal.getsignal(stdlib_signal.SIGINT) == handler
+        assert stdlib_signal.getsignal(stdlib_signal.SIGTERM) == handler
 
-    assert stdlib_signal.getsignal(stdlib_signal.SIGINT) == handler
-    assert stdlib_signal.getsignal(stdlib_signal.SIGTERM) == handler
+    assert stdlib_signal.getsignal(stdlib_signal.SIGINT) == original_sigint
+    assert stdlib_signal.getsignal(stdlib_signal.SIGTERM) == original_sigterm
+
+
+@pytest.mark.usefixtures("restored_signal_handlers")
+def test_install_registers_handler_only_for_explicit_signals() -> None:
+    original_sigint = stdlib_signal.getsignal(stdlib_signal.SIGINT)
+    original_sigterm = stdlib_signal.getsignal(stdlib_signal.SIGTERM)
+
+    def handler(_: int, __: FrameType | None) -> None:
+        pass
+
+    with signal.install(handler, {stdlib_signal.SIGINT}):
+        assert stdlib_signal.getsignal(stdlib_signal.SIGINT) == handler
+        assert stdlib_signal.getsignal(stdlib_signal.SIGTERM) == original_sigterm
+
+    assert stdlib_signal.getsignal(stdlib_signal.SIGINT) == original_sigint
+    assert stdlib_signal.getsignal(stdlib_signal.SIGTERM) == original_sigterm
 
 
 def test_to_async_handler_sets_event() -> None:
