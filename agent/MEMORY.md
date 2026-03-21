@@ -19,10 +19,15 @@
 - [x] `./scripts/sts-state-latest.sh` 가 그대로 동작하는지 확인합니다.
 - [x] `./scripts/sts-combat-summary.sh` 가 그대로 동작하는지 확인합니다.
 - [x] 최신 mod에서 상태 JSON 구조가 바뀐 필드를 확인합니다.
-- [ ] `play`/`choose` 이후 이벤트 흐름이나 메시지 타이밍이 이전과 달라졌는지 확인합니다.
+- [x] `play`/`choose` 이후 이벤트 흐름이나 메시지 타이밍을 확인합니다.
 - [ ] 카드 이름 기반 보조 래퍼가 여전히 필요한지 다시 판단합니다.
 
 ### Confirmed Payload Changes
 - `game_state.keys` 필드가 추가되어 루비/에메랄드/사파이어 키 상태를 바로 확인할 수 있습니다.
 - 비전투 화면에서는 `combat_state` 를 가정하면 안 됩니다.
 - 비전투 선택 화면에서는 `choice_list` 와 `screen_state.options` 가 함께 내려옵니다.
+- 일부 선택 화면에서는 `available_commands` 에 `confirm` 과 `cancel` 이 직접 노출됩니다.
+
+### Confirmed Flow Notes
+- `command_recorded` 뒤에 `message` 가 이어지는 기본 흐름은 유지됩니다.
+- 상점 `purge` 같은 그리드 선택은 카드 선택 후 `confirm` 으로 확정하는 흐름이 보입니다.
