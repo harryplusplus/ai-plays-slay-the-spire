@@ -30,6 +30,7 @@
 - `uv run ruff format`
 - `uv run pyright`
 - `uv run pytest`
+- `# pyright: ignore`를 사용하지 않습니다.
 - 테스트 코드를 작성할 때는 `unittest` 모듈과 `pytest.MonkeyPatch`를 사용하지 않습니다.
 - 테스트를 위해 아래와 같은 우회를 사용하지 않습니다.
 ```python
