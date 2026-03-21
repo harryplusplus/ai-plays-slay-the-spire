@@ -45,6 +45,12 @@ printf '%s\n' "$state_json" | jq -r '
             }
         ];
 
+    def map_node_lines:
+        [ .[]? | { x, y, symbol, has_emerald_key } ];
+
+    def option_lines:
+        [ .[]? | { choice_index, label, disabled } ];
+
     {
         available_commands,
         screen_type: .game_state.screen_type,
@@ -54,6 +60,35 @@ printf '%s\n' "$state_json" | jq -r '
         act: .game_state.act,
         hp: "\(.game_state.current_hp)/\(.game_state.max_hp)",
         gold: .game_state.gold,
+        keys: (.game_state.keys // null),
+        choice_list: (.game_state.choice_list // null),
+        screen: (
+            if (.game_state.combat_state | type) == "object" then null
+            else {
+                event_id: (.game_state.screen_state.event_id // null),
+                event_name: (.game_state.screen_state.event_name // null),
+                options: (.game_state.screen_state.options | option_lines),
+                current_node: (
+                    .game_state.screen_state.current_node
+                    | if . == null then null else { x, y, symbol, has_emerald_key } end
+                ),
+                next_nodes: (.game_state.screen_state.next_nodes | map_node_lines),
+                grid: (
+                    if .game_state.screen_type != "GRID" then null
+                    else {
+                        num_cards: (.game_state.screen_state.num_cards // null),
+                        selected_cards: [ .game_state.screen_state.selected_cards[]? | .name ],
+                        confirm_up: (.game_state.screen_state.confirm_up // false),
+                        for_purge: (.game_state.screen_state.for_purge // false),
+                        for_upgrade: (.game_state.screen_state.for_upgrade // false),
+                        for_transform: (.game_state.screen_state.for_transform // false),
+                        any_number: (.game_state.screen_state.any_number // false)
+                    }
+                    end
+                )
+            }
+            end
+        ),
         combat: (
             if (.game_state.combat_state | type) != "object" then null
             else {
