@@ -1,6 +1,8 @@
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
-from typing import Protocol
+from types import TracebackType
+from typing import Protocol, Self
 
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
@@ -47,6 +49,76 @@ async def close_engine(engine: AsyncEngine) -> None:
 
 
 AsyncSessionmaker = async_sessionmaker[AsyncSession]
+
+
+class DbState(StrEnum):
+    IDLE = "idle"
+    OPENED = "opened"
+    CLOSED = "closed"
+
+
+class Db:
+    def __init__(self, sqlite_file: Path, *, init_dev: bool = False) -> None:
+        self._engine = create_engine(sqlite_file)
+        self._sessionmaker = create_sessionmaker(self._engine)
+        self._init_dev = init_dev
+        self._state = DbState.IDLE
+
+    @property
+    def state(self) -> DbState:
+        return self._state
+
+    @property
+    def engine(self) -> AsyncEngine:
+        self._require_opened()
+        return self._engine
+
+    @property
+    def sessionmaker(self) -> AsyncSessionmaker:
+        self._require_opened()
+        return self._sessionmaker
+
+    async def open(self) -> None:
+        if self._state is DbState.OPENED:
+            raise RuntimeError("Db is already opened.")
+        if self._state is DbState.CLOSED:
+            raise RuntimeError("Db is already closed.")
+
+        try:
+            await init(self._engine)
+            if self._init_dev:
+                await init_dev(self._engine)
+        except Exception:
+            self._state = DbState.CLOSED
+            await close_engine(self._engine)
+            raise
+
+        self._state = DbState.OPENED
+
+    async def close(self) -> None:
+        if self._state is DbState.CLOSED:
+            return
+
+        self._state = DbState.CLOSED
+        await close_engine(self._engine)
+
+    async def __aenter__(self) -> Self:
+        await self.open()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        await self.close()
+
+    def _require_opened(self) -> None:
+        if self._state is DbState.IDLE:
+            raise RuntimeError("Db is not opened.")
+        if self._state is DbState.CLOSED:
+            raise RuntimeError("Db is already closed.")
 
 
 def create_sessionmaker(engine: AsyncEngine) -> AsyncSessionmaker:

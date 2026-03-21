@@ -3,9 +3,7 @@ import logging
 import sys
 
 from core import db
-from core.db import AsyncSessionmaker
 from core.paths import DB_SQLITE_FILE
-from sqlalchemy.ext.asyncio import AsyncEngine
 
 from bridge import bridge, log, message, signal
 
@@ -13,18 +11,11 @@ logger = logging.getLogger(__name__)
 
 
 async def run(
-    engine: AsyncEngine,
-    sessionmaker: AsyncSessionmaker,
     message_queue: message.Queue,
     stop_event: asyncio.Event,
 ) -> None:
-    try:
-        await db.init(engine)
-        await db.init_dev(engine)
-
-        await bridge.run(sessionmaker, message_queue, stop_event)
-    finally:
-        await db.close_engine(engine)
+    async with db.Db(DB_SQLITE_FILE, init_dev=True) as bridge_db:
+        await bridge.run(bridge_db.sessionmaker, message_queue, stop_event)
 
 
 def main() -> None:
@@ -32,23 +23,27 @@ def main() -> None:
     logger.info("Bridge started.")
 
     loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    stop_event = asyncio.Event()
-    signal.install_handlers(signal.ToAsyncHandler(loop, stop_event))
-
-    message_queue = message.Queue()
-    message.start_thread(sys.stdin, message.ToAsyncQueue(loop, message_queue))
-
-    engine = db.create_engine(DB_SQLITE_FILE)
-    sessionmaker = AsyncSessionmaker(engine)
-
     try:
-        loop.run_until_complete(run(engine, sessionmaker, message_queue, stop_event))
+        asyncio.set_event_loop(loop)
+
+        stop_event = asyncio.Event()
+        signal.install_handlers(signal.ToAsyncHandler(loop, stop_event))
+
+        message_queue = message.Queue()
+        message.start_thread(sys.stdin, message.ToAsyncQueue(loop, message_queue))
+
+        loop.run_until_complete(run(message_queue, stop_event))
+    except Exception:
+        logger.exception("An error occurred in the main loop.")
+        raise
     finally:
-        loop.run_until_complete(loop.shutdown_asyncgens())
-        loop.close()
-        asyncio.set_event_loop(None)
+        try:
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        except Exception:
+            logger.exception("An error occurred while shutting down async generators.")
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
 
     logger.info("Bridge closed.")
 

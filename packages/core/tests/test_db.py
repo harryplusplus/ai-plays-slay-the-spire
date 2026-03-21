@@ -4,6 +4,8 @@ from pathlib import Path
 import pytest
 from core import db
 from core.models import Event
+from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 BUSY_TIMEOUT_MS = 5000
@@ -176,3 +178,117 @@ def test_check_journal_mode_raises_for_non_wal_mode() -> None:
 
     assert str(exc_info.value) == "Failed to set journal_mode to WAL"
     assert exc_info.value.mode == "delete"
+
+
+@pytest.mark.asyncio
+async def test_db_requires_open_before_engine_and_sessionmaker_access(
+    tmp_path: Path,
+) -> None:
+    database = db.Db(tmp_path / "access.sqlite")
+
+    assert database.state is db.DbState.IDLE
+
+    with pytest.raises(RuntimeError, match=r"Db is not opened\."):
+        _ = database.engine
+
+    with pytest.raises(RuntimeError, match=r"Db is not opened\."):
+        _ = database.sessionmaker
+
+
+@pytest.mark.asyncio
+async def test_db_open_initializes_engine_and_sessionmaker(tmp_path: Path) -> None:
+    database = db.Db(tmp_path / "open.sqlite")
+
+    await database.open()
+
+    try:
+        assert database.state is db.DbState.OPENED
+
+        async with database.engine.connect() as connection:
+            assert await read_scalar(connection, "PRAGMA journal_mode;") == "wal"
+            assert await read_scalar(connection, "PRAGMA synchronous;") == 1
+            assert (
+                await read_scalar(connection, "PRAGMA busy_timeout;") == BUSY_TIMEOUT_MS
+            )
+
+        async with database.sessionmaker() as session:
+            assert await session.scalar(select(1)) == 1
+    finally:
+        await database.close()
+
+
+@pytest.mark.asyncio
+async def test_db_async_context_manager_opens_dev_schema_and_closes(
+    tmp_path: Path,
+) -> None:
+    database = db.Db(tmp_path / "context.sqlite", init_dev=True)
+
+    async with database as opened_database:
+        assert opened_database is database
+        assert database.state is db.DbState.OPENED
+
+        async with database.engine.connect() as connection:
+            assert (
+                await read_scalar(
+                    connection,
+                    (
+                        "SELECT name FROM sqlite_master "
+                        "WHERE type='table' AND name='events';"
+                    ),
+                )
+                == "events"
+            )
+            assert (
+                await read_scalar(
+                    connection,
+                    (
+                        "SELECT name FROM sqlite_master "
+                        "WHERE type='table' AND name='pending_commands';"
+                    ),
+                )
+                == "pending_commands"
+            )
+
+    assert database.state is db.DbState.CLOSED
+
+    with pytest.raises(RuntimeError, match=r"Db is already closed\."):
+        _ = database.engine
+
+
+@pytest.mark.asyncio
+async def test_db_open_raises_when_already_opened(tmp_path: Path) -> None:
+    database = db.Db(tmp_path / "reopen.sqlite")
+
+    await database.open()
+
+    try:
+        with pytest.raises(RuntimeError, match=r"Db is already opened\."):
+            await database.open()
+    finally:
+        await database.close()
+
+
+@pytest.mark.asyncio
+async def test_db_open_failure_closes_instance(tmp_path: Path) -> None:
+    database = db.Db(tmp_path / "missing-parent" / "failure.sqlite")
+
+    with pytest.raises(OperationalError, match="unable to open database file"):
+        await database.open()
+
+    assert database.state is db.DbState.CLOSED
+
+    with pytest.raises(RuntimeError, match=r"Db is already closed\."):
+        await database.open()
+
+    with pytest.raises(RuntimeError, match=r"Db is already closed\."):
+        _ = database.sessionmaker
+
+
+@pytest.mark.asyncio
+async def test_db_close_is_idempotent(tmp_path: Path) -> None:
+    database = db.Db(tmp_path / "close.sqlite")
+
+    await database.close()
+    await database.close()
+
+    assert database.state is db.DbState.CLOSED
