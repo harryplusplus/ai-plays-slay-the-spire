@@ -4,7 +4,9 @@ from contextlib import contextmanager
 
 
 @contextmanager
-def current_thread_loop() -> Iterator[asyncio.AbstractEventLoop]:
+def scoped(
+    previous: asyncio.AbstractEventLoop | None = None,
+) -> Iterator[asyncio.AbstractEventLoop]:
     loop = asyncio.new_event_loop()
     try:
         asyncio.set_event_loop(loop)
@@ -13,5 +15,5 @@ def current_thread_loop() -> Iterator[asyncio.AbstractEventLoop]:
         try:
             loop.run_until_complete(loop.shutdown_asyncgens())
         finally:
-            asyncio.set_event_loop(None)
+            asyncio.set_event_loop(previous)
             loop.close()
