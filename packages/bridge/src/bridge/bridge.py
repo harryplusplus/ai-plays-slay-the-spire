@@ -12,7 +12,7 @@ from bridge import message
 IDLE_LOOP_SLEEP_SECONDS = 0.1
 
 
-async def record_message_event(
+async def _record_message_event(
     sessionmaker: AsyncSessionmaker,
     message: str,
 ) -> int:
@@ -21,7 +21,7 @@ async def record_message_event(
         return await repository.add("message", message)
 
 
-async def skip_pending_commands(
+async def _skip_pending_commands(
     sessionmaker: AsyncSessionmaker,
 ) -> int:
     async with sessionmaker.begin() as session:
@@ -35,7 +35,7 @@ async def skip_pending_commands(
         return len(pending_commands)
 
 
-async def get_next_pending_command(
+async def _get_next_pending_command(
     sessionmaker: AsyncSessionmaker,
 ) -> PendingCommand | None:
     async with sessionmaker() as session:
@@ -43,13 +43,13 @@ async def get_next_pending_command(
         return await repository.get_next_pending()
 
 
-def write_command(command: str, output: TextIO | None = None) -> None:
+def _write_command(command: str, output: TextIO | None = None) -> None:
     resolved = output if output is not None else sys.stdout
     resolved.write(f"{command}\n")
     resolved.flush()
 
 
-async def process_after_write_command(
+async def _process_after_write_command(
     sessionmaker: AsyncSessionmaker,
     pending_command_id: int,
     command: str,
@@ -62,16 +62,16 @@ async def process_after_write_command(
         return event_id
 
 
-async def process_next_pending_command(
+async def _process_next_pending_command(
     sessionmaker: AsyncSessionmaker,
     output: TextIO | None = None,
 ) -> bool:
-    pending_command = await get_next_pending_command(sessionmaker)
+    pending_command = await _get_next_pending_command(sessionmaker)
     if pending_command is None:
         return False
 
-    write_command(pending_command.command, output)
-    await process_after_write_command(
+    _write_command(pending_command.command, output)
+    await _process_after_write_command(
         sessionmaker,
         pending_command.id,
         pending_command.command,
@@ -79,7 +79,7 @@ async def process_next_pending_command(
     return True
 
 
-async def process_next(
+async def _process_next(
     sessionmaker: AsyncSessionmaker,
     message_queue: message.Queue,
     stop_event: asyncio.Event,
@@ -101,10 +101,10 @@ async def process_next(
         if message is None:
             return False
 
-        await record_message_event(sessionmaker, message)
+        await _record_message_event(sessionmaker, message)
         return True
 
-    if await process_next_pending_command(sessionmaker, output):
+    if await _process_next_pending_command(sessionmaker, output):
         return True
 
     await asyncio.sleep(IDLE_LOOP_SLEEP_SECONDS)
@@ -117,10 +117,10 @@ async def run(
     stop_event: asyncio.Event,
     output: TextIO | None = None,
 ) -> None:
-    write_command("ready", output)
-    await skip_pending_commands(sessionmaker)
+    _write_command("ready", output)
+    await _skip_pending_commands(sessionmaker)
 
-    while await process_next(
+    while await _process_next(
         sessionmaker,
         message_queue,
         stop_event,

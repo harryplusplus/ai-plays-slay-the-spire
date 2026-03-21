@@ -1,14 +1,29 @@
 import asyncio
 import signal
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from types import FrameType
 
 Handler = Callable[[int, FrameType | None], None]
 
+_HandlerLike = Handler | int | signal.Handlers | None
 
-def install_handlers(handler: Handler) -> None:
-    signal.signal(signal.SIGINT, handler)
-    signal.signal(signal.SIGTERM, handler)
+
+@contextmanager
+def scoped(handler: Handler, signals: set[int] | None = None) -> Iterator[None]:
+    if signals is None:
+        signals = {signal.SIGINT, signal.SIGTERM}
+
+    previous = dict[int, _HandlerLike]()
+    for sig in signals:
+        previous[sig] = signal.getsignal(sig)
+        signal.signal(sig, handler)
+
+    try:
+        yield
+    finally:
+        for sig, prev_handler in previous.items():
+            signal.signal(sig, prev_handler)
 
 
 class ToAsyncHandler:

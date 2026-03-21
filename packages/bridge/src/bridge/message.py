@@ -30,7 +30,7 @@ class ToAsyncQueue:
             raise ClosedError("Message queue is closed.") from e
 
 
-def process_next(
+def _process_next(
     input_: TextIO,
     queue: ToAsyncQueue,
 ) -> bool:
@@ -46,13 +46,13 @@ def process_next(
     return True
 
 
-def run(
+def _run(
     input_: TextIO,
     queue: ToAsyncQueue,
 ) -> None:
     logger.info("Message thread started.")
 
-    while process_next(input_, queue):
+    while _process_next(input_, queue):
         pass
 
     with suppress(ClosedError):
@@ -63,7 +63,7 @@ def run(
 
 def start_thread(input_: TextIO, queue: ToAsyncQueue) -> threading.Thread:
     thread = threading.Thread(
-        target=run,
+        target=_run,
         args=(input_, queue),
         daemon=True,
     )

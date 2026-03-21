@@ -42,7 +42,7 @@ def test_process_next_enqueues_stripped_line() -> None:
     try:
         async_queue = message.ToAsyncQueue(loop, queue)
 
-        should_continue = message.process_next(input_, async_queue)
+        should_continue = message._process_next(input_, async_queue)
         drain_loop(loop)
 
         assert should_continue is True
@@ -58,7 +58,7 @@ def test_process_next_returns_false_at_eof() -> None:
     try:
         async_queue = message.ToAsyncQueue(loop, queue)
 
-        should_continue = message.process_next(input_, async_queue)
+        should_continue = message._process_next(input_, async_queue)
 
         assert should_continue is False
         assert queue.empty() is True
@@ -73,7 +73,7 @@ def test_process_next_returns_false_when_queue_is_closed() -> None:
     queue = message.Queue()
     async_queue = message.ToAsyncQueue(loop, queue)
 
-    should_continue = message.process_next(input_, async_queue)
+    should_continue = message._process_next(input_, async_queue)
 
     assert should_continue is False
     assert queue.empty() is True
@@ -86,7 +86,7 @@ def test_run_forwards_messages_and_enqueues_eof() -> None:
     try:
         async_queue = message.ToAsyncQueue(loop, queue)
 
-        message.run(input_, async_queue)
+        message._run(input_, async_queue)
         drain_loop(loop)
 
         assert queue.get_nowait() == "play"
@@ -103,7 +103,7 @@ def test_run_suppresses_closed_error_when_eof_signal_cannot_be_enqueued() -> Non
     queue = message.Queue()
     async_queue = message.ToAsyncQueue(loop, queue)
 
-    message.run(input_, async_queue)
+    message._run(input_, async_queue)
 
     assert queue.empty() is True
 

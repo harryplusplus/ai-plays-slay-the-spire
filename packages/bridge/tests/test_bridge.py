@@ -37,7 +37,7 @@ async def test_record_message_event_persists_message_and_returns_id(
         await db.init_dev(engine)
         sessionmaker = db.create_sessionmaker(engine)
 
-        event_id = await bridge.record_message_event(sessionmaker, "state")
+        event_id = await bridge._record_message_event(sessionmaker, "state")
 
         assert event_id == 1
 
@@ -69,7 +69,7 @@ async def test_get_next_pending_command_returns_oldest_pending_command(
             await repository.mark_recorded(recorded_pending_id)
             await repository.add("end")
 
-        pending_command = await bridge.get_next_pending_command(sessionmaker)
+        pending_command = await bridge._get_next_pending_command(sessionmaker)
 
         assert pending_command is not None
         assert pending_command.id == oldest_pending_id
@@ -82,7 +82,7 @@ async def test_get_next_pending_command_returns_oldest_pending_command(
 def test_write_command_writes_newline_and_flushes_output() -> None:
     output = RecordingOutput()
 
-    bridge.write_command("play", output)
+    bridge._write_command("play", output)
 
     assert output.getvalue() == "play\n"
     assert output.flush_count == 1
@@ -103,7 +103,7 @@ async def test_process_after_write_command_records_event_and_marks_command(
             repository = AlchemyPendingCommandRepository(session)
             pending_command_id = await repository.add("play")
 
-        event_id = await bridge.process_after_write_command(
+        event_id = await bridge._process_after_write_command(
             sessionmaker,
             pending_command_id,
             "play",
@@ -140,7 +140,7 @@ async def test_skip_pending_commands_at_startup_records_skipped_events(
             first_pending_command_id = await repository.add("play")
             second_pending_command_id = await repository.add("state")
 
-        skipped_count = await bridge.skip_pending_commands(sessionmaker)
+        skipped_count = await bridge._skip_pending_commands(sessionmaker)
 
         assert skipped_count == SKIPPED_PENDING_COMMANDS
 
@@ -186,7 +186,7 @@ async def test_process_next_pending_command_writes_output_and_records_event(
             repository = AlchemyPendingCommandRepository(session)
             pending_command_id = await repository.add("play")
 
-        processed = await bridge.process_next_pending_command(sessionmaker, output)
+        processed = await bridge._process_next_pending_command(sessionmaker, output)
 
         assert processed is True
         assert output.getvalue() == "play\n"
@@ -217,7 +217,7 @@ async def test_process_next_pending_command_returns_false_without_pending_comman
         await db.init_dev(engine)
         sessionmaker = db.create_sessionmaker(engine)
 
-        processed = await bridge.process_next_pending_command(sessionmaker, output)
+        processed = await bridge._process_next_pending_command(sessionmaker, output)
 
         assert processed is False
         assert output.getvalue() == ""
@@ -236,7 +236,7 @@ async def test_process_next_stops_when_stop_event_is_set() -> None:
     sessionmaker = db.create_sessionmaker(engine)
 
     try:
-        should_continue = await bridge.process_next(
+        should_continue = await bridge._process_next(
             sessionmaker,
             message_queue,
             stop_event,
@@ -257,7 +257,7 @@ async def test_process_next_stops_when_message_queue_signals_eof() -> None:
     sessionmaker = db.create_sessionmaker(engine)
 
     try:
-        should_continue = await bridge.process_next(
+        should_continue = await bridge._process_next(
             sessionmaker,
             message_queue,
             stop_event,
@@ -288,7 +288,7 @@ async def test_process_next_prioritizes_message_over_pending_command(
 
         message_queue.put_nowait("state")
 
-        should_continue = await bridge.process_next(
+        should_continue = await bridge._process_next(
             sessionmaker,
             message_queue,
             stop_event,
@@ -330,7 +330,7 @@ async def test_process_next_processes_pending_command_without_message(
             repository = AlchemyPendingCommandRepository(session)
             pending_command_id = await repository.add("play")
 
-        should_continue = await bridge.process_next(
+        should_continue = await bridge._process_next(
             sessionmaker,
             message_queue,
             stop_event,
@@ -368,7 +368,7 @@ async def test_process_next_sleeps_when_message_and_pending_are_absent(
         await db.init_dev(engine)
         sessionmaker = db.create_sessionmaker(engine)
 
-        should_continue = await bridge.process_next(
+        should_continue = await bridge._process_next(
             sessionmaker,
             message_queue,
             stop_event,
