@@ -22,6 +22,12 @@ members = ["packages/*"]
 typeCheckingMode = "strict"
 reportImplicitOverride = true
 include = ["packages/*/src/**/*.py", "packages/*/tests/**/*.py"]
+executionEnvironments = [
+    { root = "packages/ai/tests", reportPrivateUsage = false },
+    { root = "packages/bridge/tests", reportPrivateUsage = false },
+    { root = "packages/core/tests", reportPrivateUsage = false },
+    { root = "packages/sts/tests", reportPrivateUsage = false },
+]
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib --cov --cov-report=term-missing"
@@ -31,7 +37,7 @@ source_pkgs = ["ai", "bridge", "core", "sts"]
 omit = ["packages/*/src/*/__main__.py"]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py311"
 include = [
     "packages/*/src/**/*.py",
     "packages/*/tests/**/*.py",
@@ -44,7 +50,7 @@ select = ["ALL"]
 ignore = ["COM812", "COM819", "D", "EM101", "EM102", "TRY003"]
 
 [tool.ruff.lint.per-file-ignores]
-"packages/*/tests/**/*.py" = ["INP001", "S101"]
+"packages/*/tests/**/*.py" = ["INP001", "S101", "SLF001"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "pytest.CaptureFixture".msg = "출력 캡처 대신 의존성 주입으로 테스트합니다."

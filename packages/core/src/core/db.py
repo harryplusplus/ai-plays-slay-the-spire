@@ -2,105 +2,107 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from types import TracebackType
-from typing import Protocol, Self
+from typing import Self
 
 from sqlalchemy import event
+from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.ext.asyncio import (
-    AsyncConnection,
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import ConnectionPoolEntry
 
 from core.models import Base
-
-BUSY_TIMEOUT_MS = 5000
-
-
-class OnConnectCursor(Protocol):
-    def execute(self, query: str) -> object: ...
-    def close(self) -> None: ...
-
-
-class OnConnectDBAPIConnection(Protocol):
-    def cursor(self) -> OnConnectCursor: ...
-
-
-def create_engine(sqlite_file: Path) -> AsyncEngine:
-    return create_async_engine(f"sqlite+aiosqlite:///{sqlite_file}")
-
-
-def on_connect(dbapi_connection: OnConnectDBAPIConnection, _: object) -> None:
-    cursor = dbapi_connection.cursor()
-    try:
-        cursor.execute("PRAGMA synchronous=NORMAL;")
-        cursor.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS};")
-    finally:
-        cursor.close()
-
-
-def install_on_connect(engine: AsyncEngine) -> None:
-    event.listen(engine.sync_engine, "connect", on_connect)
-
-
-async def close_engine(engine: AsyncEngine) -> None:
-    await engine.dispose()
-
 
 AsyncSessionmaker = async_sessionmaker[AsyncSession]
 
 
-class DbState(StrEnum):
+BUSY_TIMEOUT_MS = 5000
+
+
+@dataclass(init=False)
+class JournalModeError(Exception):
+    mode: str
+
+    def __init__(self, mode: str) -> None:
+        self.mode = mode
+        super().__init__("Failed to set journal_mode to WAL")
+
+
+class State(StrEnum):
     IDLE = "idle"
     OPENED = "opened"
     CLOSED = "closed"
 
 
 class Db:
-    def __init__(self, sqlite_file: Path, *, init_dev: bool = False) -> None:
-        self._engine = create_engine(sqlite_file)
-        self._sessionmaker = create_sessionmaker(self._engine)
-        self._init_dev = init_dev
-        self._state = DbState.IDLE
-
-    @property
-    def state(self) -> DbState:
-        return self._state
+    def __init__(
+        self, sqlite_file: Path, *, should_create_schema: bool = False
+    ) -> None:
+        self._engine = create_async_engine(f"sqlite+aiosqlite:///{sqlite_file}")
+        self._sessionmaker = AsyncSessionmaker(self._engine, expire_on_commit=False)
+        self._should_create_schema = should_create_schema
+        self._state = State.IDLE
 
     @property
     def engine(self) -> AsyncEngine:
-        self._require_opened()
+        self._require_opened(self._state)
         return self._engine
 
     @property
     def sessionmaker(self) -> AsyncSessionmaker:
-        self._require_opened()
+        self._require_opened(self._state)
         return self._sessionmaker
 
     async def open(self) -> None:
-        if self._state is DbState.OPENED:
-            raise RuntimeError("Db is already opened.")
-        if self._state is DbState.CLOSED:
-            raise RuntimeError("Db is already closed.")
+        self._require_idle(self._state)
 
         try:
-            await init(self._engine)
-            if self._init_dev:
-                await init_dev(self._engine)
+            event.listen(self._engine.sync_engine, "connect", _on_connect)
+
+            async with self._engine.connect() as connection:
+                result = await connection.exec_driver_sql("PRAGMA journal_mode=WAL;")
+                mode = str(result.scalar_one())
+                self._check_journal_mode(mode)
+
+            await self._create_schema(should_create_schema=self._should_create_schema)
         except Exception:
-            self._state = DbState.CLOSED
-            await close_engine(self._engine)
+            await self.close()
             raise
 
-        self._state = DbState.OPENED
+        self._state = State.OPENED
 
-    async def close(self) -> None:
-        if self._state is DbState.CLOSED:
+    def _check_journal_mode(self, mode: str) -> None:
+        if mode.lower() != "wal":
+            raise JournalModeError(mode)
+
+    async def _create_schema(self, *, should_create_schema: bool) -> None:
+        if not should_create_schema:
             return
 
-        self._state = DbState.CLOSED
-        await close_engine(self._engine)
+        async with self._engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+
+    async def close(self) -> None:
+        await self._close(self._state)
+
+    async def _close(self, state: State) -> None:
+        if state is State.CLOSED:
+            return
+
+        self._state = State.CLOSED
+        self._remove_connect_listener(
+            contains=event.contains(self._engine.sync_engine, "connect", _on_connect)
+        )
+        await self._engine.dispose()
+
+    def _remove_connect_listener(self, *, contains: bool) -> None:
+        if not contains:
+            return
+
+        event.remove(self._engine.sync_engine, "connect", _on_connect)
 
     async def __aenter__(self) -> Self:
         await self.open()
@@ -114,49 +116,25 @@ class Db:
     ) -> None:
         await self.close()
 
-    def _require_opened(self) -> None:
-        if self._state is DbState.IDLE:
+    def _require_idle(self, state: State) -> None:
+        if state is State.OPENED:
+            raise RuntimeError("Db is already opened.")
+        if state is State.CLOSED:
+            raise RuntimeError("Db is already closed.")
+
+    def _require_opened(self, state: State) -> None:
+        if state is State.IDLE:
             raise RuntimeError("Db is not opened.")
-        if self._state is DbState.CLOSED:
+        if state is State.CLOSED:
             raise RuntimeError("Db is already closed.")
 
 
-def create_sessionmaker(engine: AsyncEngine) -> AsyncSessionmaker:
-    return AsyncSessionmaker(engine, expire_on_commit=False)
-
-
-async def set_journal_mode(connection: AsyncConnection) -> str:
-    result = await connection.exec_driver_sql("PRAGMA journal_mode=WAL;")
-    row = result.fetchone()
-    mode = row[0] if row else None
-    return str(mode)
-
-
-@dataclass(init=False)
-class JournalModeError(Exception):
-    mode: str
-
-    def __init__(self, mode: str) -> None:
-        self.mode = mode
-        super().__init__("Failed to set journal_mode to WAL")
-
-
-def check_journal_mode(mode: str) -> None:
-    if mode.lower() != "wal":
-        raise JournalModeError(mode)
-
-
-async def init(engine: AsyncEngine) -> None:
-    install_on_connect(engine)
-    async with engine.connect() as connection:
-        mode = await set_journal_mode(connection)
-        check_journal_mode(mode)
-
-
-async def create_schema_dev(connection: AsyncConnection) -> None:
-    await connection.run_sync(Base.metadata.create_all)
-
-
-async def init_dev(engine: AsyncEngine) -> None:
-    async with engine.begin() as connection:
-        await create_schema_dev(connection)
+def _on_connect(
+    dbapi_connection: DBAPIConnection, _connection_record: ConnectionPoolEntry
+) -> None:
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA synchronous=NORMAL;")
+        cursor.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS};")
+    finally:
+        cursor.close()
