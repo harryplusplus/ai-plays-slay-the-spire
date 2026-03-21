@@ -10,7 +10,7 @@ _HandlerLike = Handler | int | signal.Handlers | None
 
 
 @contextmanager
-def scoped(handler: Handler, signals: set[int] | None = None) -> Iterator[None]:
+def install(handler: Handler, signals: set[int] | None = None) -> Iterator[None]:
     if signals is None:
         signals = {signal.SIGINT, signal.SIGTERM}
 

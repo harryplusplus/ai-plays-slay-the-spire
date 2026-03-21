@@ -5,13 +5,13 @@ from core import event_loop
 
 
 def raise_in_scoped_event_loop(loops: list[asyncio.AbstractEventLoop]) -> None:
-    with event_loop.scoped() as loop:
+    with event_loop.install() as loop:
         loops.append(loop)
         raise RuntimeError("boom")
 
 
 def test_scoped_sets_current_loop_and_closes_on_exit() -> None:
-    with event_loop.scoped() as loop:
+    with event_loop.install() as loop:
         assert asyncio.get_event_loop() is loop
         assert loop.run_until_complete(asyncio.sleep(0, result=1)) == 1
         assert loop.is_closed() is False
@@ -20,10 +20,10 @@ def test_scoped_sets_current_loop_and_closes_on_exit() -> None:
 
 
 def test_scoped_creates_distinct_loops() -> None:
-    with event_loop.scoped() as first_loop:
+    with event_loop.install() as first_loop:
         pass
 
-    with event_loop.scoped() as second_loop:
+    with event_loop.install() as second_loop:
         pass
 
     assert first_loop is not second_loop
@@ -36,7 +36,7 @@ def test_scoped_restores_previous_loop_on_exit() -> None:
     asyncio.set_event_loop(previous)
 
     try:
-        with event_loop.scoped(previous=previous) as loop:
+        with event_loop.install(previous=previous) as loop:
             assert asyncio.get_event_loop() is loop
 
         assert asyncio.get_event_loop() is previous
@@ -46,8 +46,8 @@ def test_scoped_restores_previous_loop_on_exit() -> None:
 
 
 def test_nested_scoped_restores_outer_loop() -> None:
-    with event_loop.scoped() as outer_loop:
-        with event_loop.scoped(previous=outer_loop) as inner_loop:
+    with event_loop.install() as outer_loop:
+        with event_loop.install(previous=outer_loop) as inner_loop:
             assert asyncio.get_event_loop() is inner_loop
 
         assert asyncio.get_event_loop() is outer_loop

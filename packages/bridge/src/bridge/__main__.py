@@ -23,10 +23,10 @@ def main() -> None:
     log.init()
     logger.info("Bridge started.")
 
-    with event_loop.scoped() as loop:
+    with event_loop.install() as loop:
         stop_event = asyncio.Event()
 
-        with signal.scoped(signal.ToAsyncHandler(loop, stop_event)):
+        with signal.install(signal.ToAsyncHandler(loop, stop_event)):
             message_queue = message.Queue()
             message.start_thread(sys.stdin, message.ToAsyncQueue(loop, message_queue))
 

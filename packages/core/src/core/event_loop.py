@@ -4,7 +4,7 @@ from contextlib import contextmanager
 
 
 @contextmanager
-def scoped(
+def install(
     previous: asyncio.AbstractEventLoop | None = None,
 ) -> Iterator[asyncio.AbstractEventLoop]:
     loop = asyncio.new_event_loop()

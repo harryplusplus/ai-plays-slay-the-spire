@@ -1,7 +1,8 @@
-from typing import Protocol, override
+from typing import Protocol
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing_extensions import override
 
 from core.models import PendingCommand
 
