@@ -2,24 +2,22 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from types import TracebackType
-from typing import Self
+from typing import Protocol, Self
 
 from sqlalchemy import event
-from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.pool import ConnectionPoolEntry
 
 from core.models import Base
 
 AsyncSessionmaker = async_sessionmaker[AsyncSession]
 
 
-BUSY_TIMEOUT_MS = 5000
+_BUSY_TIMEOUT_MS = 5000
 
 
 @dataclass(init=False)
@@ -31,7 +29,7 @@ class JournalModeError(Exception):
         super().__init__("Failed to set journal_mode to WAL")
 
 
-class State(StrEnum):
+class _State(StrEnum):
     IDLE = "idle"
     OPENED = "opened"
     CLOSED = "closed"
@@ -44,7 +42,7 @@ class Db:
         self._engine = create_async_engine(f"sqlite+aiosqlite:///{sqlite_file}")
         self._sessionmaker = AsyncSessionmaker(self._engine, expire_on_commit=False)
         self._should_create_schema = should_create_schema
-        self._state = State.IDLE
+        self._state = _State.IDLE
 
     @property
     def engine(self) -> AsyncEngine:
@@ -72,7 +70,7 @@ class Db:
             await self.close()
             raise
 
-        self._state = State.OPENED
+        self._state = _State.OPENED
 
     def _check_journal_mode(self, mode: str) -> None:
         if mode.lower() != "wal":
@@ -88,11 +86,11 @@ class Db:
     async def close(self) -> None:
         await self._close(self._state)
 
-    async def _close(self, state: State) -> None:
-        if state is State.CLOSED:
+    async def _close(self, state: _State) -> None:
+        if state is _State.CLOSED:
             return
 
-        self._state = State.CLOSED
+        self._state = _State.CLOSED
         self._remove_connect_listener(
             contains=event.contains(self._engine.sync_engine, "connect", _on_connect)
         )
@@ -116,25 +114,35 @@ class Db:
     ) -> None:
         await self.close()
 
-    def _require_idle(self, state: State) -> None:
-        if state is State.OPENED:
+    def _require_idle(self, state: _State) -> None:
+        if state is _State.OPENED:
             raise RuntimeError("Db is already opened.")
-        if state is State.CLOSED:
+        if state is _State.CLOSED:
             raise RuntimeError("Db is already closed.")
 
-    def _require_opened(self, state: State) -> None:
-        if state is State.IDLE:
+    def _require_opened(self, state: _State) -> None:
+        if state is _State.IDLE:
             raise RuntimeError("Db is not opened.")
-        if state is State.CLOSED:
+        if state is _State.CLOSED:
             raise RuntimeError("Db is already closed.")
 
 
-def _on_connect(
-    dbapi_connection: DBAPIConnection, _connection_record: ConnectionPoolEntry
-) -> None:
+class _DBAPICursorProtocol(Protocol):
+    def close(self) -> None: ...
+    def execute(
+        self,
+        operation: object,
+    ) -> object: ...
+
+
+class _DBAPIConnectionProtocol(Protocol):
+    def cursor(self) -> _DBAPICursorProtocol: ...
+
+
+def _on_connect(dbapi_connection: _DBAPIConnectionProtocol, _: object) -> None:
     cursor = dbapi_connection.cursor()
     try:
         cursor.execute("PRAGMA synchronous=NORMAL;")
-        cursor.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS};")
+        cursor.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS};")
     finally:
         cursor.close()
