@@ -132,48 +132,55 @@ opt Shutdown processing
 end
 ```
 
-## 요구사항
+## Development Environment
 
-### 스팀 워크숍 모드
+> This repository is an experimental project exploring the use of AI.
+> Broad compatibility across different runtime environments is not currently a first-class requirement.
 
-아래 모드들을 구독합니다:
+### Requirements
+
+The project currently assumes the following environment:
+
+- macOS
+- Steam
+- Slay the Spire
+- `uv`
+
+To run `uv run build-mod`, you also need:
+
+- `SDKMAN!`
+- `mvn`
+- JDK 8
+
+### Steam Workshop Mods
+
+Subscribe to the following mods:
 
 - [ModTheSpire](https://steamcommunity.com/sharedfiles/filedetails/?id=1605060445)
 - [BaseMod](https://steamcommunity.com/sharedfiles/filedetails/?id=1605833019)
 
-### 체크아웃
+### Setup
 
-기본적으로 루트 저장소만 clone합니다.
-
-```sh
-git clone <your-repo>
-cd ai-plays-slay-the-spire
-```
-
-### 개발 환경 준비
-
-개발 환경 구성에는 `uv`가 필요합니다.
-
-체크아웃 직후 루트 디렉터리에서 아래 명령으로 가상환경, 워크스페이스 패키지 의존성, 서브모듈을 준비합니다.
+After cloning the repository, run the following commands from the repository root to prepare the virtual environment, workspace package dependencies, and submodules:
 
 ```sh
 uv sync --all-packages --locked
 uv run bootstrap
+uv run build-mod
 ```
 
-`bootstrap`은 git submodule을 초기화합니다. 이 과정을 마치면 `third_party/CommunicationMod` 소스가 준비되고 `./scripts/build_mod.sh`를 바로 실행할 수 있습니다.
+- `bootstrap` initializes git submodules.
+- `build-mod` builds CommunicationMod and installs it into the Slay the Spire mods directory.
 
-### 설정 구성
+### Configuration
 
-> macOS 환경 기준입니다.
+The configuration file is located at `~/Library/Preferences/ModTheSpire/CommunicationMod/config.properties`.
 
-설정 파일 경로는 `~/Library/Preferences/ModTheSpire/CommunicationMod/config.properties`입니다.
+Configure it as follows:
 
-다음 예제와 같이 작성합니다:
-
-```sh
-command=/your/project/.venv/bin/python -m bridge
+```properties
+command=/absolute/project/.venv/bin/python -m bridge
 runAtGameStart=true
 ```
 
-`command`는 각 환경에 맞는 절대경로를 입력합니다.
+`command` must be an absolute path appropriate for your local environment.
