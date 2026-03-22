@@ -4,8 +4,8 @@ version = "0.0.0"
 description = "Tools for AI plays Slay the Spire"
 dependencies = ["core>=0.0.0", "typer>=0.24.1"]
 
-# [project.scripts]
-# some-tool = "tools.some_tool:main"
+[project.scripts]
+bootstrap = "tools.bootstrap:main"
 
 [tool.uv.sources]
 core = { workspace = true }

@@ -143,25 +143,25 @@ end
 
 ### 체크아웃
 
-기본적으로 루트 저장소만 clone한 뒤 아래 스크립트를 한 번 실행합니다.
+기본적으로 루트 저장소만 clone합니다.
 
 ```sh
 git clone <your-repo>
 cd ai-plays-slay-the-spire
-./scripts/checkout.sh
 ```
-
-`checkout.sh`는 git submodule을 초기화합니다. 이 과정을 마치면 `third_party/CommunicationMod` 소스가 준비되고 `./scripts/build_mod.sh`를 바로 실행할 수 있습니다.
 
 ### 개발 환경 준비
 
 개발 환경 구성에는 `uv`가 필요합니다.
 
-체크아웃 직후 루트 디렉터리에서 아래 명령으로 가상환경과 워크스페이스 패키지 의존성을 설치합니다.
+체크아웃 직후 루트 디렉터리에서 아래 명령으로 가상환경, 워크스페이스 패키지 의존성, 서브모듈을 준비합니다.
 
 ```sh
 uv sync --all-packages --locked
+uv run bootstrap
 ```
+
+`bootstrap`은 git submodule을 초기화합니다. 이 과정을 마치면 `third_party/CommunicationMod` 소스가 준비되고 `./scripts/build_mod.sh`를 바로 실행할 수 있습니다.
 
 ### 설정 구성
 
