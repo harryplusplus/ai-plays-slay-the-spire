@@ -42,8 +42,9 @@ RESERVED_LOG_RECORD_ATTRS = {
     "asctime",
     # Custom attributes
     "timestamp",
-    # Third-party attributes
+    # Third party attributes
     "taskName",
+    "color_message",
 }
 
 

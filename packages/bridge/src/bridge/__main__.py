@@ -1,36 +1,33 @@
 import asyncio
 import logging
 import sys
+from contextlib import suppress
 
-from core import event_loop
-from core.db import Db
-from core.paths import DB_SQLITE
+import uvicorn
 
-from bridge import bridge, log, message, signal
+from bridge import log, message
+from bridge.app import app
+from bridge.container import Container
 
 logger = logging.getLogger(__name__)
-
-
-async def run(
-    message_queue: message.Queue,
-    stop_event: asyncio.Event,
-) -> None:
-    async with Db(DB_SQLITE, should_create_schema=True) as db:
-        await bridge.run(db.sessionmaker, message_queue, stop_event)
 
 
 def main() -> None:
     log.init()
     logger.info("Bridge started.")
 
-    with event_loop.install() as loop:
-        stop_event = asyncio.Event()
+    with asyncio.Runner() as runner:
+        loop = runner.get_loop()
+        message_queue = message.Queue()
+        message.start_thread(sys.stdin, message.ToAsyncQueue(loop, message_queue))
 
-        with signal.install(signal.ToAsyncHandler(loop, stop_event)):
-            message_queue = message.Queue()
-            message.start_thread(sys.stdin, message.ToAsyncQueue(loop, message_queue))
+        container = Container(message_queue)
+        container.attach(app)
 
-            loop.run_until_complete(run(message_queue, stop_event))
+        config = uvicorn.Config(app, log_config=None, use_colors=False)
+        server = uvicorn.Server(config)
+        with suppress(KeyboardInterrupt):
+            runner.run(server.serve())
 
     logger.info("Bridge closed.")
 
