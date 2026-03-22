@@ -153,6 +153,16 @@ cd ai-plays-slay-the-spire
 
 `checkout.sh`는 git submodule을 초기화합니다. 이 과정을 마치면 `third_party/CommunicationMod` 소스가 준비되고 `./scripts/build_mod.sh`를 바로 실행할 수 있습니다.
 
+### 개발 환경 준비
+
+개발 환경 구성에는 `uv`가 필요합니다.
+
+체크아웃 직후 루트 디렉터리에서 아래 명령으로 가상환경과 워크스페이스 패키지 의존성을 설치합니다.
+
+```sh
+uv sync --all-packages --locked
+```
+
 ### 설정 구성
 
 > macOS 환경 기준입니다.
