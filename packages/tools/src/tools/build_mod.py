@@ -109,7 +109,7 @@ def _run(config: Config) -> None:
 
 
 @app.command(help="Build CommunicationMod for local testing.")
-def build_mod_command(context: typer.Context) -> None:
+def build_mod(context: typer.Context) -> None:
     config: Config = context.obj
     _run(config)
     config.message_writer("CommunicationMod build is complete.")

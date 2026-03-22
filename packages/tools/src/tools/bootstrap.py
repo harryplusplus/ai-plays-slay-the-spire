@@ -41,7 +41,7 @@ class Config:
     message_writer: MessageWriter
 
 
-def _subprocess_run(
+def _run_command(
     args: list[str],
     *,
     cwd: Path,
@@ -71,7 +71,7 @@ def main() -> None:
     app(
         obj=Config(
             working_dir=ROOT_DIR,
-            command_runner=_subprocess_run,
+            command_runner=_run_command,
             message_writer=typer.echo,
         )
     )
