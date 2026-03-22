@@ -13,30 +13,23 @@ app = typer.Typer(
 )
 
 
-@dataclass(frozen=True, kw_only=True)
-class ModBuilderConfig:
-    communication_mod_dir: Path
-    java_home_dir: Path
-    desktop_jar: Path
-    mod_the_spire_jar: Path
-    base_mod_jar: Path
-    build_jar: Path
-
-
-class ModBuilder(Protocol):
-    def __call__(
-        self,
-        config: ModBuilderConfig,
-    ) -> None: ...
-
-
 class MessageWriter(Protocol):
     def __call__(self, message: str) -> None: ...
 
 
+class CommandRunner(Protocol):
+    def __call__(
+        self,
+        args: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+    ) -> None: ...
+
+
 @dataclass(frozen=True, kw_only=True)
 class Config:
-    mod_builder: ModBuilder
+    command_runner: CommandRunner
     message_writer: MessageWriter
     working_dir: Path
     desktop_jar: Path
@@ -44,28 +37,19 @@ class Config:
     base_mod_jar: Path
     build_jar: Path
     communication_mod_jar: Path
-    java_home_dir: Path
     communication_mod_dir: Path
+    env: dict[str, str]
 
 
-def _build_mod(
-    config: ModBuilderConfig,
+def _run_command(
+    args: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
 ) -> None:
-    env = os.environ.copy()
-    env["PATH"] = str(config.java_home_dir / "bin") + os.pathsep + env.get("PATH", "")
-    env["JAVA_HOME"] = str(config.java_home_dir)
-
     subprocess.run(
-        [
-            "mvn",
-            f"-Dcommunicationmod.desktop.jar={config.desktop_jar}",
-            f"-Dcommunicationmod.modthespire.jar={config.mod_the_spire_jar}",
-            f"-Dcommunicationmod.basemod.jar={config.base_mod_jar}",
-            f"-Dcommunicationmod.build.jar={config.build_jar}",
-            "clean",
-            "package",
-        ],
-        cwd=config.communication_mod_dir,
+        args,
+        cwd=cwd,
         env=env,
         check=True,
     )
@@ -91,15 +75,18 @@ def _run(config: Config) -> None:
     config.build_jar.parent.mkdir(parents=True, exist_ok=True)
 
     config.message_writer("Build CommunicationMod with Maven.")
-    config.mod_builder(
-        config=ModBuilderConfig(
-            communication_mod_dir=config.communication_mod_dir,
-            java_home_dir=config.java_home_dir,
-            desktop_jar=config.desktop_jar,
-            mod_the_spire_jar=config.mod_the_spire_jar,
-            base_mod_jar=config.base_mod_jar,
-            build_jar=config.build_jar,
-        )
+    config.command_runner(
+        [
+            "mvn",
+            f"-Dcommunicationmod.desktop.jar={config.desktop_jar}",
+            f"-Dcommunicationmod.modthespire.jar={config.mod_the_spire_jar}",
+            f"-Dcommunicationmod.basemod.jar={config.base_mod_jar}",
+            f"-Dcommunicationmod.build.jar={config.build_jar}",
+            "clean",
+            "package",
+        ],
+        cwd=config.communication_mod_dir,
+        env=config.env,
     )
 
     config.message_writer("Install CommunicationMod jar.")
@@ -116,10 +103,14 @@ def build_mod(context: typer.Context) -> None:
     config.message_writer("CommunicationMod build is complete.")
 
 
-def main() -> None:
+def main() -> None:  # pragma: no cover
+    env = os.environ.copy()
+    env["PATH"] = str(paths.JAVA_HOME_DIR / "bin") + os.pathsep + env.get("PATH", "")
+    env["JAVA_HOME"] = str(paths.JAVA_HOME_DIR)
+
     app(
         obj=Config(
-            mod_builder=_build_mod,
+            command_runner=_run_command,
             message_writer=typer.echo,
             working_dir=paths.ROOT_DIR,
             desktop_jar=paths.DESKTOP_JAR,
@@ -127,7 +118,7 @@ def main() -> None:
             base_mod_jar=paths.BASE_MOD_JAR,
             build_jar=paths.BUILD_JAR,
             communication_mod_jar=paths.COMMUNICATION_MOD_JAR,
-            java_home_dir=paths.JAVA_HOME_DIR,
             communication_mod_dir=paths.COMMUNICATION_MOD_DIR,
+            env=env,
         )
     )

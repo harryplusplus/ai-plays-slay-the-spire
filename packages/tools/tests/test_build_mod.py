@@ -1,9 +1,9 @@
-from collections.abc import Mapping
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import pytest
 import typer
-from core import paths as core_paths
 from tools import build_mod
 from typer.testing import CliRunner
 
@@ -11,29 +11,31 @@ runner = CliRunner()
 
 
 @dataclass(frozen=True)
-class CommandCall:
+class RecordedCommand:
     args: tuple[str, ...]
     cwd: Path
-    env: Mapping[str, str] | None
+    env: dict[str, str]
 
 
 class RecordingCommandRunner:
-    def __init__(self, *, staged_mod_jar: Path | None = None) -> None:
-        self.calls: list[CommandCall] = []
-        self._staged_mod_jar = staged_mod_jar
+    def __init__(self, *, should_create_build_jar: bool = False) -> None:
+        self.calls: list[RecordedCommand] = []
+        self._should_create_build_jar = should_create_build_jar
 
-    def run(
-        self,
-        args: tuple[str, ...],
-        *,
-        cwd: Path,
-        env: Mapping[str, str] | None = None,
-    ) -> None:
-        self.calls.append(CommandCall(args=args, cwd=cwd, env=env))
+    def __call__(self, args: list[str], *, cwd: Path, env: dict[str, str]) -> None:
+        recorded_command = RecordedCommand(
+            args=tuple(args),
+            cwd=cwd,
+            env=env,
+        )
+        self.calls.append(recorded_command)
 
-        if self._staged_mod_jar is not None and args[:1] == ("mvn",):
-            self._staged_mod_jar.parent.mkdir(parents=True, exist_ok=True)
-            self._staged_mod_jar.write_text("jar")
+        if not self._should_create_build_jar:
+            return
+
+        build_jar = _extract_build_jar(recorded_command.args)
+        build_jar.parent.mkdir(parents=True, exist_ok=True)
+        build_jar.write_text("jar")
 
 
 class RecordingMessageWriter:
@@ -44,92 +46,83 @@ class RecordingMessageWriter:
         self.messages.append(message)
 
 
-def _create_java_home(java_home: Path) -> None:
-    (java_home / "bin").mkdir(parents=True)
+def _extract_build_jar(args: tuple[str, ...]) -> Path:
+    prefix = "-Dcommunicationmod.build.jar="
+    for arg in args:
+        if arg.startswith(prefix):
+            return Path(arg.removeprefix(prefix))
+
+    raise AssertionError("Missing build jar argument.")
 
 
-def _create_build_inputs(root_dir: Path) -> dict[str, Path]:
-    communication_mod_dir = root_dir / "third_party" / "CommunicationMod"
-    game_dir = root_dir / "game"
+def _create_config(
+    root_dir: Path,
+    *,
+    command_runner: build_mod.CommandRunner,
+    message_writer: build_mod.MessageWriter,
+    env: dict[str, str] | None = None,
+) -> build_mod.Config:
+    communication_mod_dir = root_dir / "CommunicationMod"
+    resources_dir = root_dir / "resources"
     workshop_dir = root_dir / "workshop"
-    sts_mods_dir = root_dir / "sts_mods"
-    java_home = root_dir / "java8"
-    desktop_jar = core_paths.get_build_mod_slay_the_spire_jar(game_dir)
-    modthespire_jar = core_paths.get_build_mod_modthespire_jar(workshop_dir)
-    basemod_jar = core_paths.get_build_mod_basemod_jar(workshop_dir)
 
     communication_mod_dir.mkdir(parents=True)
-    sts_mods_dir.mkdir()
+    resources_dir.mkdir(parents=True)
+    workshop_dir.mkdir(parents=True)
 
-    (communication_mod_dir / "pom.xml").write_text("<project />")
-    desktop_jar.parent.mkdir(parents=True)
-    modthespire_jar.parent.mkdir(parents=True)
-    basemod_jar.parent.mkdir(parents=True)
+    desktop_jar = resources_dir / "desktop-1.0.jar"
+    mod_the_spire_jar = workshop_dir / "ModTheSpire.jar"
+    base_mod_jar = workshop_dir / "BaseMod.jar"
+
     desktop_jar.write_text("desktop")
-    modthespire_jar.write_text("mts")
-    basemod_jar.write_text("basemod")
+    mod_the_spire_jar.write_text("mts")
+    base_mod_jar.write_text("basemod")
 
-    _create_java_home(java_home)
-
-    return {
-        "communication_mod_dir": communication_mod_dir,
-        "desktop_jar": desktop_jar,
-        "modthespire_jar": modthespire_jar,
-        "basemod_jar": basemod_jar,
-        "sts_mods_dir": sts_mods_dir,
-        "java_home": java_home,
-    }
-
-
-def _create_environment() -> dict[str, str]:
-    return {
-        "PATH": "/usr/bin",
-    }
-
-
-def test_resolve_paths_uses_working_dir_and_production_defaults(tmp_path: Path) -> None:
-    config = build_mod.Config(
-        working_dir=tmp_path,
-        environment={"PATH": "/usr/bin"},
-        command_runner=RecordingCommandRunner(),
-        message_writer=RecordingMessageWriter(),
-    )
-
-    paths = build_mod.resolve_paths(config)
-
-    assert paths.communication_mod_dir == tmp_path / "third_party" / "CommunicationMod"
-    assert paths.staged_mod_jar == core_paths.BUILD_MOD_STAGED_MOD_JAR
-    assert paths.slay_the_spire_jar == core_paths.BUILD_MOD_DEFAULT_SLAY_THE_SPIRE_JAR
-    assert paths.modthespire_jar == core_paths.BUILD_MOD_DEFAULT_MODTHESPIRE_JAR
-    assert paths.basemod_jar == core_paths.BUILD_MOD_DEFAULT_BASEMOD_JAR
-    assert paths.installed_mod_jar == core_paths.BUILD_MOD_DEFAULT_INSTALLED_MOD_JAR
-    assert paths.java_home == core_paths.BUILD_MOD_DEFAULT_JAVA_HOME
-
-
-def test_run_builds_and_installs_communication_mod(tmp_path: Path) -> None:
-    inputs = _create_build_inputs(tmp_path)
-    paths = build_mod.BuildPaths(
-        communication_mod_dir=inputs["communication_mod_dir"],
-        staged_mod_jar=core_paths.get_build_mod_staged_mod_jar(tmp_path),
-        slay_the_spire_jar=inputs["desktop_jar"],
-        modthespire_jar=inputs["modthespire_jar"],
-        basemod_jar=inputs["basemod_jar"],
-        installed_mod_jar=core_paths.get_build_mod_installed_mod_jar(
-            inputs["sts_mods_dir"]
-        ),
-        java_home=inputs["java_home"],
-    )
-    command_runner = RecordingCommandRunner(staged_mod_jar=paths.staged_mod_jar)
-    message_writer = RecordingMessageWriter()
-    config = build_mod.Config(
-        working_dir=tmp_path,
-        environment=_create_environment(),
+    return build_mod.Config(
         command_runner=command_runner,
         message_writer=message_writer,
-        build_paths=paths,
+        working_dir=root_dir,
+        desktop_jar=desktop_jar,
+        mod_the_spire_jar=mod_the_spire_jar,
+        base_mod_jar=base_mod_jar,
+        build_jar=root_dir / ".work" / "CommunicationMod.jar",
+        communication_mod_jar=resources_dir / "mods" / "CommunicationMod.jar",
+        communication_mod_dir=communication_mod_dir,
+        env={"PATH": "/usr/bin", "JAVA_HOME": "/java8"} if env is None else env,
     )
 
-    build_mod._run(config, paths=paths)
+
+def test__run_command_executes_process_with_working_dir_and_environment(
+    tmp_path: Path,
+) -> None:
+    output_file = tmp_path / "command.txt"
+    script = (
+        "import os\n"
+        "from pathlib import Path\n"
+        f"Path({str(output_file)!r}).write_text("
+        "str(Path.cwd()) + '\\n' + os.environ['BUILD_ENV']"
+        ")\n"
+    )
+
+    build_mod._run_command(
+        [sys.executable, "-c", script],
+        cwd=tmp_path,
+        env={"BUILD_ENV": "configured"},
+    )
+
+    assert output_file.read_text() == f"{tmp_path}\nconfigured"
+
+
+def test__run_invokes_maven_command_and_installs_mod_jar(tmp_path: Path) -> None:
+    command_runner = RecordingCommandRunner(should_create_build_jar=True)
+    message_writer = RecordingMessageWriter()
+    config = _create_config(
+        tmp_path,
+        command_runner=command_runner,
+        message_writer=message_writer,
+    )
+
+    build_mod._run(config)
 
     assert message_writer.messages == [
         "Resolve required game and mod artifacts.",
@@ -138,52 +131,67 @@ def test_run_builds_and_installs_communication_mod(tmp_path: Path) -> None:
         "Install CommunicationMod jar.",
     ]
     assert command_runner.calls == [
-        CommandCall(
+        RecordedCommand(
             args=(
                 "mvn",
-                f"-Dcommunicationmod.slaythespire.jar={inputs['desktop_jar']}",
-                f"-Dcommunicationmod.modthespire.jar={inputs['modthespire_jar']}",
-                "-Dcommunicationmod.staged.jar="
-                f"{core_paths.get_build_mod_staged_mod_jar(tmp_path)}",
-                f"-Dcommunicationmod.basemod.jar={inputs['basemod_jar']}",
+                f"-Dcommunicationmod.desktop.jar={config.desktop_jar}",
+                f"-Dcommunicationmod.modthespire.jar={config.mod_the_spire_jar}",
+                f"-Dcommunicationmod.basemod.jar={config.base_mod_jar}",
+                f"-Dcommunicationmod.build.jar={config.build_jar}",
                 "clean",
                 "package",
             ),
-            cwd=inputs["communication_mod_dir"],
-            env={
-                **_create_environment(),
-                "JAVA_HOME": str(inputs["java_home"]),
-                "PATH": f"{inputs['java_home'] / 'bin'}:/usr/bin",
-            },
+            cwd=config.communication_mod_dir,
+            env=config.env,
         )
     ]
-    assert paths.installed_mod_jar.is_symlink()
-    assert paths.installed_mod_jar.resolve() == paths.staged_mod_jar.resolve()
+    assert config.build_jar.exists()
+    assert config.communication_mod_jar.is_symlink()
+    assert config.communication_mod_jar.resolve() == config.build_jar.resolve()
 
 
-def test_build_mod_command_outputs_ready_message(tmp_path: Path) -> None:
-    inputs = _create_build_inputs(tmp_path)
-    command_runner = RecordingCommandRunner(
-        staged_mod_jar=(
-            tmp_path / ".work" / "build_mod" / "mods" / "CommunicationMod.jar"
-        )
-    )
-    config = build_mod.Config(
-        working_dir=tmp_path,
-        environment=_create_environment(),
+def test__run_replaces_existing_installed_jar(tmp_path: Path) -> None:
+    command_runner = RecordingCommandRunner(should_create_build_jar=True)
+    config = _create_config(
+        tmp_path,
         command_runner=command_runner,
+        message_writer=RecordingMessageWriter(),
+    )
+    config.communication_mod_jar.parent.mkdir(parents=True, exist_ok=True)
+    config.communication_mod_jar.write_text("old jar")
+
+    build_mod._run(config)
+
+    assert config.communication_mod_jar.is_symlink()
+    assert config.communication_mod_jar.resolve() == config.build_jar.resolve()
+
+
+def test__run_requires_all_game_and_mod_artifacts(tmp_path: Path) -> None:
+    command_runner = RecordingCommandRunner()
+    message_writer = RecordingMessageWriter()
+    config = _create_config(
+        tmp_path,
+        command_runner=command_runner,
+        message_writer=message_writer,
+    )
+    config.base_mod_jar.unlink()
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"Required file does not exist: .*BaseMod\.jar",
+    ):
+        build_mod._run(config)
+
+    assert message_writer.messages == ["Resolve required game and mod artifacts."]
+    assert command_runner.calls == []
+    assert not config.communication_mod_jar.exists()
+
+
+def test_build_mod_command_outputs_complete_message(tmp_path: Path) -> None:
+    config = _create_config(
+        tmp_path,
+        command_runner=RecordingCommandRunner(should_create_build_jar=True),
         message_writer=typer.echo,
-        build_paths=build_mod.BuildPaths(
-            communication_mod_dir=inputs["communication_mod_dir"],
-            staged_mod_jar=core_paths.get_build_mod_staged_mod_jar(tmp_path),
-            slay_the_spire_jar=inputs["desktop_jar"],
-            modthespire_jar=inputs["modthespire_jar"],
-            basemod_jar=inputs["basemod_jar"],
-            installed_mod_jar=core_paths.get_build_mod_installed_mod_jar(
-                inputs["sts_mods_dir"]
-            ),
-            java_home=inputs["java_home"],
-        ),
     )
 
     result = runner.invoke(build_mod.app, [], obj=config)

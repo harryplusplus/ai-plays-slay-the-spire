@@ -67,7 +67,7 @@ def bootstrap(context: typer.Context) -> None:
     config.message_writer("Workspace bootstrap is complete.")
 
 
-def main() -> None:
+def main() -> None:  # pragma: no cover
     app(
         obj=Config(
             working_dir=ROOT_DIR,

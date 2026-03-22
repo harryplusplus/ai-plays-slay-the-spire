@@ -6,80 +6,38 @@ from core import paths
 def test_paths_are_derived_from_root_dir() -> None:
     root_dir = Path(__file__).resolve().parents[3]
     home_dir = Path.home()
+    steamapps_dir = home_dir / "Library" / "Application Support" / "Steam" / "steamapps"
+    resources_dir = (
+        steamapps_dir
+        / "common"
+        / "SlayTheSpire"
+        / "SlayTheSpire.app"
+        / "Contents"
+        / "Resources"
+    )
+    workshop_dir = steamapps_dir / "workshop" / "content" / "646570"
 
     assert root_dir == paths.ROOT_DIR
     assert root_dir / ".work" == paths.WORK_DIR
-    assert root_dir / "agent" == paths.AGENT_DIR
-    assert root_dir / "third_party" / "CommunicationMod" == paths.COMMUNICATION_MOD_DIR
     assert paths.LOGS_DIR == paths.WORK_DIR / "logs"
     assert paths.BRIDGE_LOG_FILE == paths.LOGS_DIR / "bridge.log"
+    assert paths.STS_LOG_FILE == paths.LOGS_DIR / "sts.log"
     assert paths.CODEX_DIR == paths.WORK_DIR / "codex"
-    assert paths.SESSIONS_DIR == paths.CODEX_DIR / "sessions"
-    assert paths.OUTPUT_SCHEMA_FILE == paths.WORK_DIR / "output_schema.json"
-    assert paths.OUTPUT_LAST_MESSAGE_FILE == paths.WORK_DIR / "output_last_message.json"
-    assert paths.BUILD_MOD_WORK_DIR == paths.WORK_DIR / "build_mod"
-    assert (
-        paths.BUILD_MOD_STAGED_MOD_JAR
-        == paths.BUILD_MOD_WORK_DIR / "mods" / "CommunicationMod.jar"
-    )
+    assert paths.DB_SQLITE == paths.WORK_DIR / "db.sqlite"
+    assert paths.BUILD_JAR == paths.WORK_DIR / "CommunicationMod.jar"
+    assert root_dir / "agent" == paths.AGENT_DIR
+    assert root_dir / "CommunicationMod" == paths.COMMUNICATION_MOD_DIR
+    assert home_dir == paths.HOME_DIR
     assert (
         home_dir / ".sdkman" / "candidates" / "java" / "8.0.482-zulu"
-        == paths.BUILD_MOD_DEFAULT_JAVA_HOME
-    )
+    ) == paths.JAVA_HOME_DIR
+    assert steamapps_dir == paths.STEAMAPPS_DIR
+    assert resources_dir == paths.RESOURCES_DIR
+    assert resources_dir / "desktop-1.0.jar" == paths.DESKTOP_JAR
     assert (
-        home_dir
-        / "Library"
-        / "Application Support"
-        / "Steam"
-        / "steamapps"
-        / "common"
-        / "SlayTheSpire"
-        / "SlayTheSpire.app"
-        / "Contents"
-        / "Resources"
-        / "desktop-1.0.jar"
-        == paths.BUILD_MOD_DEFAULT_SLAY_THE_SPIRE_JAR
+        resources_dir / "mods" / "CommunicationMod.jar" == paths.COMMUNICATION_MOD_JAR
     )
-    assert (
-        home_dir
-        / "Library"
-        / "Application Support"
-        / "Steam"
-        / "steamapps"
-        / "workshop"
-        / "content"
-        / "646570"
-        / "1605060445"
-        / "ModTheSpire.jar"
-        == paths.BUILD_MOD_DEFAULT_MODTHESPIRE_JAR
-    )
-    assert (
-        home_dir
-        / "Library"
-        / "Application Support"
-        / "Steam"
-        / "steamapps"
-        / "workshop"
-        / "content"
-        / "646570"
-        / "1605833019"
-        / "BaseMod.jar"
-        == paths.BUILD_MOD_DEFAULT_BASEMOD_JAR
-    )
-    assert (
-        home_dir
-        / "Library"
-        / "Application Support"
-        / "Steam"
-        / "steamapps"
-        / "common"
-        / "SlayTheSpire"
-        / "SlayTheSpire.app"
-        / "Contents"
-        / "Resources"
-        / "mods"
-        / "CommunicationMod.jar"
-        == paths.BUILD_MOD_DEFAULT_INSTALLED_MOD_JAR
-    )
-    assert Path.home() / ".codex" / "auth.json" == paths.USER_AUTH_JSON
-    assert paths.DB_SQLITE == paths.WORK_DIR / "db.sqlite"
+    assert workshop_dir == paths.WORKSHOP_DIR
+    assert workshop_dir / "1605060445" / "ModTheSpire.jar" == paths.MOD_THE_SPIRE_JAR
+    assert workshop_dir / "1605833019" / "BaseMod.jar" == paths.BASE_MOD_JAR
+    assert home_dir / ".codex" / "auth.json" == paths.USER_AUTH_JSON

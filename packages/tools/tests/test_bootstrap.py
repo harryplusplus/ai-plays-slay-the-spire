@@ -1,6 +1,8 @@
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import typer
 from tools import bootstrap
 from typer.testing import CliRunner
 
@@ -8,17 +10,17 @@ runner = CliRunner()
 
 
 @dataclass(frozen=True)
-class CommandCall:
+class RecordedCommand:
     args: tuple[str, ...]
     cwd: Path
 
 
 class RecordingCommandRunner:
     def __init__(self) -> None:
-        self.calls: list[CommandCall] = []
+        self.calls: list[RecordedCommand] = []
 
-    def run(self, args: tuple[str, ...], *, cwd: Path) -> None:
-        self.calls.append(CommandCall(args=args, cwd=cwd))
+    def __call__(self, args: list[str], *, cwd: Path) -> None:
+        self.calls.append(RecordedCommand(args=tuple(args), cwd=cwd))
 
 
 class RecordingMessageWriter:
@@ -29,7 +31,7 @@ class RecordingMessageWriter:
         self.messages.append(message)
 
 
-def test_run_runs_git_submodule_commands_in_order(tmp_path: Path) -> None:
+def test__run_executes_git_submodule_commands_in_order(tmp_path: Path) -> None:
     command_runner = RecordingCommandRunner()
     message_writer = RecordingMessageWriter()
 
@@ -42,18 +44,18 @@ def test_run_runs_git_submodule_commands_in_order(tmp_path: Path) -> None:
     )
 
     assert command_runner.calls == [
-        CommandCall(
+        RecordedCommand(
             args=("git", "submodule", "sync", "--recursive"),
             cwd=tmp_path,
         ),
-        CommandCall(
+        RecordedCommand(
             args=("git", "submodule", "update", "--init", "--recursive"),
             cwd=tmp_path,
         ),
     ]
 
 
-def test_run_reports_semantic_step_messages(tmp_path: Path) -> None:
+def test__run_emits_step_messages(tmp_path: Path) -> None:
     command_runner = RecordingCommandRunner()
     message_writer = RecordingMessageWriter()
 
@@ -68,9 +70,25 @@ def test_run_reports_semantic_step_messages(tmp_path: Path) -> None:
     assert message_writer.messages == ["Initialize git submodules."]
 
 
+def test__run_command_executes_process_in_working_dir(tmp_path: Path) -> None:
+    output_file = tmp_path / "cwd.txt"
+    bootstrap._run_command(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path; "
+                f"Path({str(output_file)!r}).write_text(str(Path.cwd()))"
+            ),
+        ],
+        cwd=tmp_path,
+    )
+
+    assert output_file.read_text() == str(tmp_path)
+
+
 def test_bootstrap_command_outputs_success_message(tmp_path: Path) -> None:
     command_runner = RecordingCommandRunner()
-    message_writer = bootstrap.typer.echo
 
     result = runner.invoke(
         bootstrap.app,
@@ -78,7 +96,7 @@ def test_bootstrap_command_outputs_success_message(tmp_path: Path) -> None:
         obj=bootstrap.Config(
             working_dir=tmp_path,
             command_runner=command_runner,
-            message_writer=message_writer,
+            message_writer=typer.echo,
         ),
     )
 
