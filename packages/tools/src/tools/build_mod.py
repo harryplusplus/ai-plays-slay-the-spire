@@ -55,8 +55,8 @@ def _build_mod(
     env["PATH"] = str(config.java_home_dir / "bin") + os.pathsep + env.get("PATH", "")
     env["JAVA_HOME"] = str(config.java_home_dir)
 
-    subprocess.run(  # noqa: S603
-        [  # noqa: S607
+    subprocess.run(
+        [
             "mvn",
             f"-Dcommunicationmod.desktop.jar={config.desktop_jar}",
             f"-Dcommunicationmod.modthespire.jar={config.mod_the_spire_jar}",

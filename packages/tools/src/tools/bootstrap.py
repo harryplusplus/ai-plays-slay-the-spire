@@ -46,7 +46,7 @@ def _run_command(
     *,
     cwd: Path,
 ) -> None:
-    subprocess.run(  # noqa: S603
+    subprocess.run(
         args,
         cwd=cwd,
         check=True,
