@@ -91,7 +91,7 @@ def _run(config: Config) -> None:
     config.build_jar.parent.mkdir(parents=True, exist_ok=True)
 
     config.message_writer("Build CommunicationMod with Maven.")
-    _build_mod(
+    config.mod_builder(
         config=ModBuilderConfig(
             communication_mod_dir=config.communication_mod_dir,
             java_home_dir=config.java_home_dir,
