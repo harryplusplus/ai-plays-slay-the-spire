@@ -81,5 +81,5 @@ def test_paths_are_derived_from_root_dir() -> None:
         / "CommunicationMod.jar"
         == paths.BUILD_MOD_DEFAULT_INSTALLED_MOD_JAR
     )
-    assert Path.home() / ".codex" / "auth.json" == paths.USER_AUTH_JSON_FILE
-    assert paths.DB_SQLITE_FILE == paths.WORK_DIR / "db.sqlite"
+    assert Path.home() / ".codex" / "auth.json" == paths.USER_AUTH_JSON
+    assert paths.DB_SQLITE == paths.WORK_DIR / "db.sqlite"

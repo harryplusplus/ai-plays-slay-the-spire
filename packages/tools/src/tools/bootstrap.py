@@ -5,7 +5,6 @@ from typing import Protocol
 
 import typer
 from core.paths import ROOT_DIR
-from typing_extensions import override
 
 app = typer.Typer(add_completion=False, help="Bootstrap the workspace after checkout.")
 
@@ -42,17 +41,19 @@ class Config:
     message_writer: MessageWriter
 
 
-class SubprocessCommandRunner(CommandRunner):
-    @override
-    def __call__(self, args: list[str], *, cwd: Path) -> None:
-        subprocess.run(  # noqa: S603
-            args,
-            cwd=cwd,
-            check=True,
-        )
+def _subprocess_run(
+    args: list[str],
+    *,
+    cwd: Path,
+) -> None:
+    subprocess.run(  # noqa: S603
+        args,
+        cwd=cwd,
+        check=True,
+    )
 
 
-def run(config: Config) -> None:
+def _run(config: Config) -> None:
     for step in _STEPS:
         config.message_writer(step.message)
         for command in step.commands:
@@ -62,7 +63,7 @@ def run(config: Config) -> None:
 @app.command(help="Bootstrap the workspace after checkout.")
 def bootstrap(context: typer.Context) -> None:
     config: Config = context.obj
-    run(config)
+    _run(config)
     config.message_writer("Workspace bootstrap is complete.")
 
 
@@ -70,7 +71,7 @@ def main() -> None:
     app(
         obj=Config(
             working_dir=ROOT_DIR,
-            command_runner=SubprocessCommandRunner(),
+            command_runner=_subprocess_run,
             message_writer=typer.echo,
         )
     )

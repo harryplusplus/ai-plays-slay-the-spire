@@ -33,7 +33,7 @@ def test_run_runs_git_submodule_commands_in_order(tmp_path: Path) -> None:
     command_runner = RecordingCommandRunner()
     message_writer = RecordingMessageWriter()
 
-    bootstrap.run(
+    bootstrap._run(
         bootstrap.Config(
             working_dir=tmp_path,
             command_runner=command_runner,
@@ -57,7 +57,7 @@ def test_run_reports_semantic_step_messages(tmp_path: Path) -> None:
     command_runner = RecordingCommandRunner()
     message_writer = RecordingMessageWriter()
 
-    bootstrap.run(
+    bootstrap._run(
         bootstrap.Config(
             working_dir=tmp_path,
             command_runner=command_runner,

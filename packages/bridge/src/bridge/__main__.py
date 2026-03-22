@@ -4,7 +4,7 @@ import sys
 
 from core import event_loop
 from core.db import Db
-from core.paths import DB_SQLITE_FILE
+from core.paths import DB_SQLITE
 
 from bridge import bridge, log, message, signal
 
@@ -15,7 +15,7 @@ async def run(
     message_queue: message.Queue,
     stop_event: asyncio.Event,
 ) -> None:
-    async with Db(DB_SQLITE_FILE, should_create_schema=True) as db:
+    async with Db(DB_SQLITE, should_create_schema=True) as db:
         await bridge.run(db.sessionmaker, message_queue, stop_event)
 
 

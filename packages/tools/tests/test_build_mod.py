@@ -129,7 +129,7 @@ def test_run_builds_and_installs_communication_mod(tmp_path: Path) -> None:
         build_paths=paths,
     )
 
-    build_mod.run(config, paths=paths)
+    build_mod._run(config, paths=paths)
 
     assert message_writer.messages == [
         "Resolve required game and mod artifacts.",
