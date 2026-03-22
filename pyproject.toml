@@ -25,13 +25,14 @@ executionEnvironments = [
     { root = "packages/bridge/tests", reportPrivateUsage = false },
     { root = "packages/core/tests", reportPrivateUsage = false },
     { root = "packages/sts/tests", reportPrivateUsage = false },
+    { root = "packages/tools/tests", reportPrivateUsage = false },
 ]
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib --cov --cov-report=term-missing"
 
 [tool.coverage.run]
-source_pkgs = ["bridge", "core", "sts"]
+source_pkgs = ["bridge", "core", "sts", "tools"]
 omit = ["packages/*/src/*/__main__.py"]
 
 [tool.ruff]
