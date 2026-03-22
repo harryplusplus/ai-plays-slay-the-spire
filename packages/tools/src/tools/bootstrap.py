@@ -1,81 +1,69 @@
 import subprocess
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
 import typer
 from core.paths import ROOT_DIR
+from typing_extensions import override
 
 app = typer.Typer(add_completion=False, help="Bootstrap the workspace after checkout.")
 
-READY_MESSAGE = "Workspace bootstrap is complete."
 
-_SYNC_SUBMODULES_COMMAND = ("git", "submodule", "sync", "--recursive")
-_UPDATE_SUBMODULES_COMMAND = ("git", "submodule", "update", "--init", "--recursive")
-
-
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Step:
     message: str
-    commands: tuple[tuple[str, ...], ...]
+    commands: list[list[str]]
+
+
+_STEPS = [
+    Step(
+        message="Initialize git submodules.",
+        commands=[
+            ["git", "submodule", "sync", "--recursive"],
+            ["git", "submodule", "update", "--init", "--recursive"],
+        ],
+    ),
+]
 
 
 class CommandRunner(Protocol):
-    def run(self, args: tuple[str, ...], *, cwd: Path) -> None: ...
+    def __call__(self, args: list[str], *, cwd: Path) -> None: ...
+
+
+class MessageWriter(Protocol):
+    def __call__(self, message: str) -> None: ...
 
 
 @dataclass(frozen=True, kw_only=True)
 class Config:
     working_dir: Path
     command_runner: CommandRunner
-    message_writer: Callable[[str], None]
+    message_writer: MessageWriter
 
 
-class SubprocessCommandRunner:
-    def run(self, args: tuple[str, ...], *, cwd: Path) -> None:
-        subprocess.run(  # noqa: S603 - fixed command tuples from this module only
+class SubprocessCommandRunner(CommandRunner):
+    @override
+    def __call__(self, args: list[str], *, cwd: Path) -> None:
+        subprocess.run(  # noqa: S603
             args,
             cwd=cwd,
             check=True,
         )
 
 
-def _get_config(context: typer.Context) -> Config:
-    if not isinstance(context.obj, Config):
-        raise TypeError("bootstrap app requires Config in context.obj")
-    return context.obj
-
-
-def _iter_bootstrap_commands() -> tuple[tuple[str, ...], ...]:
-    return (_SYNC_SUBMODULES_COMMAND, _UPDATE_SUBMODULES_COMMAND)
-
-
-def _iter_steps() -> tuple[Step, ...]:
-    return (
-        Step(
-            message="Initialize git submodules.",
-            commands=_iter_bootstrap_commands(),
-        ),
-    )
-
-
-def _run_step(step: Step, config: Config) -> None:
-    for command in step.commands:
-        config.command_runner.run(command, cwd=config.working_dir)
-
-
 def run(config: Config) -> None:
-    for step in _iter_steps():
+    for step in _STEPS:
         config.message_writer(step.message)
-        _run_step(step, config)
+        for command in step.commands:
+            config.command_runner(command, cwd=config.working_dir)
 
 
 @app.command(help="Bootstrap the workspace after checkout.")
-def bootstrap_workspace(context: typer.Context) -> None:
-    config = _get_config(context)
+def bootstrap(context: typer.Context) -> None:
+    config: Config = context.obj
     run(config)
-    config.message_writer(READY_MESSAGE)
+    config.message_writer("Workspace bootstrap is complete.")
 
 
 def main() -> None:
