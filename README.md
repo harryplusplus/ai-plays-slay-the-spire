@@ -137,20 +137,18 @@ end
 > This repository is an experimental project exploring the use of AI.
 > Broad compatibility across different runtime environments is not currently a first-class requirement.
 
-### Requirements
+### Environment Used for Development
 
-The project currently assumes the following environment:
+The commands and paths below reflect the environment used during development:
 
 - macOS 26.3.1
+- Python 3.11
+- `uv`
 - Steam
 - Slay the Spire
-- `uv`
-
-To run `uv run build-mod`, you also need:
-
 - `SDKMAN!`
+- JDK 8 (`8.0.482-zulu`)
 - `mvn`
-- JDK 8
 
 ### Steam Workshop Mods
 
