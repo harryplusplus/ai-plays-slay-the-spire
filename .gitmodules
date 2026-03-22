@@ -1,4 +1,4 @@
 [submodule "third_party/CommunicationMod"]
-	path = third_party/CommunicationMod
+	path = CommunicationMod
 	url = https://github.com/harryplusplus/CommunicationMod.git
 	branch = master
