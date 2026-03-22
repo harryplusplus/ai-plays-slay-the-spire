@@ -141,7 +141,7 @@ end
 
 The project currently assumes the following environment:
 
-- macOS
+- macOS 26.3.1
 - Steam
 - Slay the Spire
 - `uv`
