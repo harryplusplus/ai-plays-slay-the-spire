@@ -76,6 +76,11 @@ def _require_file(path: Path) -> None:
         raise RuntimeError(f"Required file does not exist: {path}")
 
 
+def _unlink_if_exists(path: Path) -> None:
+    if path.is_symlink() or path.exists():
+        path.unlink()
+
+
 def _run(config: Config) -> None:
     config.message_writer("Resolve required game and mod artifacts.")
     _require_file(config.desktop_jar)
@@ -99,11 +104,7 @@ def _run(config: Config) -> None:
 
     config.message_writer("Install CommunicationMod jar.")
     config.communication_mod_jar.parent.mkdir(parents=True, exist_ok=True)
-    if (
-        config.communication_mod_jar.is_symlink()
-        or config.communication_mod_jar.exists()
-    ):
-        config.communication_mod_jar.unlink()
+    _unlink_if_exists(config.communication_mod_jar)
 
     config.communication_mod_jar.symlink_to(config.build_jar)
 
