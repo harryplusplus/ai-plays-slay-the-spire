@@ -7,6 +7,7 @@ slay_the_spire_dir="${SLAY_THE_SPIRE_DIR:-$steamapps_dir/common/SlayTheSpire}"
 workshop_dir="${STEAM_WORKSHOP_DIR:-$steamapps_dir/workshop/content/646570}"
 maven_repo_dir="$repo_root/.work/m2"
 sts_mods_dir="${STS_MODS_DIR:-$slay_the_spire_dir/SlayTheSpire.app/Contents/Resources/mods}"
+communication_mod_dir="$repo_root/third_party/CommunicationMod"
 
 find_jar() {
   local search_root="$1"
@@ -38,6 +39,8 @@ source "$HOME/.sdkman/bin/sdkman-init.sh"
 sdk use java 8.0.482-zulu
 set -u
 
+require_file "$communication_mod_dir/pom.xml" "CommunicationMod source (run ./scripts/checkout.sh)"
+
 desktop_jar="$(find_jar "$slay_the_spire_dir" "desktop-1.0.jar")"
 modthespire_jar="$(find_jar "$workshop_dir" "ModTheSpire.jar")"
 basemod_jar="$(find_jar "$workshop_dir" "BaseMod.jar")"
@@ -54,8 +57,12 @@ link_jar "$desktop_jar" "agent/lib/desktop-1.0.jar"
 link_jar "$modthespire_jar" "agent/lib/ModTheSpire.jar"
 link_jar "$basemod_jar" "agent/lib/BaseMod.jar"
 
-cd agent/CommunicationMod
-mvn -Dmaven.repo.local="$maven_repo_dir" clean package
+cd "$communication_mod_dir"
+mvn \
+  -Dmaven.repo.local="$maven_repo_dir" \
+  -Dcommunicationmod.lib.dir="$repo_root/agent/lib" \
+  -Dcommunicationmod.mods.dir="$repo_root/agent/_ModTheSpire/mods" \
+  clean package
 
 cd "$repo_root"
 link_jar "$repo_root/agent/_ModTheSpire/mods/CommunicationMod.jar" "$sts_mods_dir/CommunicationMod.jar"

@@ -1,0 +1,15 @@
+[project]
+name = "tools"
+version = "0.0.0"
+description = "Tools for AI plays Slay the Spire"
+dependencies = ["core>=0.0.0", "typer>=0.24.1"]
+
+# [project.scripts]
+# sts = "sts.__main__:main"
+
+[tool.uv.sources]
+core = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.10.9,<0.11.0"]
+build-backend = "uv_build"

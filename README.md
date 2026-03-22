@@ -141,6 +141,18 @@ end
 - [ModTheSpire](https://steamcommunity.com/sharedfiles/filedetails/?id=1605060445)
 - [BaseMod](https://steamcommunity.com/sharedfiles/filedetails/?id=1605833019)
 
+### 체크아웃
+
+기본적으로 루트 저장소만 clone한 뒤 아래 스크립트를 한 번 실행합니다.
+
+```sh
+git clone <your-repo>
+cd ai-plays-slay-the-spire
+./scripts/checkout.sh
+```
+
+`checkout.sh`는 git submodule을 초기화합니다. 이 과정을 마치면 `third_party/CommunicationMod` 소스가 준비되고 `./scripts/build_mod.sh`를 바로 실행할 수 있습니다.
+
 ### 설정 구성
 
 > macOS 환경 기준입니다.
