@@ -10,10 +10,8 @@ from core import paths
 
 app = typer.Typer(
     add_completion=False,
-    help="Build CommunicationMod for local testing.",
+    help="Build CommunicationMod.",
 )
-
-READY_MESSAGE = "CommunicationMod build is complete."
 
 
 class CommandRunner(Protocol):
@@ -64,12 +62,6 @@ class SubprocessCommandRunner:
             env=None if env is None else dict(env),
             check=True,
         )
-
-
-def _get_config(context: typer.Context) -> Config:
-    if not isinstance(context.obj, Config):
-        raise TypeError("build_mod app requires Config in context.obj")
-    return context.obj
 
 
 def resolve_paths(config: Config) -> BuildPaths:
@@ -165,15 +157,15 @@ def run(config: Config, *, paths: BuildPaths | None = None) -> None:
 
 @app.command(help="Build CommunicationMod for local testing.")
 def build_mod_command(context: typer.Context) -> None:
-    config = _get_config(context)
+    config: Config = context.obj
 
     try:
         run(config)
-    except BuildModError as error:
-        typer.echo(str(error), err=True)
-        raise typer.Exit(code=1) from error
+    except BuildModError as e:
+        typer.echo(str(e), err=True)
+        raise typer.Exit(code=1) from e
 
-    config.message_writer(READY_MESSAGE)
+    config.message_writer("CommunicationMod build is complete.")
 
 
 def main() -> None:
