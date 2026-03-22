@@ -36,10 +36,8 @@ class _State(StrEnum):
 
 
 class Db:
-    def __init__(
-        self, sqlite_file: Path, *, should_create_schema: bool = False
-    ) -> None:
-        self._engine = create_async_engine(f"sqlite+aiosqlite:///{sqlite_file}")
+    def __init__(self, sqlite: Path, *, should_create_schema: bool = False) -> None:
+        self._engine = create_async_engine(f"sqlite+aiosqlite:///{sqlite}")
         self._sessionmaker = AsyncSessionmaker(self._engine, expire_on_commit=False)
         self._should_create_schema = should_create_schema
         self._state = _State.IDLE
