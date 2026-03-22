@@ -22,7 +22,7 @@ class ExecuteDto(BaseModel):
 
 
 @app.post("/execute")
-async def execute(dto: ExecuteDto, request: Request) -> Response:
+async def execute(request: Request, dto: ExecuteDto) -> Response:
     _container = Container.get(request.app)
     res = {"command": dto.command}
     return Response(content=json.dumps(res), media_type="application/json")
