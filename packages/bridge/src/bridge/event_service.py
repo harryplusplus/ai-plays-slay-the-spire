@@ -7,12 +7,12 @@ from bridge.event_repository import EventRepository
 from bridge.models import Event, EventKind
 
 
-class EventServiceProtocol(Protocol):
+class EventService(Protocol):
     async def add(self, kind: EventKind, data: str) -> Event: ...
     async def list_recent_events(self, *, limit: int) -> list[Event]: ...
 
 
-class EventService(EventServiceProtocol):
+class EventServiceImpl(EventService):
     def __init__(self, db: Db) -> None:
         self._db = db
 

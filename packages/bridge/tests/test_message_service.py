@@ -2,14 +2,14 @@ import asyncio
 
 import pytest
 from bridge.common import Message
-from bridge.event_service import EventServiceProtocol
-from bridge.execution_service import ExecutionServiceProtocol
+from bridge.event_service import EventService
+from bridge.execution_service import ExecutionService
 from bridge.message_service import MessageService
 from bridge.models import Event, EventKind
 from typing_extensions import override
 
 
-class RecordingExecutionService(ExecutionServiceProtocol):
+class RecordingExecutionService(ExecutionService):
     def __init__(self) -> None:
         self.messages: list[Message] = []
 
@@ -30,7 +30,7 @@ class RecordingExecutionService(ExecutionServiceProtocol):
         self.messages.append(message)
 
 
-class RecordingEventService(EventServiceProtocol):
+class RecordingEventService(EventService):
     def __init__(self) -> None:
         self.events: list[tuple[EventKind, str]] = []
 

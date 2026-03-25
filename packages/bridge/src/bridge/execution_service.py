@@ -5,10 +5,10 @@ from typing import Protocol
 
 from typing_extensions import override
 
-from bridge.command_id_service import CommandIdServiceProtocol
-from bridge.command_writer import CommandWriterProtocol
-from bridge.common import ClockProtocol, Message
-from bridge.event_service import EventServiceProtocol
+from bridge.command_id_service import CommandIdService
+from bridge.command_writer import CommandWriter
+from bridge.common import Clock, Message
+from bridge.event_service import EventService
 from bridge.models import CommandId
 
 EXECUTION_TIMEOUT_SECONDS = 30
@@ -20,20 +20,20 @@ class Execution:
     command_id: CommandId
 
 
-class ExecutionServiceProtocol(Protocol):
+class ExecutionService(Protocol):
     async def init(self) -> None: ...
     async def close(self) -> None: ...
     async def execute(self, command: str) -> Message: ...
     def receive_message(self, message: Message) -> None: ...
 
 
-class ExecutionService(ExecutionServiceProtocol):
+class ExecutionServiceImpl(ExecutionService):
     def __init__(
         self,
-        command_id_service: CommandIdServiceProtocol,
-        command_writer: CommandWriterProtocol,
-        event_service: EventServiceProtocol,
-        clock: ClockProtocol,
+        command_id_service: CommandIdService,
+        command_writer: CommandWriter,
+        event_service: EventService,
+        clock: Clock,
     ) -> None:
         self._command_id_service = command_id_service
         self._command_writer = command_writer

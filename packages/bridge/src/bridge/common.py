@@ -21,12 +21,12 @@ class Message(BaseModel):
     game_state: dict[str, Any] | None = None
 
 
-class ClockProtocol(Protocol):
+class Clock(Protocol):
     def now_utc(self) -> datetime: ...
     async def sleep(self, seconds: float) -> None: ...
 
 
-class Clock(ClockProtocol):
+class ClockImpl(Clock):
     @override
     def now_utc(self) -> datetime:
         return now_utc()

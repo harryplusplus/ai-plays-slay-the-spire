@@ -2,13 +2,13 @@ from pathlib import Path
 
 import pytest
 from bridge.db import Db
-from bridge.event_service import EventService
+from bridge.event_service import EventServiceImpl
 
 
 @pytest.mark.asyncio
 async def test_add_persists_event_and_returns_it(tmp_path: Path) -> None:
     database = Db(tmp_path / "event-service.sqlite")
-    service = EventService(database)
+    service = EventServiceImpl(database)
     await database.init()
 
     try:
@@ -32,7 +32,7 @@ async def test_list_recent_events_returns_latest_items_in_oldest_first_order(
     tmp_path: Path,
 ) -> None:
     database = Db(tmp_path / "event-service-list.sqlite")
-    service = EventService(database)
+    service = EventServiceImpl(database)
     await database.init()
 
     try:

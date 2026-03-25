@@ -1,7 +1,7 @@
 import json
 
 import pytest
-from bridge.common import Clock, Message
+from bridge.common import ClockImpl, Message
 
 
 def test_message_defaults() -> None:
@@ -32,7 +32,7 @@ def test_message_model_validate_json_preserves_payload() -> None:
 
 @pytest.mark.asyncio
 async def test_clock_returns_utc_time_and_supports_sleep() -> None:
-    clock = Clock()
+    clock = ClockImpl()
 
     now = clock.now_utc()
     await clock.sleep(0)

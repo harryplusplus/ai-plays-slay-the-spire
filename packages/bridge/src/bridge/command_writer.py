@@ -4,11 +4,11 @@ from typing import Protocol, TextIO
 from typing_extensions import override
 
 
-class CommandWriterProtocol(Protocol):
+class CommandWriter(Protocol):
     def write(self, command: str) -> None: ...
 
 
-class CommandWriter(CommandWriterProtocol):
+class CommandWriterImpl(CommandWriter):
     def __init__(
         self,
         output: TextIO | None = None,

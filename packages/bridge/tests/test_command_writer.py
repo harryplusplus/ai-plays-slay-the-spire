@@ -1,7 +1,7 @@
 import io
 from contextlib import redirect_stdout
 
-from bridge.command_writer import CommandWriter
+from bridge.command_writer import CommandWriterImpl
 from typing_extensions import override
 
 
@@ -20,7 +20,7 @@ class RecordingOutput(io.StringIO):
 
 def test_write_appends_newline_and_flushes_injected_output() -> None:
     output = RecordingOutput()
-    writer = CommandWriter(output)
+    writer = CommandWriterImpl(output)
 
     writer.write("play")
 
@@ -32,7 +32,7 @@ def test_write_uses_stdout_when_output_is_none() -> None:
     output = RecordingOutput()
 
     with redirect_stdout(output):
-        writer = CommandWriter()
+        writer = CommandWriterImpl()
         writer.write("state")
 
     assert output.getvalue() == "state\n"

@@ -2,14 +2,14 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from bridge.command_id_service import CommandIdServiceProtocol
-from bridge.command_writer import CommandWriterProtocol
-from bridge.common import ClockProtocol, Message
-from bridge.event_service import EventServiceProtocol
+from bridge.command_id_service import CommandIdService
+from bridge.command_writer import CommandWriter
+from bridge.common import Clock, Message
+from bridge.event_service import EventService
 from bridge.execution_service import (
     EXECUTION_TIMEOUT_SECONDS,
     Execution,
-    ExecutionService,
+    ExecutionServiceImpl,
 )
 from bridge.models import CommandId, Event, EventKind
 from typing_extensions import override
@@ -29,7 +29,7 @@ def make_command_id(
     )
 
 
-class FakeCommandIdService(CommandIdServiceProtocol):
+class FakeCommandIdService(CommandIdService):
     def __init__(self, command_ids: list[CommandId]) -> None:
         self._command_ids = list(command_ids)
 
@@ -38,7 +38,7 @@ class FakeCommandIdService(CommandIdServiceProtocol):
         return self._command_ids.pop(0)
 
 
-class RecordingCommandWriter(CommandWriterProtocol):
+class RecordingCommandWriter(CommandWriter):
     def __init__(self, error: BaseException | None = None) -> None:
         self.commands: list[str] = []
         self._error = error
@@ -50,7 +50,7 @@ class RecordingCommandWriter(CommandWriterProtocol):
         self.commands.append(command)
 
 
-class RecordingEventService(EventServiceProtocol):
+class RecordingEventService(EventService):
     def __init__(self, error: BaseException | None = None) -> None:
         self.events: list[tuple[EventKind, str]] = []
         self._error = error
@@ -67,7 +67,7 @@ class RecordingEventService(EventServiceProtocol):
         return [Event(kind=kind, data=data) for kind, data in self.events[-limit:]]
 
 
-class BlockingClock(ClockProtocol):
+class BlockingClock(Clock):
     def __init__(self) -> None:
         self.started = asyncio.Event()
 
@@ -82,7 +82,7 @@ class BlockingClock(ClockProtocol):
         await asyncio.Future[None]()
 
 
-class ScriptedClock(ClockProtocol):
+class ScriptedClock(Clock):
     def __init__(self, now: datetime, *, iterations: int) -> None:
         self._now = now
         self._iterations = iterations
@@ -102,7 +102,7 @@ class ScriptedClock(ClockProtocol):
 
 @pytest.mark.asyncio
 async def test_init_starts_timeout_task_and_close_cancels_it() -> None:
-    service = ExecutionService(
+    service = ExecutionServiceImpl(
         FakeCommandIdService([]),
         RecordingCommandWriter(),
         RecordingEventService(),
@@ -122,7 +122,7 @@ async def test_init_starts_timeout_task_and_close_cancels_it() -> None:
 
 @pytest.mark.asyncio
 async def test_close_is_noop_before_init() -> None:
-    service = ExecutionService(
+    service = ExecutionServiceImpl(
         FakeCommandIdService([]),
         RecordingCommandWriter(),
         RecordingEventService(),
@@ -139,7 +139,7 @@ async def test_execute_writes_records_and_returns_received_message() -> None:
     command_id = make_command_id(COMMAND_ID_VALUE)
     writer = RecordingCommandWriter()
     event_service = RecordingEventService()
-    service = ExecutionService(
+    service = ExecutionServiceImpl(
         FakeCommandIdService([command_id]),
         writer,
         event_service,
@@ -166,7 +166,7 @@ async def test_execute_writes_records_and_returns_received_message() -> None:
 async def test_execute_raises_for_duplicate_pending_command_id() -> None:
     first_command_id = make_command_id(COMMAND_ID_VALUE)
     duplicate_command_id = make_command_id(COMMAND_ID_VALUE)
-    service = ExecutionService(
+    service = ExecutionServiceImpl(
         FakeCommandIdService([first_command_id, duplicate_command_id]),
         RecordingCommandWriter(),
         RecordingEventService(),
@@ -185,7 +185,7 @@ async def test_execute_raises_for_duplicate_pending_command_id() -> None:
 
 @pytest.mark.asyncio
 async def test_execute_removes_pending_execution_when_writer_raises() -> None:
-    service = ExecutionService(
+    service = ExecutionServiceImpl(
         FakeCommandIdService([make_command_id(COMMAND_ID_VALUE)]),
         RecordingCommandWriter(RuntimeError("write failed")),
         RecordingEventService(),
@@ -201,7 +201,7 @@ async def test_execute_removes_pending_execution_when_writer_raises() -> None:
 @pytest.mark.asyncio
 async def test_execute_removes_pending_execution_when_event_recording_raises() -> None:
     writer = RecordingCommandWriter()
-    service = ExecutionService(
+    service = ExecutionServiceImpl(
         FakeCommandIdService([make_command_id(COMMAND_ID_VALUE)]),
         writer,
         RecordingEventService(RuntimeError("event failed")),
@@ -216,7 +216,7 @@ async def test_execute_removes_pending_execution_when_event_recording_raises() -
 
 
 def test_receive_message_ignores_missing_or_unknown_command_id() -> None:
-    service = ExecutionService(
+    service = ExecutionServiceImpl(
         FakeCommandIdService([]),
         RecordingCommandWriter(),
         RecordingEventService(),
@@ -231,7 +231,7 @@ def test_receive_message_ignores_missing_or_unknown_command_id() -> None:
 
 @pytest.mark.asyncio
 async def test_receive_message_does_not_override_done_future() -> None:
-    service = ExecutionService(
+    service = ExecutionServiceImpl(
         FakeCommandIdService([]),
         RecordingCommandWriter(),
         RecordingEventService(),
@@ -254,7 +254,7 @@ async def test_receive_message_does_not_override_done_future() -> None:
 async def test_run_timeout_times_out_pending_execution_and_removes_it() -> None:
     expired_at = datetime.now(UTC) - timedelta(seconds=EXECUTION_TIMEOUT_SECONDS + 1)
     clock = ScriptedClock(datetime.now(UTC), iterations=1)
-    service = ExecutionService(
+    service = ExecutionServiceImpl(
         FakeCommandIdService([]),
         RecordingCommandWriter(),
         RecordingEventService(),
@@ -279,7 +279,7 @@ async def test_run_timeout_times_out_pending_execution_and_removes_it() -> None:
 async def test_run_timeout_removes_done_execution_without_overwriting_result() -> None:
     expired_at = datetime.now(UTC) - timedelta(seconds=EXECUTION_TIMEOUT_SECONDS + 1)
     clock = ScriptedClock(datetime.now(UTC), iterations=1)
-    service = ExecutionService(
+    service = ExecutionServiceImpl(
         FakeCommandIdService([]),
         RecordingCommandWriter(),
         RecordingEventService(),

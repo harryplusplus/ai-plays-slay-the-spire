@@ -7,11 +7,11 @@ from bridge.db import Db
 from bridge.models import CommandId
 
 
-class CommandIdServiceProtocol(Protocol):
+class CommandIdService(Protocol):
     async def next(self) -> CommandId: ...
 
 
-class CommandIdService(CommandIdServiceProtocol):
+class CommandIdServiceImpl(CommandIdService):
     def __init__(self, db: Db) -> None:
         self._db = db
 

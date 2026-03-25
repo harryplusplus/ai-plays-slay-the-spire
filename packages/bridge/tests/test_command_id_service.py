@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from bridge.command_id_service import CommandIdService
+from bridge.command_id_service import CommandIdServiceImpl
 from bridge.db import Db
 from bridge.models import CommandId
 
@@ -14,7 +14,7 @@ async def test_next_returns_incremented_command_id_and_persists_it(
     tmp_path: Path,
 ) -> None:
     database = Db(tmp_path / "command-id-service.sqlite")
-    service = CommandIdService(database)
+    service = CommandIdServiceImpl(database)
     await database.init()
 
     try:
