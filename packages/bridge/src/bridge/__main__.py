@@ -6,7 +6,7 @@ from contextlib import suppress
 import uvicorn
 
 from bridge import log, message_thread
-from bridge.api import app, set_container
+from bridge.api import create_app
 from bridge.container import Container
 
 logger = logging.getLogger(__name__)
@@ -22,8 +22,7 @@ def main() -> None:
         message_thread.start(sys.stdin, loop, message_queue)
 
         container = Container(message_queue)
-        set_container(app, container)
-
+        app = create_app(container)
         config = uvicorn.Config(app, log_config=None, use_colors=False)
         server = uvicorn.Server(config)
         with suppress(KeyboardInterrupt):
