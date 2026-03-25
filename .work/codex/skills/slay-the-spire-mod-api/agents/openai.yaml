@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use STS Mod API"
+  short_description: "Inspect and drive the Slay the Spire Mod API"
+  default_prompt: "Use $slay-the-spire-mod-api to inspect the current game state, send a command, or explain the local Mod API."
