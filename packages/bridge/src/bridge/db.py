@@ -46,26 +46,16 @@ class Db:
         async with self._engine.connect() as connection:
             result = await connection.exec_driver_sql("PRAGMA journal_mode=WAL;")
             mode = str(result.scalar_one())
-            self._check_journal_mode(mode)
+            if mode.lower() != "wal":
+                raise JournalModeError(mode)
 
         async with self._engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
 
-    def _check_journal_mode(self, mode: str) -> None:
-        if mode.lower() != "wal":
-            raise JournalModeError(mode)
-
     async def close(self) -> None:
-        self._remove_connect_listener(
-            contains=event.contains(self._engine.sync_engine, "connect", _on_connect)
-        )
+        if event.contains(self._engine.sync_engine, "connect", _on_connect):
+            event.remove(self._engine.sync_engine, "connect", _on_connect)
         await self._engine.dispose()
-
-    def _remove_connect_listener(self, *, contains: bool) -> None:
-        if not contains:
-            return
-
-        event.remove(self._engine.sync_engine, "connect", _on_connect)
 
 
 class _DBAPICursorProtocol(Protocol):
