@@ -1,7 +1,6 @@
 import asyncio
 import io
 
-import pytest
 from bridge import message_thread
 
 
@@ -9,84 +8,13 @@ def drain_loop(loop: asyncio.AbstractEventLoop) -> None:
     loop.run_until_complete(asyncio.sleep(0))
 
 
-def test_to_async_queue_put_nowait_enqueues_items() -> None:
-    loop = asyncio.new_event_loop()
-    queue = message_thread.Queue()
-    try:
-        async_queue = message_thread.ToAsyncQueue(loop, queue)
-
-        async_queue.put_nowait("play")
-        drain_loop(loop)
-
-        assert queue.get_nowait() == "play"
-    finally:
-        loop.close()
-
-
-def test_to_async_queue_put_nowait_raises_closed_error_for_closed_loop() -> None:
-    loop = asyncio.new_event_loop()
-    loop.close()
-    queue = message_thread.Queue()
-    async_queue = message_thread.ToAsyncQueue(loop, queue)
-
-    with pytest.raises(message_thread.ClosedError):
-        async_queue.put_nowait("play")
-
-    assert queue.empty() is True
-
-
-def test_process_next_enqueues_stripped_line() -> None:
-    input_ = io.StringIO("play\n")
-    loop = asyncio.new_event_loop()
-    queue = message_thread.Queue()
-    try:
-        async_queue = message_thread.ToAsyncQueue(loop, queue)
-
-        should_continue = message_thread._process_next(input_, async_queue)
-        drain_loop(loop)
-
-        assert should_continue is True
-        assert queue.get_nowait() == "play"
-    finally:
-        loop.close()
-
-
-def test_process_next_returns_false_at_eof() -> None:
-    input_ = io.StringIO("")
-    loop = asyncio.new_event_loop()
-    queue = message_thread.Queue()
-    try:
-        async_queue = message_thread.ToAsyncQueue(loop, queue)
-
-        should_continue = message_thread._process_next(input_, async_queue)
-
-        assert should_continue is False
-        assert queue.empty() is True
-    finally:
-        loop.close()
-
-
-def test_process_next_returns_false_when_queue_is_closed() -> None:
-    input_ = io.StringIO("play\n")
-    loop = asyncio.new_event_loop()
-    loop.close()
-    queue = message_thread.Queue()
-    async_queue = message_thread.ToAsyncQueue(loop, queue)
-
-    should_continue = message_thread._process_next(input_, async_queue)
-
-    assert should_continue is False
-    assert queue.empty() is True
-
-
-def test_run_forwards_messages_and_enqueues_eof() -> None:
+def test_run_enqueues_stripped_messages_and_eof() -> None:
     input_ = io.StringIO("play\nstate\n")
     loop = asyncio.new_event_loop()
-    queue = message_thread.Queue()
-    try:
-        async_queue = message_thread.ToAsyncQueue(loop, queue)
+    queue: asyncio.Queue[message_thread.RawMessage] = asyncio.Queue()
 
-        message_thread._run(input_, async_queue)
+    try:
+        message_thread._run(input_, loop, queue)
         drain_loop(loop)
 
         assert queue.get_nowait() == "play"
@@ -96,26 +24,24 @@ def test_run_forwards_messages_and_enqueues_eof() -> None:
         loop.close()
 
 
-def test_run_suppresses_closed_error_when_eof_signal_cannot_be_enqueued() -> None:
-    input_ = io.StringIO("")
+def test_run_stops_when_loop_is_closed() -> None:
+    input_ = io.StringIO("play\n")
     loop = asyncio.new_event_loop()
     loop.close()
-    queue = message_thread.Queue()
-    async_queue = message_thread.ToAsyncQueue(loop, queue)
+    queue: asyncio.Queue[message_thread.RawMessage] = asyncio.Queue()
 
-    message_thread._run(input_, async_queue)
+    message_thread._run(input_, loop, queue)
 
     assert queue.empty() is True
 
 
-def test_start_thread_starts_and_finishes_daemon_thread() -> None:
+def test_start_creates_daemon_thread_and_runs_message_loop() -> None:
     input_ = io.StringIO("")
     loop = asyncio.new_event_loop()
-    queue = message_thread.Queue()
-    try:
-        async_queue = message_thread.ToAsyncQueue(loop, queue)
+    queue: asyncio.Queue[message_thread.RawMessage] = asyncio.Queue()
 
-        thread = message_thread.start_thread(input_, async_queue)
+    try:
+        thread = message_thread.start(input_, loop, queue)
         thread.join(timeout=1)
         drain_loop(loop)
 
