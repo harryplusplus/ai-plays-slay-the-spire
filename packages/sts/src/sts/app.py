@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from core.db import Db
+from bridge.db import Db
+from bridge.models import Event
 from core.event_repository import AlchemyEventRepository
-from core.models import Event
 from core.pending_command_repository import AlchemyPendingCommandRepository
 
 app = typer.Typer(add_completion=False, help="Slay the Spire 제어 CLI")

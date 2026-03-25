@@ -2,7 +2,7 @@ import asyncio
 import io
 
 import pytest
-from bridge import message
+from bridge import message_thread
 
 
 def drain_loop(loop: asyncio.AbstractEventLoop) -> None:
@@ -11,9 +11,9 @@ def drain_loop(loop: asyncio.AbstractEventLoop) -> None:
 
 def test_to_async_queue_put_nowait_enqueues_items() -> None:
     loop = asyncio.new_event_loop()
-    queue = message.Queue()
+    queue = message_thread.Queue()
     try:
-        async_queue = message.ToAsyncQueue(loop, queue)
+        async_queue = message_thread.ToAsyncQueue(loop, queue)
 
         async_queue.put_nowait("play")
         drain_loop(loop)
@@ -26,10 +26,10 @@ def test_to_async_queue_put_nowait_enqueues_items() -> None:
 def test_to_async_queue_put_nowait_raises_closed_error_for_closed_loop() -> None:
     loop = asyncio.new_event_loop()
     loop.close()
-    queue = message.Queue()
-    async_queue = message.ToAsyncQueue(loop, queue)
+    queue = message_thread.Queue()
+    async_queue = message_thread.ToAsyncQueue(loop, queue)
 
-    with pytest.raises(message.ClosedError):
+    with pytest.raises(message_thread.ClosedError):
         async_queue.put_nowait("play")
 
     assert queue.empty() is True
@@ -38,11 +38,11 @@ def test_to_async_queue_put_nowait_raises_closed_error_for_closed_loop() -> None
 def test_process_next_enqueues_stripped_line() -> None:
     input_ = io.StringIO("play\n")
     loop = asyncio.new_event_loop()
-    queue = message.Queue()
+    queue = message_thread.Queue()
     try:
-        async_queue = message.ToAsyncQueue(loop, queue)
+        async_queue = message_thread.ToAsyncQueue(loop, queue)
 
-        should_continue = message._process_next(input_, async_queue)
+        should_continue = message_thread._process_next(input_, async_queue)
         drain_loop(loop)
 
         assert should_continue is True
@@ -54,11 +54,11 @@ def test_process_next_enqueues_stripped_line() -> None:
 def test_process_next_returns_false_at_eof() -> None:
     input_ = io.StringIO("")
     loop = asyncio.new_event_loop()
-    queue = message.Queue()
+    queue = message_thread.Queue()
     try:
-        async_queue = message.ToAsyncQueue(loop, queue)
+        async_queue = message_thread.ToAsyncQueue(loop, queue)
 
-        should_continue = message._process_next(input_, async_queue)
+        should_continue = message_thread._process_next(input_, async_queue)
 
         assert should_continue is False
         assert queue.empty() is True
@@ -70,10 +70,10 @@ def test_process_next_returns_false_when_queue_is_closed() -> None:
     input_ = io.StringIO("play\n")
     loop = asyncio.new_event_loop()
     loop.close()
-    queue = message.Queue()
-    async_queue = message.ToAsyncQueue(loop, queue)
+    queue = message_thread.Queue()
+    async_queue = message_thread.ToAsyncQueue(loop, queue)
 
-    should_continue = message._process_next(input_, async_queue)
+    should_continue = message_thread._process_next(input_, async_queue)
 
     assert should_continue is False
     assert queue.empty() is True
@@ -82,11 +82,11 @@ def test_process_next_returns_false_when_queue_is_closed() -> None:
 def test_run_forwards_messages_and_enqueues_eof() -> None:
     input_ = io.StringIO("play\nstate\n")
     loop = asyncio.new_event_loop()
-    queue = message.Queue()
+    queue = message_thread.Queue()
     try:
-        async_queue = message.ToAsyncQueue(loop, queue)
+        async_queue = message_thread.ToAsyncQueue(loop, queue)
 
-        message._run(input_, async_queue)
+        message_thread._run(input_, async_queue)
         drain_loop(loop)
 
         assert queue.get_nowait() == "play"
@@ -100,10 +100,10 @@ def test_run_suppresses_closed_error_when_eof_signal_cannot_be_enqueued() -> Non
     input_ = io.StringIO("")
     loop = asyncio.new_event_loop()
     loop.close()
-    queue = message.Queue()
-    async_queue = message.ToAsyncQueue(loop, queue)
+    queue = message_thread.Queue()
+    async_queue = message_thread.ToAsyncQueue(loop, queue)
 
-    message._run(input_, async_queue)
+    message_thread._run(input_, async_queue)
 
     assert queue.empty() is True
 
@@ -111,11 +111,11 @@ def test_run_suppresses_closed_error_when_eof_signal_cannot_be_enqueued() -> Non
 def test_start_thread_starts_and_finishes_daemon_thread() -> None:
     input_ = io.StringIO("")
     loop = asyncio.new_event_loop()
-    queue = message.Queue()
+    queue = message_thread.Queue()
     try:
-        async_queue = message.ToAsyncQueue(loop, queue)
+        async_queue = message_thread.ToAsyncQueue(loop, queue)
 
-        thread = message.start_thread(input_, async_queue)
+        thread = message_thread.start_thread(input_, async_queue)
         thread.join(timeout=1)
         drain_loop(loop)
 

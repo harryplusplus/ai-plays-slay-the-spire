@@ -1,29 +1,19 @@
-from typing import Protocol
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing_extensions import override
 
-from core.models import Event, EventKind
-
-
-class EventRepository(Protocol):
-    async def add(self, kind: EventKind, data: str) -> int: ...
-    async def list_recent(self, *, limit: int) -> list[Event]: ...
+from bridge.models import Event, EventKind
 
 
-class AlchemyEventRepository(EventRepository):
+class EventRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    @override
-    async def add(self, kind: EventKind, data: str) -> int:
+    async def add(self, kind: EventKind, data: str) -> Event:
         event = Event(kind=kind, data=data)
         self._session.add(event)
         await self._session.flush()
-        return event.id
+        return event
 
-    @override
     async def list_recent(self, *, limit: int) -> list[Event]:
         recent_event_ids = (
             select(Event.id).order_by(Event.id.desc()).limit(limit).subquery()

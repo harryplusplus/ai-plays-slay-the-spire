@@ -3,9 +3,9 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from core.db import Db
+from bridge.db import Db
+from bridge.models import PendingCommand
 from core.event_repository import AlchemyEventRepository
-from core.models import PendingCommand
 from sts import app
 from typer.testing import CliRunner
 
@@ -22,10 +22,13 @@ def _create_schema(sqlite_file: Path) -> None:
 
 def _seed_events(sqlite_file: Path) -> None:
     async def run() -> None:
-        async with Db(
-            sqlite_file,
-            should_create_schema=True,
-        ) as db, db.sessionmaker.begin() as session:
+        async with (
+            Db(
+                sqlite_file,
+                should_create_schema=True,
+            ) as db,
+            db.sessionmaker.begin() as session,
+        ):
             repository = AlchemyEventRepository(session)
             await repository.add("command_recorded", "first")
             await repository.add("message", "second")

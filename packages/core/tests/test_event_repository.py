@@ -1,9 +1,9 @@
 from pathlib import Path
 
 import pytest
-from core.db import Db
+from bridge.db import Db
+from bridge.models import Event
 from core.event_repository import AlchemyEventRepository
-from core.models import Event
 
 
 @pytest.mark.asyncio

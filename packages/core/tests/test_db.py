@@ -2,8 +2,8 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-from core import db
-from core.models import Event
+from bridge import db
+from bridge.models import Event
 from sqlalchemy import event, select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncConnection
@@ -86,7 +86,7 @@ async def test_db_engine_and_sessionmaker_require_open(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match=r"Db is not opened\."):
         _ = database.sessionmaker
 
-    await database.open()
+    await database.init()
 
     try:
         assert database._state is db._State.OPENED
@@ -121,11 +121,11 @@ async def test_db_engine_and_sessionmaker_require_open(tmp_path: Path) -> None:
 async def test_db_open_raises_when_already_opened(tmp_path: Path) -> None:
     database = db.Db(tmp_path / "reopen.sqlite")
 
-    await database.open()
+    await database.init()
 
     try:
         with pytest.raises(RuntimeError, match=r"Db is already opened\."):
-            await database.open()
+            await database.init()
     finally:
         await database.close()
 
@@ -178,13 +178,13 @@ async def test_db_open_failure_closes_instance_and_removes_listener(
     database = db.Db(tmp_path / "missing-parent" / "failure.sqlite")
 
     with pytest.raises(OperationalError, match="unable to open database file"):
-        await database.open()
+        await database.init()
 
     assert database._state is db._State.CLOSED
     assert not event.contains(database._engine.sync_engine, "connect", db._on_connect)
 
     with pytest.raises(RuntimeError, match=r"Db is already closed\."):
-        await database.open()
+        await database.init()
 
     with pytest.raises(RuntimeError, match=r"Db is already closed\."):
         _ = database.engine

@@ -1,8 +1,8 @@
 from pathlib import Path
 
 import pytest
-from core.db import Db
-from core.models import PendingCommand
+from bridge.db import Db
+from bridge.models import PendingCommand
 from core.pending_command_repository import AlchemyPendingCommandRepository
 
 
