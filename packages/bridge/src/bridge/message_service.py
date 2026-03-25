@@ -3,8 +3,8 @@ import logging
 from contextlib import suppress
 
 from bridge.common import Message
-from bridge.event_service import EventService
-from bridge.execution_service import ExecutionService
+from bridge.event_service import EventServiceProtocol
+from bridge.execution_service import ExecutionServiceProtocol
 from bridge.message_thread import RawMessage
 
 logger = logging.getLogger(__name__)
@@ -14,8 +14,8 @@ class MessageService:
     def __init__(
         self,
         queue: asyncio.Queue[RawMessage],
-        execution_service: ExecutionService,
-        event_service: EventService,
+        execution_service: ExecutionServiceProtocol,
+        event_service: EventServiceProtocol,
     ) -> None:
         self._queue = queue
         self._execution_service = execution_service
