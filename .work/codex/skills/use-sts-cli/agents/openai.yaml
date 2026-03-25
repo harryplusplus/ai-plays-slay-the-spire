@@ -1,4 +1,0 @@
-interface:
-  display_name: "Use STS CLI"
-  short_description: "Explain and use the `uv run sts` CLI"
-  default_prompt: "Use $use-sts-cli to explain or run the `uv run sts` command I need."
