@@ -29,7 +29,7 @@ def _run(
             break
 
     with suppress(RuntimeError):
-        queue.put_nowait(None)
+        loop.call_soon_threadsafe(queue.put_nowait, None)
 
     logger.info("Message thread closed.")
 

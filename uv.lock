@@ -88,15 +88,19 @@ name = "bridge"
 version = "0.0.0"
 source = { editable = "packages/bridge" }
 dependencies = [
+    { name = "aiosqlite" },
     { name = "core" },
     { name = "fastapi" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "aiosqlite", specifier = ">=0.22.1" },
     { name = "core", editable = "packages/core" },
     { name = "fastapi", specifier = ">=0.135.1" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.48" },
     { name = "uvicorn", specifier = ">=0.42.0" },
 ]
 
@@ -125,16 +129,6 @@ wheels = [
 name = "core"
 version = "0.0.0"
 source = { editable = "packages/core" }
-dependencies = [
-    { name = "aiosqlite" },
-    { name = "sqlalchemy", extra = ["asyncio"] },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiosqlite", specifier = ">=0.22.1" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.48" },
-]
 
 [[package]]
 name = "coverage"
