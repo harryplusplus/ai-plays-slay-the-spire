@@ -1,6 +1,7 @@
 import json
 
-from bridge.common import Message
+import pytest
+from bridge.common import Clock, Message
 
 
 def test_message_defaults() -> None:
@@ -27,3 +28,13 @@ def test_message_model_validate_json_preserves_payload() -> None:
     message = Message.model_validate_json(json.dumps(payload))
 
     assert message.model_dump() == payload
+
+
+@pytest.mark.asyncio
+async def test_clock_returns_utc_time_and_supports_sleep() -> None:
+    clock = Clock()
+
+    now = clock.now_utc()
+    await clock.sleep(0)
+
+    assert now.tzinfo is not None

@@ -2,11 +2,11 @@ import asyncio
 from contextlib import suppress
 from dataclasses import dataclass
 
-from bridge.command_id_service import CommandIdService
-from bridge.command_writer import CommandWriter
-from bridge.common import Message
-from bridge.event_service import EventService
-from bridge.models import CommandId, utc_now
+from bridge.command_id_service import CommandIdServiceProtocol
+from bridge.command_writer import CommandWriterProtocol
+from bridge.common import ClockProtocol, Message
+from bridge.event_service import EventServiceProtocol
+from bridge.models import CommandId
 
 EXECUTION_TIMEOUT_SECONDS = 30
 
@@ -20,13 +20,15 @@ class Execution:
 class ExecutionService:
     def __init__(
         self,
-        command_id_service: CommandIdService,
-        command_writer: CommandWriter,
-        event_service: EventService,
+        command_id_service: CommandIdServiceProtocol,
+        command_writer: CommandWriterProtocol,
+        event_service: EventServiceProtocol,
+        clock: ClockProtocol,
     ) -> None:
         self._command_id_service = command_id_service
         self._command_writer = command_writer
         self._event_service = event_service
+        self._clock = clock
         self._executions: dict[str, Execution] = {}
         self._timeout_task: asyncio.Task[None] | None = None
 
@@ -41,8 +43,8 @@ class ExecutionService:
 
     async def _run_timeout(self) -> None:
         while True:
-            await asyncio.sleep(1)
-            now = utc_now()
+            await self._clock.sleep(1)
+            now = self._clock.now_utc()
             to_remove: list[str] = []
             for key, execution in self._executions.items():
                 elapsed = (now - execution.command_id.updated_at_utc).total_seconds()

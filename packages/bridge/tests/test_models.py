@@ -1,10 +1,10 @@
 from datetime import UTC, datetime
 
-from bridge.models import Base, CommandId, Event, utc_now
+from bridge.models import Base, CommandId, Event, now_utc
 
 
 def test_utc_now_returns_timezone_aware_utc_datetime() -> None:
-    now = utc_now()
+    now = now_utc()
 
     assert isinstance(now, datetime)
     assert now.tzinfo == UTC

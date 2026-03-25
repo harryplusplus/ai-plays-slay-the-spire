@@ -10,7 +10,7 @@ class Base(DeclarativeBase):
     pass
 
 
-def utc_now() -> datetime:
+def now_utc() -> datetime:
     return datetime.now(UTC)
 
 
@@ -19,7 +19,7 @@ class CommandId(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     value: Mapped[int] = mapped_column(nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
     @property
     def updated_at_utc(self) -> datetime:
@@ -32,5 +32,5 @@ class Event(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     kind: Mapped[EventKind] = mapped_column()
     data: Mapped[str] = mapped_column()
-    created_at: Mapped[datetime] = mapped_column(default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)

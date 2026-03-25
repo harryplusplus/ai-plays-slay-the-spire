@@ -6,6 +6,7 @@ from core.paths import DB_SQLITE
 from bridge import message_thread
 from bridge.command_id_service import CommandIdService
 from bridge.command_writer import CommandWriter
+from bridge.common import Clock, ClockProtocol
 from bridge.db import Db
 from bridge.event_service import EventService
 from bridge.execution_service import ExecutionService
@@ -20,6 +21,7 @@ class Container:
         message_queue: asyncio.Queue[message_thread.RawMessage],
         db: Db | None = None,
         command_writer: CommandWriter | None = None,
+        clock: ClockProtocol | None = None,
         execution_service: ExecutionService | None = None,
         message_service: MessageService | None = None,
         command_id_service: CommandIdService | None = None,
@@ -30,6 +32,7 @@ class Container:
         self._command_writer = (
             command_writer if command_writer is not None else CommandWriter()
         )
+        self._clock = clock if clock is not None else Clock()
         self._command_id_service = (
             command_id_service
             if command_id_service is not None
@@ -45,6 +48,7 @@ class Container:
                 self._command_id_service,
                 self._command_writer,
                 self.event_service,
+                self._clock,
             )
         )
         self._message_service = (
