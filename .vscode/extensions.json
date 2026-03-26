@@ -1,6 +1,5 @@
 {
   "recommendations": [
-    "anysphere.cursorpyright",
     "charliermarsh.ruff",
     "ms-python.debugpy",
     "ms-python.python",

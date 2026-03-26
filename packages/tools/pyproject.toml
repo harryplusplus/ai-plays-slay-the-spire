@@ -11,6 +11,5 @@ build-mod = "tools.build_mod:main"
 [tool.uv.sources]
 core = { workspace = true }
 
-[build-system]
-requires = ["uv_build>=0.10.9,<0.11.0"]
-build-backend = "uv_build"
+[tool.uv]
+package = true
