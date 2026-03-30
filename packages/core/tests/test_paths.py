@@ -26,7 +26,7 @@ def test_paths_are_derived_from_root_dir() -> None:
     assert paths.DB_SQLITE == paths.WORK_DIR / "db.sqlite"
     assert paths.BUILD_JAR == paths.WORK_DIR / "CommunicationMod.jar"
     assert root_dir / "agent" == paths.AGENT_DIR
-    assert root_dir / "CommunicationMod" == paths.COMMUNICATION_MOD_DIR
+    assert root_dir / "external" / "CommunicationMod" == paths.COMMUNICATION_MOD_DIR
     assert home_dir == paths.HOME_DIR
     assert (
         home_dir / ".sdkman" / "candidates" / "java" / "8.0.482-zulu"

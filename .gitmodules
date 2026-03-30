@@ -1,4 +1,4 @@
 [submodule "CommunicationMod"]
-	path = CommunicationMod
+	path = external/CommunicationMod
 	url = https://github.com/harryplusplus/CommunicationMod.git
 	branch = master

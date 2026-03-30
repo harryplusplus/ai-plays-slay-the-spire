@@ -14,7 +14,7 @@ BUILD_JAR = WORK_DIR / "CommunicationMod.jar"
 
 AGENT_DIR = ROOT_DIR / "agent"
 
-COMMUNICATION_MOD_DIR = ROOT_DIR / "CommunicationMod"
+COMMUNICATION_MOD_DIR = ROOT_DIR / "external" / "CommunicationMod"
 
 HOME_DIR = Path.home()
 

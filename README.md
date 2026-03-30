@@ -1,13 +1,13 @@
 # AI Plays Slay the Spire
 
-This repository is an experimental local runtime for letting an AI agent play Slay the Spire through [CommunicationMod](./CommunicationMod). It is organized as a `uv` workspace monorepo with three Python packages, one Java git submodule, and a separate agent prompt directory.
+This repository is an experimental local runtime for letting an AI agent play Slay the Spire through [CommunicationMod](./external/CommunicationMod). It is organized as a `uv` workspace monorepo with three Python packages, one Java git submodule, and a separate agent prompt directory.
 
 ## Overview
 
 - `packages/core`: shared paths and logging primitives used across the workspace
 - `packages/bridge`: the runtime process launched by CommunicationMod; it speaks the stdin/stdout game protocol, exposes a small HTTP API, and persists a local event journal
 - `packages/tools`: developer CLIs for bootstrapping submodules and building/installing the Java mod
-- `CommunicationMod/`: Java mod checked out as a git submodule; it owns the actual integration with Slay the Spire
+- `external/CommunicationMod/`: Java mod checked out as a git submodule; it owns the actual integration with Slay the Spire
 - `agent/`: Codex-facing instructions for the gameplay agent
 - `scripts/agent.sh`: helper script that launches the Codex TUI in `agent/` with repo-scoped `CODEX_HOME`
 
@@ -16,7 +16,8 @@ This repository is an experimental local runtime for letting an AI agent play Sl
 ```text
 .
 |-- agent/                  # Prompt and behavior instructions for the game-playing agent
-|-- CommunicationMod/       # Java mod submodule
+|-- external/
+|   `-- CommunicationMod/   # Java mod submodule
 |-- packages/
 |   |-- bridge/             # FastAPI + protocol bridge + SQLite event journal
 |   |-- core/               # Shared filesystem paths and logging setup
@@ -53,7 +54,7 @@ flowchart TB
     end
 
     subgraph external["agent/runtime-adjacent"]
-        comm["CommunicationMod/ (git submodule)"]
+        comm["external/CommunicationMod/ (git submodule)"]
         agent["agent/"]
         script["scripts/agent.sh"]
     end
@@ -118,9 +119,9 @@ Within `packages/bridge`, responsibilities are split by layer:
 
 ## Git Submodule
 
-`CommunicationMod/` is tracked as a git submodule:
+`external/CommunicationMod/` is tracked as a git submodule:
 
-- path: `CommunicationMod`
+- path: `external/CommunicationMod`
 - upstream: `https://github.com/harryplusplus/CommunicationMod.git`
 - branch: `master`
 

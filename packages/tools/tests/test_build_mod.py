@@ -62,7 +62,7 @@ def _create_config(
     message_writer: build_mod.MessageWriter,
     env: dict[str, str] | None = None,
 ) -> build_mod.Config:
-    communication_mod_dir = root_dir / "CommunicationMod"
+    communication_mod_dir = root_dir / "external" / "CommunicationMod"
     resources_dir = root_dir / "resources"
     workshop_dir = root_dir / "workshop"
 
