@@ -1,7 +1,0 @@
-[project]
-name = "core"
-version = "0.0.0"
-description = "Core for AI plays Slay the Spire"
-
-[tool.uv]
-package = true

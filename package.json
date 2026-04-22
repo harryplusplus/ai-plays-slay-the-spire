@@ -1,0 +1,12 @@
+{
+  "name": "ai-plays-slay-the-spire",
+  "version": "0.0.0",
+  "description": "AI plays Slay the Spire",
+  "license": "MIT",
+  "author": {
+    "name": "harryplusplus",
+    "email": "harryplusplus@gmail.com"
+  },
+  "scripts": {},
+  "packageManager": "pnpm@10.33.0"
+}
