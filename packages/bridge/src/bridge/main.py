@@ -4,6 +4,7 @@ import logging
 import signal
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -31,31 +32,37 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-clients: set[WebSocket] = set()
-_shutting_down = False
+
+@dataclass(slots=True, kw_only=True)
+class AppState:
+    clients: set[WebSocket] = field(default_factory=set[WebSocket])
+    shutting_down: bool = False
 
 
 @app.websocket("/ws")
 async def on_client(client: WebSocket) -> None:
-    if _shutting_down:
+    app: FastAPI = client.app
+    app_state: AppState = app.state.app_state
+    if app_state.shutting_down:
         await client.close()
         return
+
     await client.accept()
-    clients.add(client)
-    await client_to_game(client)
+    app_state.clients.add(client)
+    await client_to_game(client, app_state)
 
 
-async def client_to_game(client: WebSocket) -> None:
+async def client_to_game(client: WebSocket, app_state: AppState) -> None:
     try:
         async for text in client.iter_text():
             sys.stdout.write(text + "\n")
             sys.stdout.flush()
             logger.debug("received from client: %s", text)
     finally:
-        clients.discard(client)
+        app_state.clients.discard(client)
 
 
-async def game_to_client() -> None:
+async def game_to_client(app_state: AppState) -> None:
     loop = asyncio.get_running_loop()
     executor = ThreadPoolExecutor(max_workers=1)
     while True:
@@ -65,16 +72,16 @@ async def game_to_client() -> None:
         text = line.rstrip("\n")
         if not text:
             continue
-        for client in clients.copy():
+        for client in app_state.clients.copy():
             try:
                 await client.send_text(text)
             except WebSocketDisconnect:
-                clients.discard(client)
+                app_state.clients.discard(client)
         logger.debug("sent to clients: %s", text)
 
 
-async def _run(server: uvicorn.Server) -> None:
-    game_task = asyncio.create_task(game_to_client())
+async def _run(server: uvicorn.Server, app_state: AppState) -> None:
+    game_task = asyncio.create_task(game_to_client(app_state))
     server_task = asyncio.create_task(server.serve())
 
     sys.stdout.write("ready\n")
@@ -109,6 +116,9 @@ def main() -> None:
     root.addHandler(handler)
 
     logger.info("started.")
+    app_state = AppState()
+    app.state.app_state = app_state
+
     with asyncio.Runner() as runner:
         loop = runner.get_loop()
         config = uvicorn.Config(
@@ -121,22 +131,21 @@ def main() -> None:
         server = uvicorn.Server(config)
 
         async def _shutdown_async() -> None:
-            to_close = clients.copy()
-            clients.clear()
+            to_close = app_state.clients.copy()
+            app_state.clients.clear()
             for client in to_close:
                 with contextlib.suppress(Exception):
                     await client.close()
             server.should_exit = True
 
         def _shutdown() -> None:
-            global _shutting_down  # noqa: PLW0603
-            _shutting_down = True
+            app_state.shutting_down = True
             loop.create_task(_shutdown_async())
 
         loop.add_signal_handler(signal.SIGINT, _shutdown)
         loop.add_signal_handler(signal.SIGTERM, _shutdown)
 
-        runner.run(_run(server))
+        runner.run(_run(server, app_state))
     logger.info("stopped.")
 
 
