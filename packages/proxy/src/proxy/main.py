@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import signal
+import sqlite3
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -26,10 +27,35 @@ class _Formatter(logging.Formatter):
 
 logger = logging.getLogger(__name__)
 
+_DB_PATH = Path.home() / ".sts" / "proxy.db"
+
+_SQL_INIT = """
+CREATE TABLE IF NOT EXISTS command_id (
+    command_id INTEGER NOT NULL DEFAULT 0
+)
+"""
+_SQL_NEXT = """
+INSERT OR IGNORE INTO command_id (rowid) VALUES (1);
+UPDATE command_id SET command_id = command_id + 1 RETURNING command_id
+"""
+
+
+def _init_db() -> sqlite3.Connection:
+    db = sqlite3.connect(_DB_PATH)
+    db.execute(_SQL_INIT)
+    db.commit()
+    return db
+
+
+def next_command_id(db: sqlite3.Connection) -> int:
+    row = db.execute(_SQL_NEXT).fetchone()
+    db.commit()
+    return row[0]
+
 app = FastAPI()
 
 
-async def _run(server: uvicorn.Server) -> None:
+async def _run(server: uvicorn.Server, db: sqlite3.Connection) -> None:  # noqa: ARG001
     await server.serve()
 
 
@@ -49,6 +75,7 @@ def main() -> None:
     root.addHandler(handler)
 
     logger.info("started.")
+    db = _init_db()
     with asyncio.Runner() as runner:
         loop = runner.get_loop()
         config = uvicorn.Config(app, host="127.0.0.1", port=8766, log_config=None)
@@ -60,7 +87,8 @@ def main() -> None:
         loop.add_signal_handler(signal.SIGINT, _shutdown)
         loop.add_signal_handler(signal.SIGTERM, _shutdown)
 
-        runner.run(_run(server))
+        runner.run(_run(server, db))
+    db.close()
     logger.info("stopped.")
 
 
