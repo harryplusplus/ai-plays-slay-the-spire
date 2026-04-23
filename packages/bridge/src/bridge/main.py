@@ -116,14 +116,14 @@ def main() -> None:
         )
         server = uvicorn.Server(config)
 
-        async def _close_clients() -> None:
+        async def _shutdown_async() -> None:
             for client in list(clients):
                 with contextlib.suppress(Exception):
                     await client.close()
+            server.should_exit = True
 
         def _shutdown() -> None:
-            server.should_exit = True
-            loop.create_task(_close_clients())
+            loop.create_task(_shutdown_async())
 
         loop.add_signal_handler(signal.SIGINT, _shutdown)
         loop.add_signal_handler(signal.SIGTERM, _shutdown)
