@@ -28,10 +28,7 @@ UPDATE command_id_counter SET command_id = command_id + 1 RETURNING command_id
 
 
 def init_db() -> sqlite3.Connection:
-    db = sqlite3.connect(_DB_PATH)
-    db.execute(_SQL_INIT)
-    db.commit()
-    return db
+    return sqlite3.connect(_DB_PATH)
 
 
 def next_command_id(db: sqlite3.Connection) -> int:
@@ -86,6 +83,9 @@ def main() -> None:
 
     logger.info("started.")
     with closing(init_db()) as db:
+        with db:
+            db.execute(_SQL_INIT)
+
         app_state = AppState(db=db)
         app.state.app_state = app_state
 
