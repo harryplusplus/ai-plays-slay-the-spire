@@ -107,7 +107,13 @@ def main() -> None:
     logger.info("started.")
     with asyncio.Runner() as runner:
         loop = runner.get_loop()
-        config = uvicorn.Config(app, host="127.0.0.1", port=8765, log_config=None)
+        config = uvicorn.Config(
+            app,
+            host="127.0.0.1",
+            port=8765,
+            log_config=None,
+            timeout_graceful_shutdown=0,
+        )
         server = uvicorn.Server(config)
 
         async def _close_clients() -> None:
