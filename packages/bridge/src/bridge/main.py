@@ -32,10 +32,14 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 
 clients: set[WebSocket] = set()
+_shutting_down = False
 
 
 @app.websocket("/ws")
 async def on_client(client: WebSocket) -> None:
+    if _shutting_down:
+        await client.close()
+        return
     await client.accept()
     clients.add(client)
     await client_to_game(client)
@@ -125,6 +129,8 @@ def main() -> None:
             server.should_exit = True
 
         def _shutdown() -> None:
+            global _shutting_down
+            _shutting_down = True
             loop.create_task(_shutdown_async())
 
         loop.add_signal_handler(signal.SIGINT, _shutdown)
