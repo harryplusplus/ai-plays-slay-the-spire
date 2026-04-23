@@ -1,0 +1,11 @@
+[project]
+name = "cli"
+version = "0.0.0"
+description = "CLI for AI plays Slay the Spire"
+dependencies = ["typer>=0.24.2"]
+
+[project.scripts]
+cli = "cli.main:main"
+
+[tool.uv]
+package = true

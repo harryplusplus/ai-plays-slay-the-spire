@@ -1,11 +1,8 @@
 [project]
 name = "bridge"
 version = "0.0.0"
-description = "Bridge between AI and Slay the Spire"
-dependencies = [
-    "fastapi>=0.136.1",
-    "uvicorn>=0.46.0",
-]
+description = "Bridge between Proxy and Slay the Spire"
+dependencies = ["fastapi>=0.136.1", "uvicorn>=0.46.0", "websockets>=16.0"]
 
 [project.scripts]
 bridge = "bridge.main:main"

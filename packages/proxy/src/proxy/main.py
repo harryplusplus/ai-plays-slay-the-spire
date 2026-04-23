@@ -1,14 +1,13 @@
 import asyncio
 import logging
 import signal
-import sys
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import override
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI
 
 
 class _Formatter(logging.Formatter):
@@ -29,65 +28,22 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-clients: set[WebSocket] = set()
-
-
-@app.websocket("/ws")
-async def on_client(client: WebSocket) -> None:
-    await client.accept()
-    clients.add(client)
-    await client_to_game(client)
-
-
-async def client_to_game(client: WebSocket) -> None:
-    try:
-        async for text in client.iter_text():
-            sys.stdout.write(text + "\n")
-            sys.stdout.flush()
-            logger.debug("received from client: %s", text)
-    finally:
-        clients.discard(client)
-
-
-async def game_to_client() -> None:
-    while True:
-        line = await asyncio.to_thread(sys.stdin.readline)
-        if not line:
-            break
-        text = line.rstrip("\n")
-        if not text:
-            continue
-        for client in clients.copy():
-            try:
-                await client.send_text(text)
-            except WebSocketDisconnect:
-                clients.discard(client)
-        logger.debug("sent to clients: %s", text)
-
 
 async def _run() -> None:
-    config = uvicorn.Config(app, host="127.0.0.1", port=8765, log_config=None)
+    config = uvicorn.Config(app, host="127.0.0.1", port=8766, log_config=None)
     server = uvicorn.Server(config)
 
-    game_task = asyncio.create_task(game_to_client())
-    server_task = asyncio.create_task(server.serve())
-
-    sys.stdout.write("ready\n")
-    sys.stdout.flush()
-
     _done, _pending = await asyncio.wait(
-        [game_task, server_task],
+        [server.serve()],
         return_when=asyncio.FIRST_COMPLETED,
     )
     server.should_exit = True
     await server_task
-    game_task.cancel()
-    await asyncio.gather(game_task, return_exceptions=True)
 
 
 def main() -> None:
     handler = RotatingFileHandler(
-        Path.home() / ".sts" / "logs" / "bridge.log",
+        Path.home() / ".sts" / "logs" / "proxy.log",
         maxBytes=1_000_000,
         backupCount=5,
         encoding="utf-8",
@@ -100,7 +56,7 @@ def main() -> None:
     root.setLevel(logging.DEBUG)
     root.addHandler(handler)
 
-    logger.info("bridge started.")
+    logger.info("proxy started.")
     loop = asyncio.new_event_loop()
 
     def _shutdown() -> None:
@@ -114,7 +70,7 @@ def main() -> None:
         loop.run_until_complete(_run())
     finally:
         loop.close()
-    logger.info("bridge stopped.")
+    logger.info("proxy stopped.")
 
 
 if __name__ == "__main__":

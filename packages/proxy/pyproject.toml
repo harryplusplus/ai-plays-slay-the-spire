@@ -1,0 +1,11 @@
+[project]
+name = "proxy"
+version = "0.0.0"
+description = "Proxy between CLI and Bridge"
+dependencies = ["fastapi>=0.136.1", "uvicorn>=0.46.0"]
+
+[project.scripts]
+proxy = "proxy.main:main"
+
+[tool.uv]
+package = true
