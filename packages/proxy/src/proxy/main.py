@@ -45,17 +45,17 @@ class AppState:
     )
 
 
-async def _ws_loop(ws: websockets.ClientConnection, app_state: AppState) -> None:  # noqa: ARG001
+async def ws_loop(ws: websockets.ClientConnection, app_state: AppState) -> None:  # noqa: ARG001
     async for message in ws:
         logger.debug("received from bridge: %s", message)
 
 
-async def _run(server: uvicorn.Server, app_state: AppState) -> None:
+async def run(server: uvicorn.Server, app_state: AppState) -> None:
     server_task = asyncio.create_task(server.serve())
 
     async for ws in websockets.connect("ws://127.0.0.1:8765/ws"):
         logger.info("connected to bridge.")
-        ws_task = asyncio.create_task(_ws_loop(ws, app_state))
+        ws_task = asyncio.create_task(ws_loop(ws, app_state))
 
         done, _ = await asyncio.wait(
             [ws_task, server_task],
@@ -123,7 +123,7 @@ def main() -> None:
             loop.add_signal_handler(signal.SIGINT, _shutdown)
             loop.add_signal_handler(signal.SIGTERM, _shutdown)
 
-            runner.run(_run(server, app_state))
+            runner.run(run(server, app_state))
 
     logger.info("stopped.")
 

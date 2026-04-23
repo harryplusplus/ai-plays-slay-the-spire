@@ -80,7 +80,7 @@ async def game_to_client(app_state: AppState) -> None:
         logger.debug("sent to clients: %s", text)
 
 
-async def _run(server: uvicorn.Server, app_state: AppState) -> None:
+async def run(server: uvicorn.Server, app_state: AppState) -> None:
     game_task = asyncio.create_task(game_to_client(app_state))
     server_task = asyncio.create_task(server.serve())
 
@@ -145,7 +145,7 @@ def main() -> None:
         loop.add_signal_handler(signal.SIGINT, _shutdown)
         loop.add_signal_handler(signal.SIGTERM, _shutdown)
 
-        runner.run(_run(server, app_state))
+        runner.run(run(server, app_state))
     logger.info("stopped.")
 
 
