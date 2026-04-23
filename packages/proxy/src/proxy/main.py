@@ -30,13 +30,13 @@ logger = logging.getLogger(__name__)
 _DB_PATH = Path.home() / ".sts" / "proxy.db"
 
 _SQL_INIT = """
-CREATE TABLE IF NOT EXISTS command_id (
+CREATE TABLE IF NOT EXISTS command_id_counter (
     command_id INTEGER NOT NULL DEFAULT 0
 )
 """
 _SQL_NEXT = """
-INSERT OR IGNORE INTO command_id (rowid) VALUES (1);
-UPDATE command_id SET command_id = command_id + 1 RETURNING command_id
+INSERT OR IGNORE INTO command_id_counter (rowid) VALUES (1);
+UPDATE command_id_counter SET command_id = command_id + 1 RETURNING command_id
 """
 
 
