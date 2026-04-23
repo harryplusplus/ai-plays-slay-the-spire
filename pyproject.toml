@@ -26,4 +26,4 @@ include = [
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["D", "INP001", "PLW0603", "S603", "S607"]
+ignore = ["D", "INP001", "S603", "S607"]

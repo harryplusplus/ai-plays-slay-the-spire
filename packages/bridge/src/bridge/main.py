@@ -129,7 +129,7 @@ def main() -> None:
             server.should_exit = True
 
         def _shutdown() -> None:
-            global _shutting_down
+            global _shutting_down  # noqa: PLW0603
             _shutting_down = True
             loop.create_task(_shutdown_async())
 
