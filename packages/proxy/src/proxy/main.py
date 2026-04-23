@@ -43,18 +43,17 @@ class AppState:
     pending: dict[int, asyncio.Future[str]] = field(
         default_factory=dict[int, asyncio.Future[str]],
     )
-    ws: websockets.ClientConnection | None = None
 
 
-async def _ws_loop(app_state: AppState) -> None:
-    async for message in app_state.ws:  # type: ignore[union-attr]:
+async def _ws_loop(ws: websockets.ClientConnection, app_state: AppState) -> None:  # noqa: ARG001
+    async for message in ws:
         logger.debug("received from bridge: %s", message)
 
 
 async def _run(server: uvicorn.Server, app_state: AppState) -> None:
-    async with websockets.connect("ws://127.0.0.1:8765/ws") as ws:
-        app_state.ws = ws
-        ws_task = asyncio.create_task(_ws_loop(app_state))
+    async for ws in websockets.connect("ws://127.0.0.1:8765/ws"):
+        logger.info("connected to bridge.")
+        ws_task = asyncio.create_task(_ws_loop(ws, app_state))
         server_task = asyncio.create_task(server.serve())
 
         done, _ = await asyncio.wait(
@@ -65,9 +64,11 @@ async def _run(server: uvicorn.Server, app_state: AppState) -> None:
         if server_task not in done:
             server.should_exit = True
             await server_task
+            return
 
         ws_task.cancel()
         await asyncio.gather(ws_task, return_exceptions=True)
+        logger.info("disconnected from bridge, reconnecting...")
 
 
 def init_logger() -> None:
