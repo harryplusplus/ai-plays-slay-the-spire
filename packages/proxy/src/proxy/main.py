@@ -29,16 +29,8 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 
 
-async def _run() -> None:
-    config = uvicorn.Config(app, host="127.0.0.1", port=8766, log_config=None)
-    server = uvicorn.Server(config)
-
-    _done, _pending = await asyncio.wait(
-        [server.serve()],
-        return_when=asyncio.FIRST_COMPLETED,
-    )
-    server.should_exit = True
-    await server_task
+async def _run(server: uvicorn.Server) -> None:
+    await server.serve()
 
 
 def main() -> None:
@@ -56,21 +48,20 @@ def main() -> None:
     root.setLevel(logging.DEBUG)
     root.addHandler(handler)
 
-    logger.info("proxy started.")
-    loop = asyncio.new_event_loop()
+    logger.info("started.")
+    with asyncio.Runner() as runner:
+        loop = runner.get_loop()
+        config = uvicorn.Config(app, host="127.0.0.1", port=8766, log_config=None)
+        server = uvicorn.Server(config)
 
-    def _shutdown() -> None:
-        for task in asyncio.all_tasks(loop):
-            task.cancel()
+        def _shutdown() -> None:
+            server.should_exit = True
 
-    loop.add_signal_handler(signal.SIGINT, _shutdown)
-    loop.add_signal_handler(signal.SIGTERM, _shutdown)
+        loop.add_signal_handler(signal.SIGINT, _shutdown)
+        loop.add_signal_handler(signal.SIGTERM, _shutdown)
 
-    try:
-        loop.run_until_complete(_run())
-    finally:
-        loop.close()
-    logger.info("proxy stopped.")
+        runner.run(_run(server))
+    logger.info("stopped.")
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ import asyncio
 import logging
 import signal
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -50,8 +51,10 @@ async def client_to_game(client: WebSocket) -> None:
 
 
 async def game_to_client() -> None:
+    loop = asyncio.get_running_loop()
+    executor = ThreadPoolExecutor(max_workers=1)
     while True:
-        line = await asyncio.to_thread(sys.stdin.readline)
+        line = await loop.run_in_executor(executor, sys.stdin.readline)
         if not line:
             break
         text = line.rstrip("\n")
@@ -65,22 +68,22 @@ async def game_to_client() -> None:
         logger.debug("sent to clients: %s", text)
 
 
-async def _run() -> None:
-    config = uvicorn.Config(app, host="127.0.0.1", port=8765, log_config=None)
-    server = uvicorn.Server(config)
-
+async def _run(server: uvicorn.Server) -> None:
     game_task = asyncio.create_task(game_to_client())
     server_task = asyncio.create_task(server.serve())
 
     sys.stdout.write("ready\n")
     sys.stdout.flush()
 
-    _done, _pending = await asyncio.wait(
+    done, _ = await asyncio.wait(
         [game_task, server_task],
         return_when=asyncio.FIRST_COMPLETED,
     )
-    server.should_exit = True
-    await server_task
+
+    if server_task not in done:
+        server.should_exit = True
+        await server_task
+
     game_task.cancel()
     await asyncio.gather(game_task, return_exceptions=True)
 
@@ -100,21 +103,20 @@ def main() -> None:
     root.setLevel(logging.DEBUG)
     root.addHandler(handler)
 
-    logger.info("bridge started.")
-    loop = asyncio.new_event_loop()
+    logger.info("started.")
+    with asyncio.Runner() as runner:
+        loop = runner.get_loop()
+        config = uvicorn.Config(app, host="127.0.0.1", port=8765, log_config=None)
+        server = uvicorn.Server(config)
 
-    def _shutdown() -> None:
-        for task in asyncio.all_tasks(loop):
-            task.cancel()
+        def _shutdown() -> None:
+            server.should_exit = True
 
-    loop.add_signal_handler(signal.SIGINT, _shutdown)
-    loop.add_signal_handler(signal.SIGTERM, _shutdown)
+        loop.add_signal_handler(signal.SIGINT, _shutdown)
+        loop.add_signal_handler(signal.SIGTERM, _shutdown)
 
-    try:
-        loop.run_until_complete(_run())
-    finally:
-        loop.close()
-    logger.info("bridge stopped.")
+        runner.run(_run(server))
+    logger.info("stopped.")
 
 
 if __name__ == "__main__":
