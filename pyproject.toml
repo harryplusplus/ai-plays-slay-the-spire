@@ -1,0 +1,29 @@
+[project]
+name = "ai-plays-slay-the-spire"
+version = "0.0.0"
+description = "AI plays Slay the Spire"
+readme = "README.md"
+requires-python = ">=3.14"
+
+[dependency-groups]
+dev = ["pyright>=1.1.409", "ruff>=0.15.11"]
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.pyright]
+typeCheckingMode = "strict"
+reportImplicitOverride = true
+include = ["packages/*/src/**/*.py"]
+
+[tool.ruff]
+target-version = "py314"
+include = [
+  "packages/*/pyproject.toml",
+  "packages/*/src/**/*.py",
+  "pyproject.toml",
+]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["D", "INP001", "S603", "S607"]
