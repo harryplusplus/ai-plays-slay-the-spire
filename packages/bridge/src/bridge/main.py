@@ -117,7 +117,9 @@ def main() -> None:
         server = uvicorn.Server(config)
 
         async def _shutdown_async() -> None:
-            for client in list(clients):
+            to_close = clients.copy()
+            clients.clear()
+            for client in to_close:
                 with contextlib.suppress(Exception):
                     await client.close()
             server.should_exit = True
