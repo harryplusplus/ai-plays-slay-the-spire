@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import signal
 import sqlite3
@@ -7,11 +8,12 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import override
+from typing import Any, override
 
 import uvicorn
 import websockets
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +42,40 @@ app = FastAPI()
 @dataclass(slots=True, kw_only=True)
 class AppState:
     db: sqlite3.Connection
-    pending: dict[int, asyncio.Future[str]] = field(
-        default_factory=dict[int, asyncio.Future[str]],
+    pending: dict[int, asyncio.Future[dict[str, Any]]] = field(
+        default_factory=dict[int, asyncio.Future[dict[str, Any]]],
     )
+    ws: websockets.ClientConnection | None = None
 
 
-async def ws_loop(ws: websockets.ClientConnection, app_state: AppState) -> None:  # noqa: ARG001
+@app.post("/command")
+async def command(request: Request) -> JSONResponse:
+    app_state: AppState = request.app.state.app_state
+    body = (await request.body()).decode()
+
+    cmd_id = next_command_id(app_state.db)
+    loop = asyncio.get_running_loop()
+    future: asyncio.Future[dict[str, Any]] = loop.create_future()
+    app_state.pending[cmd_id] = future
+
+    try:
+        if app_state.ws is None:
+            return JSONResponse({"error": "bridge not connected"}, status_code=503)
+        await app_state.ws.send(f"--command-id={cmd_id} {body}")
+        result = await future
+    finally:
+        app_state.pending.pop(cmd_id, None)
+
+    return JSONResponse(result)
+
+
+async def ws_loop(ws: websockets.ClientConnection, app_state: AppState) -> None:
     async for message in ws:
         logger.debug("received from bridge: %s", message)
+        data = json.loads(message)
+        cmd_id = data.get("command_id")
+        if cmd_id is not None and cmd_id in app_state.pending:
+            app_state.pending[cmd_id].set_result(data)
 
 
 async def run(server: uvicorn.Server, app_state: AppState) -> None:
@@ -55,6 +83,7 @@ async def run(server: uvicorn.Server, app_state: AppState) -> None:
 
     async for ws in websockets.connect("ws://127.0.0.1:8765/ws"):
         logger.info("connected to bridge.")
+        app_state.ws = ws
         ws_task = asyncio.create_task(ws_loop(ws, app_state))
 
         done, _ = await asyncio.wait(
@@ -69,6 +98,7 @@ async def run(server: uvicorn.Server, app_state: AppState) -> None:
 
         ws_task.cancel()
         await asyncio.gather(ws_task, return_exceptions=True)
+        app_state.ws = None
         logger.info("disconnected from bridge, reconnecting...")
 
 
