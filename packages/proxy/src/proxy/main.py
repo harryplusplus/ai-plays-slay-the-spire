@@ -51,19 +51,20 @@ async def _ws_loop(ws: websockets.ClientConnection, app_state: AppState) -> None
 
 
 async def _run(server: uvicorn.Server, app_state: AppState) -> None:
+    server_task = asyncio.create_task(server.serve())
+
     async for ws in websockets.connect("ws://127.0.0.1:8765/ws"):
         logger.info("connected to bridge.")
         ws_task = asyncio.create_task(_ws_loop(ws, app_state))
-        server_task = asyncio.create_task(server.serve())
 
         done, _ = await asyncio.wait(
             [ws_task, server_task],
             return_when=asyncio.FIRST_COMPLETED,
         )
 
-        if server_task not in done:
-            server.should_exit = True
-            await server_task
+        if server_task in done:
+            ws_task.cancel()
+            await asyncio.gather(ws_task, return_exceptions=True)
             return
 
         ws_task.cancel()
