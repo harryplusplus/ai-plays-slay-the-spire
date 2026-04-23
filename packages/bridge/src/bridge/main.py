@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 import signal
 import sys
@@ -109,8 +110,14 @@ def main() -> None:
         config = uvicorn.Config(app, host="127.0.0.1", port=8765, log_config=None)
         server = uvicorn.Server(config)
 
+        async def _close_clients() -> None:
+            for client in list(clients):
+                with contextlib.suppress(Exception):
+                    await client.close()
+
         def _shutdown() -> None:
             server.should_exit = True
+            loop.create_task(_close_clients())
 
         loop.add_signal_handler(signal.SIGINT, _shutdown)
         loop.add_signal_handler(signal.SIGTERM, _shutdown)
