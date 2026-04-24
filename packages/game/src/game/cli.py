@@ -5,6 +5,7 @@ import httpx
 import typer
 
 PROXY_URL = "http://127.0.0.1:8766/command"
+TIMEOUT = 30.0
 
 NOISE_KEYS = {"deck", "relics", "potions", "map"}
 
@@ -12,7 +13,7 @@ app = typer.Typer(no_args_is_help=True)
 
 
 def send_command(cmd: str) -> dict[str, Any]:
-    response = httpx.post(PROXY_URL, content=cmd, timeout=30.0)
+    response = httpx.post(PROXY_URL, content=cmd, timeout=TIMEOUT)
     response.raise_for_status()
     return response.json()
 
