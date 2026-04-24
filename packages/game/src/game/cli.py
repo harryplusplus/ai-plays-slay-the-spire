@@ -9,7 +9,7 @@ TIMEOUT = 30.0
 
 NOISE_KEYS = {"deck", "relics", "potions", "map"}
 
-app = typer.Typer(no_args_is_help=True)
+app = typer.Typer(no_args_is_help=True, add_completion=False)
 
 
 def send_command(cmd: str) -> dict[str, Any]:
@@ -61,7 +61,7 @@ def potions() -> None:
     typer.echo(json.dumps(extract_game_state_field(result, "potions"), indent=2))
 
 
-@app.command()
+@app.command("map")
 def map_cmd() -> None:
     """Show the current map."""
     result = send_command("state")
