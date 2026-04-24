@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 logger = logging.getLogger(__name__)
 
 DB_PATH = Path.home() / ".sts" / "proxy.db"
+BRIDGE_URL = "ws://127.0.0.1:8765/ws"
 
 SQL_INIT = """
 CREATE TABLE IF NOT EXISTS command_id_counter (
@@ -97,7 +98,7 @@ async def ws_loop(ws: websockets.ClientConnection, app_state: AppState) -> None:
 async def run(server: uvicorn.Server, app_state: AppState) -> None:
     server_task = asyncio.create_task(server.serve())
 
-    async for ws in websockets.connect("ws://127.0.0.1:8765/ws"):
+    async for ws in websockets.connect(BRIDGE_URL):
         logger.info("connected to bridge.")
         app_state.ws = ws
         ws_task = asyncio.create_task(ws_loop(ws, app_state))
