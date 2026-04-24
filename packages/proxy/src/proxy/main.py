@@ -27,13 +27,16 @@ CREATE TABLE IF NOT EXISTS command_id_counter (
 COMMAND_TIMEOUT = 30.0
 
 
-SQL_NEXT = """
-INSERT OR IGNORE INTO command_id_counter (rowid) VALUES (1);
-UPDATE command_id_counter SET command_id = command_id + 1 RETURNING command_id
-"""
+SQL_ENSURE_ROW = "INSERT OR IGNORE INTO command_id_counter (rowid) VALUES (1)"
+SQL_NEXT = (
+    "UPDATE command_id_counter "
+    "SET command_id = command_id + 1 "
+    "RETURNING command_id"
+)
 
 
 def next_command_id(db: sqlite3.Connection) -> int:
+    db.execute(SQL_ENSURE_ROW)
     row = db.execute(SQL_NEXT).fetchone()
     db.commit()
     return row[0]
