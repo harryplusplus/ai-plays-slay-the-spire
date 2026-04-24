@@ -44,8 +44,11 @@ def init_logger() -> None:
     )
 
     root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
+    root.setLevel(logging.INFO)
     root.addHandler(handler)
+
+    # Package logger at DEBUG for detailed output
+    logging.getLogger("game").setLevel(logging.DEBUG)
 
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)

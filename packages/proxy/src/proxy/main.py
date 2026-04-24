@@ -149,8 +149,11 @@ def init_logger() -> None:
     )
 
     root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
+    root.setLevel(logging.INFO)
     root.addHandler(handler)
+
+    # Package logger at DEBUG for detailed output
+    logging.getLogger("proxy").setLevel(logging.DEBUG)
 
 
 def main() -> None:

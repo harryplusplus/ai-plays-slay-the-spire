@@ -112,8 +112,11 @@ def main() -> None:
     )
 
     root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
+    root.setLevel(logging.INFO)
     root.addHandler(handler)
+
+    # Package logger at DEBUG for detailed output
+    logging.getLogger("bridge").setLevel(logging.DEBUG)
 
     logger.info("started.")
     app_state = AppState()
