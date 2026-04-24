@@ -439,6 +439,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
         )
 
         try:
+            start_time = time.monotonic()
             response = client.chat.completions.create(  # pyright: ignore[reportArgumentType]
                 model=MODEL,
                 messages=messages,
@@ -446,6 +447,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
                 temperature=0,
                 reasoning_effort="high",
             )
+            duration_ms = int((time.monotonic() - start_time) * 1000)
         except Exception:
             logger.exception(
                 "LLM API call failed",
@@ -484,6 +486,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
                 "has_tool_calls": bool(assistant_msg.tool_calls),
                 "tool_names": tool_names,
                 "content_preview": (assistant_msg.content or "")[:200],
+                "duration_ms": duration_ms,
             },
         )
 
