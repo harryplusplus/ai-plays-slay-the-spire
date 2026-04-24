@@ -57,7 +57,7 @@ async def client_to_game(client: WebSocket, app_state: AppState) -> None:
         async for text in client.iter_text():
             sys.stdout.write(text + "\n")
             sys.stdout.flush()
-            logger.debug("received from client: %s", text)
+            logger.info("received from client: %s", text)
     finally:
         app_state.clients.discard(client)
 
@@ -77,7 +77,7 @@ async def game_to_client(app_state: AppState) -> None:
                 await client.send_text(text)
             except WebSocketDisconnect:
                 app_state.clients.discard(client)
-        logger.debug("sent to clients: %s", text)
+        logger.info("sent to clients: %s", text)
 
 
 async def run(server: uvicorn.Server, app_state: AppState) -> None:

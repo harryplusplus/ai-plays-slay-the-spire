@@ -61,6 +61,7 @@ async def command(request: Request) -> JSONResponse:
     body = (await request.body()).decode()
 
     cmd_id = next_command_id(app_state.db)
+    logger.info("[%s] command: %s", cmd_id, body)
     loop = asyncio.get_running_loop()
     future: asyncio.Future[dict[str, Any]] = loop.create_future()
     app_state.pending[cmd_id] = future
@@ -76,6 +77,7 @@ async def command(request: Request) -> JSONResponse:
                 {"error": "command timed out", "command_id": cmd_id},
                 status_code=504,
             )
+        logger.info("[%s] result: %s", cmd_id, json.dumps(result)[:200])
     finally:
         app_state.pending.pop(cmd_id, None)
 

@@ -127,7 +127,7 @@ def recall(query: str) -> None:
         check=True,
     )
     typer.echo(result.stdout)
-    logger.debug("recall result: %s", result.stdout[:500])
+    logger.info("recall result: %s", result.stdout[:200])
 
 
 @app.command()
