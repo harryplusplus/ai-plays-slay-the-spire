@@ -15,83 +15,46 @@ logger = logging.getLogger(__name__)
 OLLAMA_API_KEY = os.environ["OLLAMA_API_KEY"]
 MODEL = "gpt-4o-mini"
 
-SYSTEM_PROMPT = """You are an AI playing Slay the Spire.
+SYSTEM_PROMPT = """\
+You are an AI playing Slay the Spire. You have a bash shell.
 
-Available tools:
-- send_command: Send a command to the game
-  (start, play, end, choose, potion, key, click, wait, state, proceed, return)
-- recall: Search your memory for relevant game knowledge
-- retain: Store an observation or lesson in your memory for future reference
+Game CLI commands:
+- uv run game command <cmd>  Send a game command, get filtered state JSON
+- uv run game recall <query> Search memory for game knowledge
+- uv run game retain <text>  Store an observation in memory
+- uv run game deck           Show current deck
+- uv run game relics         Show current relics
+- uv run game potions        Show current potions
+- uv run game map            Show current map
+
+Game commands: start, play, end, choose, potion, key, click, wait, \
+state, proceed, return
+
+Use jq, python3, or any tool to process data before deciding.
 
 Guidelines:
-- After each state update, analyze the situation carefully before acting.
-- Use recall proactively to check relevant knowledge before important decisions.
-- Use retain frequently to store observations worth remembering:
-  - After combat: what worked, what didn't
-  - After events: outcomes of choices
-  - When discovering card synergies or relic interactions
-  - Boss patterns and strategies
-- Be decisive. Don't ask for clarification — make the best choice you can.
+- After each state update, analyze carefully before acting.
+- Use recall proactively before important decisions.
+- Use retain frequently: after combat, events, card synergies, \
+boss patterns.
+- Be decisive. Don't ask for clarification.
 - Prefer safe plays when uncertain."""
 
 TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "send_command",
-            "description": "Send a command to the game and receive the updated state.",
+            "name": "bash",
+            "description": "Run a bash command.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "command": {
                         "type": "string",
-                        "description": (
-                            "Game command "
-                            "(e.g. 'start DEFECT 0', 'play 1', "
-                            "'end', 'choose 0', 'state')"
-                        ),
+                        "description": "Bash command to execute",
                     },
                 },
                 "required": ["command"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "recall",
-            "description": "Search your memory for relevant game knowledge.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": (
-                            "Search query "
-                            "(e.g. 'jaw worm strategy', 'relic priority')"
-                        ),
-                    },
-                },
-                "required": ["query"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "retain",
-            "description": (
-                "Store an observation or lesson in memory for future reference."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "content": {
-                        "type": "string",
-                        "description": "The observation or lesson to remember",
-                    },
-                },
-                "required": ["content"],
             },
         },
     },
@@ -127,26 +90,18 @@ def init_logger() -> None:
     root.addHandler(handler)
 
 
-def game_cli(*args: str) -> str:
+def run_bash(command: str) -> str:
     result = subprocess.run(
-        ["uv", "run", "game", *args],
+        ["bash", "-c", command],
         capture_output=True,
         text=True,
-        check=True,
+        timeout=60,
+        check=False,
     )
-    return result.stdout
-
-
-def send_command(cmd: str) -> dict[str, Any]:
-    return json.loads(game_cli("command", cmd))
-
-
-def recall(query: str) -> str:
-    return game_cli("recall", query)
-
-
-def retain(content: str) -> str:
-    return game_cli("retain", content)
+    output = result.stdout
+    if result.returncode != 0:
+        output += result.stderr
+    return output
 
 
 def auto_recall(state: dict[str, Any]) -> str:
@@ -169,19 +124,7 @@ def auto_recall(state: dict[str, Any]) -> str:
             parts.extend(m.get("name", "") for m in monsters[:3])
     query = " ".join(parts) if parts else "slay the spire general"
     logger.info("auto recall query: %s", query)
-    return recall(query)
-
-
-def execute_tool(name: str, arguments: dict[str, Any]) -> str:
-    if name == "send_command":
-        result = send_command(arguments["command"])
-        return json.dumps(result)
-    if name == "recall":
-        return recall(arguments["query"])
-    if name == "retain":
-        return retain(arguments["content"])
-    msg = f"unknown tool: {name}"
-    raise ValueError(msg)
+    return run_bash(f"uv run game recall '{query}'")
 
 
 def main() -> None:
@@ -197,19 +140,18 @@ def main() -> None:
     ]
 
     # Initial state
-    state = send_command("state")
-    auto_recall_result = auto_recall(state)
+    initial = run_bash("uv run game command state")
+    auto_recall_result = auto_recall(json.loads(initial))
     messages.append(
         {
             "role": "user",
             "content": (
-                f"Current game state:\n"
-                f"{json.dumps(state, indent=2)}\n\n"
+                f"Current game state:\n{initial}\n\n"
                 f"Relevant memories:\n{auto_recall_result}"
             ),
         },
     )
-    logger.info("initial state: %s", json.dumps(state, indent=2))
+    logger.info("initial state: %s", initial)
 
     while True:
         response = client.chat.completions.create(  # pyright: ignore[reportArgumentType]
@@ -227,9 +169,10 @@ def main() -> None:
             for tool_call in assistant_msg.tool_calls:
                 fn_name: str = tool_call.function.name  # type: ignore[union-attr]
                 fn_args = json.loads(tool_call.function.arguments)  # type: ignore[union-attr]
-                logger.info("tool call: %s(%s)", fn_name, fn_args)
+                command = fn_args.get("command", "")
+                logger.info("tool call: %s(%s)", fn_name, command)
 
-                result = execute_tool(fn_name, fn_args)
+                result = run_bash(command)
                 logger.info("tool result: %s", result[:500])
 
                 messages.append(
@@ -241,7 +184,7 @@ def main() -> None:
                 )
 
                 # Auto recall after game command
-                if fn_name == "send_command":
+                if "uv run game command" in command:
                     try:
                         new_state = json.loads(result)
                         auto_recall_result = auto_recall(new_state)
@@ -249,10 +192,9 @@ def main() -> None:
                             {
                                 "role": "user",
                                 "content": (
-                                f"Updated state:\n"
-                                f"{json.dumps(new_state, indent=2)}\n\n"
-                                f"Relevant memories:\n{auto_recall_result}"
-                            ),
+                                    f"Updated state:\n{result}\n\n"
+                                    f"Relevant memories:\n{auto_recall_result}"
+                                ),
                             },
                         )
                     except json.JSONDecodeError:
@@ -263,15 +205,11 @@ def main() -> None:
                             },
                         )
         else:
-            # No tool call — shouldn't happen in this loop, but log it
             logger.warning("no tool call in response: %s", assistant_msg.content)
             messages.append(
                 {
                     "role": "user",
-                    "content": (
-                        "You must use a tool. "
-                        "Call send_command, recall, or retain."
-                    ),
+                    "content": "You must use the bash tool.",
                 },
             )
 
