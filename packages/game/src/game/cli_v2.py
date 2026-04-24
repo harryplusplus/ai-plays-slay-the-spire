@@ -167,6 +167,7 @@ def recall(query: str) -> None:
             "event": "recall_result",
             "result_count": len(results),
             "types": list({r.get("type") for r in results if r.get("type")}),
+            "result_preview": json.dumps(output, ensure_ascii=False, default=str)[:800],
         },
     )
 
