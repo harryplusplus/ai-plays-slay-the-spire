@@ -1,3 +1,4 @@
+# pyright: reportArgumentType=none, reportUnknownArgumentType=none, reportUnknownVariableType=none, reportUnknownMemberType=none
 import json
 import logging
 from datetime import datetime, timezone
@@ -159,9 +160,14 @@ def recall(query: str) -> None:
     # Convert RecallResponse to JSON
     output = result.to_dict() if hasattr(result, "to_dict") else str(result)
     typer.echo(json.dumps(output, indent=2, default=str))
+    results = output.get("results", []) if isinstance(output, dict) else []
     logger.info(
         "recall result",
-        extra={"event": "recall_result", "result_preview": str(output)[:500]},
+        extra={
+            "event": "recall_result",
+            "result_count": len(results),
+            "types": list({r.get("type") for r in results if r.get("type")}),
+        },
     )
 
 
