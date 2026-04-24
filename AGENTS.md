@@ -84,6 +84,12 @@ LLM(deepseek-v4-flash:cloud via Ollama Cloud)이 Slay the Spire를 Communication
 - `screen` 다시 추가: 화면별(전투/보상/맵)로 다른 recall 결과
 - 실험 결과: `monsters`가 가장 강력한 필터, `class`가 해당 클래스 메모리를 top으로 끌어올림
 
+#### Document ID 기반 전투 그룹핑
+- `main.py`가 마지막 게임 state에서 `seed`+`act`+`floor`를 추출해서 `document_id` 생성
+- `cli_v2.py`의 `retain()`에 `--document-id` 옵션 추가, `update_mode='append'` 적용
+- 같은 전투의 retain들이 **하나의 document**에 쌓임 → Hindsight observation consolidation 품질 향상
+- 예: `document_id = "combat-{seed}-{act}-{floor}"`
+
 ### 우리가 기대하는 것
 - **의미있는 기억 축적**: "에너지 2→1" 같은 상태 스냅샷 말고, "Chosen은 Hex로 Dazed를 부여하니 빠른 딜이 필요했다" 같은 전략적 교훈
 - **Hindsight Observation 형성**: 시간 지나면서 durable pattern이 관찰되길 기대. 예: "Frost 오브 빌드는 Act 2에서 안정적"
@@ -190,8 +196,9 @@ LLM(deepseek-v4-flash:cloud via Ollama Cloud)이 Slay the Spire를 Communication
 ### 단기 (지금 바로 또는 몇 런 내)
 1. **~~Retain 품질 지속 모니터링~~** ✅ — 템플릿 준수 확인됨, async retain 안정성 확인됨
 2. **~~Recall 품질 확인~~** ✅ — query 개선으로 관련성 향상 (class + screen + monsters)
-3. **`last_auto_query` 버그 수정** — query 문자열을 저장하도록 변경, 매 턴 중복 recall 제거
-4. **Hindsight consolidation trigger** — `hindsight bank consolidate sts-v2`로 observation 재생성
+3. **~~`last_auto_query` 버그 수정~~** ✅ — query 문자열을 저장하도록 변경, 매 턴 중복 recall 제거
+4. **~~Document ID 기반 전투 그룹핑~~** ✅ — `update_mode='append'`로 같은 전투 retain 통합
+5. **Hindsight consolidation trigger** — `hindsight bank consolidate sts-v2`로 observation 재생성
 
 ### 중기 (다음 런들에서)
 5. **Tags 도입** — retain 시 `class:ironclad`, `topic:combat`, `enemy:gremlin_nob` 등 태깅 → recall 시 `tags` 필터로 정밀도 향상
