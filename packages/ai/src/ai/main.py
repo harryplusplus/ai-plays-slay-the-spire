@@ -212,17 +212,22 @@ def auto_recall(state: dict[str, Any], last_query: str = "") -> str:
     if game_state:
         screen = game_state.get("screen_type", "")
         if screen:
-            parts.append(screen)
+            parts.append(f"screen={screen}")
         room = game_state.get("room_type", "")
         if room:
-            parts.append(room)
+            parts.append(f"room={room}")
         act = game_state.get("act")
         if act is not None:
-            parts.append(f"act {act}")
+            parts.append(f"act={act}")
+        floor = game_state.get("floor")
+        if floor is not None:
+            parts.append(f"floor={floor}")
         combat = game_state.get("combat_state")
         if combat:
             monsters = combat.get("monsters", [])
-            parts.extend(m.get("name", "") for m in monsters[:3])
+            names = [m.get("name", "") for m in monsters[:3] if m.get("name")]
+            if names:
+                parts.append(f"monsters={','.join(names)}")
     query = " ".join(parts) if parts else "slay the spire general"
     if query == last_query:
         logger.debug("auto recall skipped (same query)")
