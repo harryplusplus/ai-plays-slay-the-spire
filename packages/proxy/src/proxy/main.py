@@ -17,24 +17,24 @@ from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
-_DB_PATH = Path.home() / ".sts" / "proxy.db"
+DB_PATH = Path.home() / ".sts" / "proxy.db"
 
-_SQL_INIT = """
+SQL_INIT = """
 CREATE TABLE IF NOT EXISTS command_id_counter (
     command_id INTEGER NOT NULL DEFAULT 0
 )
 """
-_COMMAND_TIMEOUT = 30.0
+COMMAND_TIMEOUT = 30.0
 
 
-_SQL_NEXT = """
+SQL_NEXT = """
 INSERT OR IGNORE INTO command_id_counter (rowid) VALUES (1);
 UPDATE command_id_counter SET command_id = command_id + 1 RETURNING command_id
 """
 
 
 def next_command_id(db: sqlite3.Connection) -> int:
-    row = db.execute(_SQL_NEXT).fetchone()
+    row = db.execute(SQL_NEXT).fetchone()
     db.commit()
     return row[0]
 
@@ -66,7 +66,7 @@ async def command(request: Request) -> JSONResponse:
             return JSONResponse({"error": "bridge not connected"}, status_code=503)
         await app_state.ws.send(f"--command-id={cmd_id} {body}")
         try:
-            result = await asyncio.wait_for(future, timeout=_COMMAND_TIMEOUT)
+            result = await asyncio.wait_for(future, timeout=COMMAND_TIMEOUT)
         except TimeoutError:
             return JSONResponse(
                 {"error": "command timed out", "command_id": cmd_id},
@@ -144,9 +144,9 @@ def main() -> None:
     init_logger()
 
     logger.info("started.")
-    with closing(sqlite3.connect(_DB_PATH)) as db:
+    with closing(sqlite3.connect(DB_PATH)) as db:
         with db:
-            db.execute(_SQL_INIT)
+            db.execute(SQL_INIT)
 
         app_state = AppState(db=db)
         app.state.app_state = app_state
