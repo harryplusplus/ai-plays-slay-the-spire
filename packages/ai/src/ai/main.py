@@ -324,6 +324,7 @@ def main() -> None:
 
         choice = response.choices[0]
         assistant_msg = choice.message
+        logger.debug("assistant: %s", assistant_msg.content)
 
         messages.append(assistant_msg.to_dict())
 
