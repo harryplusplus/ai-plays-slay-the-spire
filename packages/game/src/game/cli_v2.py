@@ -167,7 +167,15 @@ def recall(query: str) -> None:
             "event": "recall_result",
             "result_count": len(results),
             "types": list({r.get("type") for r in results if r.get("type")}),
-            "result": output,
+            "results": [
+                {
+                    "id": r.get("id"),
+                    "type": r.get("type"),
+                    "text": r.get("text", "")[:200],
+                    "occurred": r.get("occurred_start"),
+                }
+                for r in results
+            ],
         },
     )
 
