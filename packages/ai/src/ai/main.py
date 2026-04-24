@@ -1,9 +1,8 @@
-# pyright: reportArgumentType=none, reportUnknownArgumentType=none, reportUnknownMemberType=none, reportUnknownVariableType=none
 import json
 import logging
 import subprocess
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from logging.handlers import RotatingFileHandler
@@ -241,12 +240,8 @@ def _handle_send_command(  # noqa: PLR0913
         if auto_recall_result:
             last_auto_query = auto_recall_result
             try:
-                recall_data = json.loads(auto_recall_result)
-                results = (
-                    recall_data.get("results", [])
-                    if isinstance(recall_data, dict)
-                    else []
-                )
+                recall_data: dict[str, Any] = json.loads(auto_recall_result)
+                results: list[dict[str, Any]] = recall_data.get("results", [])
                 logger.info(
                     "auto recall result",
                     extra={
@@ -321,10 +316,10 @@ def _run_agent(run_handler: RotatingFileHandler) -> None:
         try:
             start_time = time.monotonic()
             dump_messages(messages)
-            response = client.chat.completions.create(  # pyright: ignore[reportArgumentType]
+            response = client.chat.completions.create(
                 model=MODEL,
-                messages=messages,
-                tools=TOOLS,
+                messages=cast("Any", messages),
+                tools=cast("Any", TOOLS),
                 temperature=0,
                 reasoning_effort="high",
             )
@@ -355,28 +350,26 @@ def _run_agent(run_handler: RotatingFileHandler) -> None:
             continue
 
         choice = response.choices[0]
-        assistant_msg = choice.message
-        tool_names = [
-            tc.function.name  # type: ignore[union-attr]
-            for tc in (assistant_msg.tool_calls or [])
-        ]
+        msg = cast("Any", choice.message)
+        raw_tool_calls: list[Any] = msg.tool_calls or []
+        tool_names: list[str] = [str(tc.function.name) for tc in raw_tool_calls]
         logger.debug(
             "llm response",
             extra={
                 "event": "llm_response",
-                "has_tool_calls": bool(assistant_msg.tool_calls),
+                "has_tool_calls": bool(msg.tool_calls),
                 "tool_names": tool_names,
-                "content_preview": (assistant_msg.content or "")[:200],
+                "content_preview": str(msg.content or "")[:200],
                 "duration_ms": duration_ms,
             },
         )
 
-        messages.append(assistant_msg.to_dict())
+        messages.append(msg.to_dict())
 
-        if assistant_msg.tool_calls:
-            for tool_call in assistant_msg.tool_calls:
-                fn_name: str = tool_call.function.name  # type: ignore[union-attr]
-                fn_args = json.loads(tool_call.function.arguments)  # type: ignore[union-attr]
+        if msg.tool_calls:
+            for tool_call in msg.tool_calls:
+                fn_name: str = str(tool_call.function.name)
+                fn_args = json.loads(str(tool_call.function.arguments))
                 logger.info(
                     "tool call",
                     extra={"event": "tool_call", "tool": fn_name, "arguments": fn_args},
@@ -410,7 +403,7 @@ def _run_agent(run_handler: RotatingFileHandler) -> None:
                 extra={
                     "event": "warning",
                     "warning_type": "no_tool_call",
-                    "content_preview": (assistant_msg.content or "")[:200],
+                    "content_preview": str(msg.content or "")[:200],
                 },
             )
             messages.append(

@@ -3,6 +3,7 @@
 
 import os
 from pathlib import Path
+from typing import Any
 
 OPENAI_BASE_URL = "https://ollama.com/v1"
 OPENAI_API_KEY = os.environ["OLLAMA_API_KEY"]
@@ -65,7 +66,7 @@ Guidelines:
 - Be decisive. Don't ask for clarification.
 - Prefer safe plays when uncertain."""
 
-TOOLS = [
+TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
