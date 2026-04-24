@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 OLLAMA_API_KEY = os.environ["OLLAMA_API_KEY"]
 MODEL = "glm-5.1"
 MAX_OUTPUT = 20_000
-MAX_MESSAGES_CHARS = 500_000
+MAX_MESSAGES_CHARS = 400_000
 RETRY_DELAY = 10.0
 RUN_LOG = Path.home() / ".sts" / "logs" / "runs.log"
 
