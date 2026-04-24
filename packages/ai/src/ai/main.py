@@ -238,6 +238,8 @@ def main() -> None:
                 model=MODEL,
                 messages=messages,
                 tools=TOOLS,
+                temperature=0,
+                reasoning_effort="high",
             )
         except Exception:
             logger.exception("LLM API call failed, retrying in %ss", RETRY_DELAY)
