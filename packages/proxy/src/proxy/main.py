@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS command_id_counter (
     command_id INTEGER NOT NULL DEFAULT 0
 )
 """
+_COMMAND_TIMEOUT = 30.0
+
+
 _SQL_NEXT = """
 INSERT OR IGNORE INTO command_id_counter (rowid) VALUES (1);
 UPDATE command_id_counter SET command_id = command_id + 1 RETURNING command_id
@@ -62,7 +65,13 @@ async def command(request: Request) -> JSONResponse:
         if app_state.ws is None:
             return JSONResponse({"error": "bridge not connected"}, status_code=503)
         await app_state.ws.send(f"--command-id={cmd_id} {body}")
-        result = await future
+        try:
+            result = await asyncio.wait_for(future, timeout=_COMMAND_TIMEOUT)
+        except TimeoutError:
+            return JSONResponse(
+                {"error": "command timed out", "command_id": cmd_id},
+                status_code=504,
+            )
     finally:
         app_state.pending.pop(cmd_id, None)
 
