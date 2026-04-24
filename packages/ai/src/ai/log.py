@@ -73,3 +73,29 @@ def init_logger() -> None:
     root.addHandler(handler)
 
     logging.getLogger("ai").setLevel(logging.DEBUG)
+
+
+_run_handler: RotatingFileHandler | None = None
+
+
+def log_run_end(state_json: str) -> None:
+    """Log the full game state when a run ends to runs.log."""
+    global _run_handler
+    if _run_handler is None:
+        _run_handler = RotatingFileHandler(
+            Path.home() / ".sts" / "logs" / "runs.log",
+            maxBytes=10_000_000,
+            backupCount=5,
+            encoding="utf-8",
+        )
+    _run_handler.emit(
+        logging.LogRecord(
+            name="run",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg=state_json,
+            args=(),
+            exc_info=None,
+        ),
+    )

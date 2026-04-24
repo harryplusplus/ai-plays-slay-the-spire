@@ -4,7 +4,6 @@ import logging
 import subprocess
 import time
 from datetime import datetime, timezone
-from logging.handlers import RotatingFileHandler
 from typing import Any
 
 from openai import OpenAI
@@ -18,11 +17,10 @@ from .constants import (
     OPENAI_API_KEY,
     OPENAI_BASE_URL,
     RETRY_DELAY,
-    RUN_LOG,
     SYSTEM_PROMPT,
     TOOLS,
 )
-from .log import init_logger
+from .log import init_logger, log_run_end
 
 logger = logging.getLogger(__name__)
 
@@ -366,24 +364,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
                                     "state": _state_summary(result),
                                 },
                             )
-                            run_handler = RotatingFileHandler(
-                                RUN_LOG,
-                                maxBytes=10_000_000,
-                                backupCount=5,
-                                encoding="utf-8",
-                            )
-                            run_handler.emit(
-                                logging.LogRecord(
-                                    name="run",
-                                    level=logging.INFO,
-                                    pathname="",
-                                    lineno=0,
-                                    msg=result,
-                                    args=(),
-                                    exc_info=None,
-                                ),
-                            )
-                            run_handler.close()
+                            log_run_end(result)
                         auto_recall_result = auto_recall(new_state, last_auto_query)
                         content = f"State after your last command:\n{result}"
                         if auto_recall_result:
