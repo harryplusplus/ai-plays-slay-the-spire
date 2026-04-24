@@ -111,13 +111,25 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "retain",
-            "description": "Store an observation in memory for future reference.",
+            "description": (
+                "Store a strategic lesson or key decision. "
+                "Only after turn end, combat end, event/shop choice, "
+                "or card/relic acquisition. "
+                "NEVER after individual card plays or STATE. "
+                "Describe WHY and WHAT was learned, not raw numbers."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "content": {
                         "type": "string",
-                        "description": "The observation or lesson to remember",
+                        "description": (
+                            "Strategic lesson or decision rationale. "
+                            "Focus: build direction, enemy patterns, "
+                            "card synergies, why a choice was made, "
+                            "what to remember later. "
+                            "Avoid HP/energy/block or play-by-play."
+                        ),
                     },
                 },
                 "required": ["content"],
@@ -409,10 +421,13 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
                         if command == "END":
                             content += (
                                 "\n\nYou have ended your turn. "
-                                "You MUST call retain NOW. "
-                                "Summarize the strategic decisions you made this turn, "
-                                "any patterns you noticed, and lessons learned. "
-                                "Do NOT list raw HP/energy/block numbers."
+                                "You MUST call retain NOW with a strategic summary. "
+                                "Format:\n"
+                                "- Situation: [enemy/room and key patterns]\n"
+                                "- Decision: [what you did and why]\n"
+                                "- Outcome: [what worked, 1-2 sentences]\n"
+                                "- Lesson: [remember for next time]\n"
+                                "NEVER include raw HP/energy/block numbers."
                             )
                         messages.append(
                             {
