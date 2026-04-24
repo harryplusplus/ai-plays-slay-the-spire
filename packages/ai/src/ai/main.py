@@ -224,6 +224,9 @@ def main() -> None:
                 if "uv run game command" in command:
                     try:
                         new_state = json.loads(result)
+                        in_game = new_state.get("in_game", False)
+                        if not in_game:
+                            logger.info("RUN ENDED - in_game=false")
                         auto_recall_result = auto_recall(new_state)
                         messages.append(
                             {
@@ -234,6 +237,19 @@ def main() -> None:
                                 ),
                             },
                         )
+                        if not in_game:
+                            messages.append(
+                                {
+                                    "role": "user",
+                                    "content": (
+                                        "The run has ended (in_game=false). "
+                                        "Check if you defeated the Heart "
+                                        "or died. retain a summary of "
+                                        "this run's outcome, then start "
+                                        "a new game."
+                                    ),
+                                },
+                            )
                     except json.JSONDecodeError:
                         messages.append(
                             {
