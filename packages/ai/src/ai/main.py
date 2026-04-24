@@ -4,7 +4,7 @@ import logging
 import os
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, override
@@ -20,6 +20,8 @@ MAX_OUTPUT = 20_000
 MAX_MESSAGES_CHARS = 1_000_000
 RETRY_DELAY = 10.0
 RUN_LOG = Path.home() / ".sts" / "logs" / "runs.log"
+LLM_DUMP_DIR = Path.home() / ".sts" / "logs" / "llm_dump"
+MAX_DUMPS = 10
 
 SYSTEM_PROMPT = """\
 You are an AI playing Slay the Spire.
@@ -365,6 +367,25 @@ def execute_tool(name: str, arguments: dict[str, Any]) -> str:  # noqa: PLR0911
     return f"error: unknown tool {name}"
 
 
+def dump_messages(messages: list[dict[str, Any]]) -> None:
+    """Dump the messages array to a file before LLM API call.
+    Keeps only the last MAX_DUMPS dumps (action-based rotation).
+    """
+    LLM_DUMP_DIR.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")  # noqa: UP017
+    filepath = LLM_DUMP_DIR / f"llm_dump_{timestamp}.json"
+
+    with filepath.open("w", encoding="utf-8") as f:
+        json.dump(messages, f, ensure_ascii=False, indent=2)
+
+    # Action-based rotation: keep only last MAX_DUMPS
+    dumps = sorted(LLM_DUMP_DIR.glob("llm_dump_*.json"))
+    while len(dumps) > MAX_DUMPS:
+        oldest = dumps.pop(0)
+        oldest.unlink()
+
+
 def trim_messages(messages: list[dict[str, Any]]) -> None:
     """Drop oldest complete turns until total chars under limit.
 
@@ -440,6 +461,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
 
         try:
             start_time = time.monotonic()
+            dump_messages(messages)
             response = client.chat.completions.create(  # pyright: ignore[reportArgumentType]
                 model=MODEL,
                 messages=messages,
