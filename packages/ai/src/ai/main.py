@@ -4,6 +4,7 @@ import logging
 import subprocess
 import time
 from datetime import datetime, timezone
+from logging.handlers import RotatingFileHandler
 from typing import Any
 
 from openai import OpenAI
@@ -17,10 +18,11 @@ from .constants import (
     OPENAI_API_KEY,
     OPENAI_BASE_URL,
     RETRY_DELAY,
+    RUN_LOG,
     SYSTEM_PROMPT,
     TOOLS,
 )
-from .log import init_logger, log_run_end
+from .log import init_logger
 
 logger = logging.getLogger(__name__)
 
@@ -231,12 +233,22 @@ def trim_messages(messages: list[dict[str, Any]]) -> None:
         del messages[start:end]
 
 
-def _handle_send_command(
+def _init_run_handler() -> RotatingFileHandler:
+    return RotatingFileHandler(
+        RUN_LOG,
+        maxBytes=10_000_000,
+        backupCount=5,
+        encoding="utf-8",
+    )
+
+
+def _handle_send_command(  # noqa: PLR0913
     result: str,
     fn_args: dict[str, Any],
     messages: list[dict[str, Any]],
     last_game_state: dict[str, Any] | None,
     last_auto_query: str,
+    run_handler: RotatingFileHandler,
 ) -> tuple[dict[str, Any] | None, str]:
     """Handle the result of a send_command tool call.
     Updates game state, runs auto_recall, builds next user message.
@@ -250,7 +262,17 @@ def _handle_send_command(
                 "run ended",
                 extra={"event": "run_end", "state": _state_summary(result)},
             )
-            log_run_end(result)
+            run_handler.emit(
+                logging.LogRecord(
+                    name="run",
+                    level=logging.INFO,
+                    pathname="",
+                    lineno=0,
+                    msg=result,
+                    args=(),
+                    exc_info=None,
+                ),
+            )
         auto_recall_result = auto_recall(new_state, last_auto_query)
         content = f"State after your last command:\n{result}"
         if auto_recall_result:
@@ -310,9 +332,8 @@ def _handle_send_command(
         return new_state, last_auto_query
 
 
-def main() -> None:
-    init_logger()
-
+def _run_agent(run_handler: RotatingFileHandler) -> None:
+    """Main agent loop."""
     client = OpenAI(
         api_key=OPENAI_API_KEY,
         base_url=OPENAI_BASE_URL,
@@ -433,6 +454,7 @@ def main() -> None:
                 if fn_name == "send_command":
                     last_game_state, last_auto_query = _handle_send_command(
                         result, fn_args, messages, last_game_state, last_auto_query,
+                        run_handler,
                     )
         else:
             logger.warning(
@@ -451,5 +473,10 @@ def main() -> None:
             )
 
 
-if __name__ == "__main__":
-    main()
+def main() -> None:
+    init_logger()
+    run_handler = _init_run_handler()
+    try:
+        _run_agent(run_handler)
+    finally:
+        run_handler.close()
