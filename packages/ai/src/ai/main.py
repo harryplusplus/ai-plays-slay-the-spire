@@ -231,7 +231,86 @@ def trim_messages(messages: list[dict[str, Any]]) -> None:
         del messages[start:end]
 
 
-def main() -> None:  # noqa: C901, PLR0912, PLR0915
+def _handle_send_command(
+    result: str,
+    fn_args: dict[str, Any],
+    messages: list[dict[str, Any]],
+    last_game_state: dict[str, Any] | None,
+    last_auto_query: str,
+) -> tuple[dict[str, Any] | None, str]:
+    """Handle the result of a send_command tool call.
+    Updates game state, runs auto_recall, builds next user message.
+    Returns (updated_last_game_state, updated_last_auto_query).
+    """
+    try:
+        new_state = json.loads(result)
+        in_game = new_state.get("in_game", False)
+        if not in_game:
+            logger.info(
+                "run ended",
+                extra={"event": "run_end", "state": _state_summary(result)},
+            )
+            log_run_end(result)
+        auto_recall_result = auto_recall(new_state, last_auto_query)
+        content = f"State after your last command:\n{result}"
+        if auto_recall_result:
+            last_auto_query = auto_recall_result
+            try:
+                recall_data = json.loads(auto_recall_result)
+                results = (
+                    recall_data.get("results", [])
+                    if isinstance(recall_data, dict)
+                    else []
+                )
+                logger.info(
+                    "auto recall result",
+                    extra={
+                        "event": "auto_recall_result",
+                        "result_count": len(results),
+                        "types": list(
+                            {r.get("type") for r in results if r.get("type")},
+                        ),
+                    },
+                )
+            except json.JSONDecodeError:
+                pass
+            content += f"\n\nRelevant memories:\n{auto_recall_result}"
+        command = fn_args.get("command", "").strip().upper()
+        if command == "END":
+            content += (
+                "\n\nYou have ended your turn. "
+                "You MUST call retain NOW with a strategic summary. "
+                "Format:\n"
+                "- Situation: [enemy/room and key patterns]\n"
+                "- Decision: [what you did and why]\n"
+                "- Outcome: [what worked, 1-2 sentences]\n"
+                "- Lesson: [remember for next time]\n"
+                "NEVER include raw HP/energy/block numbers."
+            )
+        messages.append({"role": "user", "content": content})
+        if not in_game:
+            messages.append({
+                "role": "user",
+                "content": (
+                    "The run has ended (in_game=false). "
+                    "Check if you defeated the Heart "
+                    "or died. retain a summary of "
+                    "this run's outcome, then start "
+                    "a new game."
+                ),
+            })
+    except json.JSONDecodeError:
+        logger.exception(
+            "json decode error",
+            extra={"event": "error", "error_type": "json_decode"},
+        )
+        messages.append({"role": "user", "content": f"Command result:\n{result}"})
+        return last_game_state, last_auto_query
+    else:
+        return new_state, last_auto_query
+
+
+def main() -> None:
     init_logger()
 
     client = OpenAI(
@@ -352,89 +431,9 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
                 )
 
                 if fn_name == "send_command":
-                    try:
-                        new_state = json.loads(result)
-                        last_game_state = new_state
-                        in_game = new_state.get("in_game", False)
-                        if not in_game:
-                            logger.info(
-                                "run ended",
-                                extra={
-                                    "event": "run_end",
-                                    "state": _state_summary(result),
-                                },
-                            )
-                            log_run_end(result)
-                        auto_recall_result = auto_recall(new_state, last_auto_query)
-                        content = f"State after your last command:\n{result}"
-                        if auto_recall_result:
-                            last_auto_query = auto_recall_result
-                            try:
-                                recall_data = json.loads(auto_recall_result)
-                                results = (
-                                    recall_data.get("results", [])
-                                    if isinstance(recall_data, dict)
-                                    else []
-                                )
-                                logger.info(
-                                    "auto recall result",
-                                    extra={
-                                        "event": "auto_recall_result",
-                                        "result_count": len(results),
-                                        "types": list(
-                                            {
-                                                r.get("type")
-                                                for r in results
-                                                if r.get("type")
-                                            },
-                                        ),
-                                    },
-                                )
-                            except json.JSONDecodeError:
-                                pass
-                            content += f"\n\nRelevant memories:\n{auto_recall_result}"
-                        command = fn_args.get("command", "").strip().upper()
-                        if command == "END":
-                            content += (
-                                "\n\nYou have ended your turn. "
-                                "You MUST call retain NOW with a strategic summary. "
-                                "Format:\n"
-                                "- Situation: [enemy/room and key patterns]\n"
-                                "- Decision: [what you did and why]\n"
-                                "- Outcome: [what worked, 1-2 sentences]\n"
-                                "- Lesson: [remember for next time]\n"
-                                "NEVER include raw HP/energy/block numbers."
-                            )
-                        messages.append(
-                            {
-                                "role": "user",
-                                "content": content,
-                            },
-                        )
-                        if not in_game:
-                            messages.append(
-                                {
-                                    "role": "user",
-                                    "content": (
-                                        "The run has ended (in_game=false). "
-                                        "Check if you defeated the Heart "
-                                        "or died. retain a summary of "
-                                        "this run's outcome, then start "
-                                        "a new game."
-                                    ),
-                                },
-                            )
-                    except json.JSONDecodeError:
-                        logger.exception(
-                            "json decode error",
-                            extra={"event": "error", "error_type": "json_decode"},
-                        )
-                        messages.append(
-                            {
-                                "role": "user",
-                                "content": f"Command result:\n{result}",
-                            },
-                        )
+                    last_game_state, last_auto_query = _handle_send_command(
+                        result, fn_args, messages, last_game_state, last_auto_query,
+                    )
         else:
             logger.warning(
                 "no tool call",
