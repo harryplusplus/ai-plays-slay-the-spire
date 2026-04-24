@@ -32,8 +32,37 @@ Game CLI commands:
 - uv run game potions        Show current potions
 - uv run game map            Show current map
 
-Game commands: start, play, end, choose, potion, key, click, wait, \
-state, proceed, return
+Game commands (case insensitive):
+- START <Class> [Ascension] [Seed]
+  Start a new run. Class: IRONCLAD, SILENT, DEFECT, WATCHER.
+  Ascension: 0-20 (default 0). Seed: alphanumeric (optional).
+  Only available in main menu.
+- PLAY <CardIndex> [TargetIndex]
+  Play a card from hand. CardIndex is 1-indexed.
+  TargetIndex: monster array index (0-indexed), if card has target.
+  Only available in combat.
+- END
+  End your turn. Only available in combat.
+- CHOOSE <ChoiceIndex|ChoiceName>
+  Make a choice on the current screen. Choice names are in game state.
+  Available when PLAY is not available.
+- POTION <Use|Discard> <SlotIndex> [TargetIndex]
+  Use or discard a potion. SlotIndex: 0-indexed.
+  TargetIndex: monster array index, if potion requires target.
+- PROCEED
+  Click right-side button (proceed/confirm). Equivalent to CONFIRM.
+- RETURN
+  Click left-side button (return/cancel/leave/skip).
+- KEY <Keyname> [Timeout]
+  Press a key. Keynames: Confirm, Cancel, Map, Deck, Draw_Pile,
+  Discard_Pile, Exhaust_Pile, End_Turn, Up, Down, Left, Right,
+  Drop_Card, Card_1..Card_10. Timeout: frames to wait (default 100).
+- CLICK <Left|Right> <X> <Y>
+  Click at coordinates. (0,0)=top-left, (1920,1080)=bottom-right.
+- WAIT <Timeout>
+  Wait for frames or until state change.
+- STATE
+  Get current state immediately. Always available.
 
 Use jq, python3, or any tool to process data before deciding.
 
@@ -41,7 +70,9 @@ Guidelines:
 - After each state update, analyze carefully before acting.
 - Use recall proactively before important decisions.
 - Use retain frequently: after combat, events, card synergies, \
-boss patterns.
+  boss patterns.
+- When a run ends (in_game=false), retain the outcome summary \
+  then start a new game.
 - Be decisive. Don't ask for clarification.
 - Prefer safe plays when uncertain."""
 
