@@ -1,17 +1,49 @@
+# pyright: reportArgumentType=none, reportUnknownArgumentType=none, reportUnknownVariableType=none, reportUnknownMemberType=none
 import json
 import logging
-import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, override
 
 import httpx
 import typer
+from hindsight_client import Hindsight
 
 logger = logging.getLogger(__name__)
 
-BANK_ID = "sts"
+
+class JsonlFormatter(logging.Formatter):
+    """Format log records as JSON Lines."""
+
+    _STANDARD_ATTRS = frozenset({
+        "name", "msg", "args", "levelname", "levelno", "pathname",
+        "filename", "module", "exc_info", "exc_text", "stack_info",
+        "lineno", "funcName", "created", "msecs", "relativeCreated",
+        "thread", "threadName", "processName", "process", "message",
+        "asctime", "taskName",
+    })
+
+    @override
+    def format(self, record: logging.LogRecord) -> str:
+        entry: dict[str, Any] = {
+            "ts": (
+                datetime.fromtimestamp(record.created)
+                .astimezone()
+                .isoformat(timespec="milliseconds")
+            ),
+            "lvl": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        entry |= {
+            key: value
+            for key, value in record.__dict__.items()
+            if key not in self._STANDARD_ATTRS and not key.startswith("_")
+        }
+        return json.dumps(entry, ensure_ascii=False, default=str)
+
+BANK_ID = "sts-v2"
 RETAIN_CONTEXT = (
     "Slay the Spire gameplay: strategic decisions, build directions, "
     "enemy patterns, card synergies, combat lessons. "
@@ -19,33 +51,19 @@ RETAIN_CONTEXT = (
 )
 PROXY_URL = "http://127.0.0.1:8766/command"
 TIMEOUT = 30.0
+HINDSIGHT_URL = "http://localhost:8888"
 
 NOISE_KEYS = {"deck", "relics", "potions", "map"}
 
 
 def init_logger() -> None:
-    class Formatter(logging.Formatter):
-        @override
-        def formatTime(
-            self,
-            record: logging.LogRecord,
-            datefmt: str | None = None,
-        ) -> str:
-            return (
-                datetime.fromtimestamp(record.created)
-                .astimezone()
-                .isoformat(timespec="milliseconds")
-            )
-
     handler = RotatingFileHandler(
-        Path.home() / ".sts" / "logs" / "game.log",
+        Path.home() / ".sts" / "logs" / "game.jsonl",
         maxBytes=10_000_000,
         backupCount=5,
         encoding="utf-8",
     )
-    handler.setFormatter(
-        Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"),
-    )
+    handler.setFormatter(JsonlFormatter())
 
     root = logging.getLogger()
     root.setLevel(logging.INFO)
@@ -81,7 +99,7 @@ def extract_game_state_field(data: dict[str, Any], key: str) -> Any:  # noqa: AN
 @app.command()
 def command(cmd: str) -> None:
     """Send a raw command to the game."""
-    logger.info("command: %s", cmd)
+    logger.info("command executed", extra={"event": "command", "cmd": cmd})
     result = send_command(cmd)
     result = filter_game_state(result)
     typer.echo(json.dumps(result, indent=2))
@@ -118,53 +136,64 @@ def map_cmd() -> None:
 @app.command()
 def recall(query: str) -> None:
     """Recall memories from Hindsight."""
-    logger.info("recall: %s", query)
-    result = subprocess.run(
-        [
-            "hindsight",
-            "memory",
-            "recall",
-            BANK_ID,
-            query,
-            "--output",
-            "json",
-            "--fact-type",
-            "world",
-            "--fact-type",
-            "experience",
-            "--fact-type",
-            "observation",
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
+    logger.info("recall executed", extra={"event": "recall", "query": query})
+    client = Hindsight(base_url=HINDSIGHT_URL)
+    result = client.recall(
+        bank_id=BANK_ID,
+        query=query,
+        types=["world", "experience", "observation"],
     )
-    typer.echo(result.stdout)
-    logger.info("recall result: %s", result.stdout[:200])
+    # Convert RecallResponse to JSON
+    output = result.to_dict() if hasattr(result, "to_dict") else str(result)
+    typer.echo(json.dumps(output, indent=2, default=str))
+    results = output.get("results", []) if isinstance(output, dict) else []
+    logger.info(
+        "recall result",
+        extra={
+            "event": "recall_result",
+            "result_count": len(results),
+            "types": list({r.get("type") for r in results if r.get("type")}),
+            "results": [
+                {
+                    "id": r.get("id"),
+                    "type": r.get("type"),
+                    "text": r.get("text", "")[:200],
+                    "occurred": r.get("occurred_start"),
+                }
+                for r in results
+            ],
+        },
+    )
 
 
 @app.command()
-def retain(content: str) -> None:
+def retain(content: str, document_id: str | None = None) -> None:
     """Store a memory in Hindsight."""
-    logger.info("retain: %s", content)
-    result = subprocess.run(
-        [
-            "hindsight",
-            "memory",
-            "retain",
-            BANK_ID,
-            content,
-            "--output",
-            "json",
-            "--context",
-            RETAIN_CONTEXT,
-            "--async",
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
+    client = Hindsight(base_url=HINDSIGHT_URL)
+    item: dict[str, Any] = {
+        "content": content,
+        "context": RETAIN_CONTEXT,
+        "timestamp": datetime.now(timezone.utc),  # noqa: UP017
+    }
+    if document_id:
+        item["document_id"] = document_id
+        item["update_mode"] = "append"
+    result = client.retain_batch(
+        bank_id=BANK_ID,
+        items=[item],
+        retain_async=True,
     )
-    typer.echo(result.stdout)
+    output: dict[str, Any] = {
+        "success": result.success,
+        "items_count": result.items_count,
+    }
+    extra: dict[str, Any] = {"event": "retain", "content": content}
+    if result.operation_id:
+        op_id = str(result.operation_id)
+        extra["op_id"] = op_id
+        output["operation_id"] = op_id
+    logger.info("retain executed", extra=extra)
+    typer.echo(json.dumps(output, indent=2, default=str))
 
 
 def main() -> None:

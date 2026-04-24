@@ -46,14 +46,14 @@
 
 개선된 retain 품질을 깨끗한 공간에 쌓으려고 **인프라를 전면 교체**했어:
 
-- **`cli_v2.py` + Python SDK**: 기존 subprocess로 `hindsight` CLI를 호출하던 걸 Hindsight Python SDK로 직접 호출하게 바꿨어. 타입 제어와 API 파라미터 활용이 훨씬 좋아졌어.
+- **`cli.py` + Python SDK**: 기존 subprocess로 `hindsight` CLI를 호출하던 걸 Hindsight Python SDK로 직접 호출하게 바꿨어. 타입 제어와 API 파라미터 활용이 훨씬 좋아졌어.
 - **`sts-v2` 뱅크**: 레거시 `sts` 뱅크(상태 스냅샷 500개+)는 보존하고, 2026-04-24 이후 고품질 메모리 101개만 `sts-v2`로 옮겼어. 이제 AI는 `sts-v2`를 써.
 - **`retain_async=True`**: Python SDK `retain()` 기본값이 `retain_async=False`라서 서버가 LLM fact extraction + embedding + DB insert를 다 끝낼 때까지 기다려야 했어. 이게 60초 넘어서 타임아웃이 났었거든. `retain_batch(retain_async=True)`로 바꾸니까 즉시 반환 + 백그라운드 worker 처리로 타임아웃이 완전히 사라졌어.
 - **JSON Lines 로깅**: `game.log`와 `ai.log`를 `game.jsonl`/`ai.jsonl`로 전환했어. 모든 이벤트를 구조화된 JSON으로 기록해서 `jq`로 필터링 가능해. 예: `jq 'select(.event == "retain") | .op_id'`
 
 ### 발견한 버그들
 
-**Hindsight CLI/DB 스키마 불일치**: Hindsight 소스코드를 직접 읽어보니까 CLI의 `recall` 기본값이 `[world, experience, opinion]`인데, DB 마이그레이션(2026-04-02)에서 `opinion`은 이미 제거되고 `observation`이 추가되어 있었어. 결과적으로 고품질 기억이 consolidate되어 `observation`으로 생성됐는데 `recall`로 검색이 안 되는 치명적 불일치였지. `cli_v2.py`에서 SDK 레벨로 `types=["world", "experience", "observation"]`를 명시해서 해결했어.
+**Hindsight CLI/DB 스키마 불일치**: Hindsight 소스코드를 직접 읽어보니까 CLI의 `recall` 기본값이 `[world, experience, opinion]`인데, DB 마이그레이션(2026-04-02)에서 `opinion`은 이미 제거되고 `observation`이 추가되어 있었어. 결과적으로 고품질 기억이 consolidate되어 `observation`으로 생성됐는데 `recall`로 검색이 안 되는 치명적 불일치였지. `cli.py`에서 SDK 레벨로 `types=["world", "experience", "observation"]`를 명시해서 해결했어.
 
 ### 결과: 개선 확인됨
 
@@ -107,7 +107,7 @@ uv run ai      # AI 에이전트
 - [x] Hindsight 통합 (retain/recall)
 - [x] Retain 전략 재설계 (빈도/내용 개선)
 - [x] Hindsight CLI/DB mismatch 해결 (observation 타입 누락)
-- [x] Python SDK 전환 (`cli_v2.py`)
+- [x] Python SDK 전환 (`cli.py`)
 - [x] `sts-v2` 뱅크 생성 및 고품질 메모리 마이그레이션
 - [x] Retain 타임아웃 해결 (`retain_async=True`)
 - [x] LLM 전환: kimi-k2.6(OpenCode) → deepseek-v4-flash:cloud(Ollama Cloud)

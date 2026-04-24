@@ -9,8 +9,7 @@ dependencies = [
 ]
 
 [project.scripts]
-game = "game.cli_v2:main"
-game-v2 = "game.cli_v2:main"
+game = "game.cli:main"
 
 [tool.uv]
 package = true

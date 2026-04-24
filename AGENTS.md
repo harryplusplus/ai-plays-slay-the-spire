@@ -39,13 +39,13 @@ LLM(deepseek-v4-flash:cloud via Ollama Cloud)이 Slay the Spire를 Communication
 
 ### 최근 변경사항
 
-#### cli_v2.py 작성 + Python SDK 전환
-- `packages/game/src/game/cli_v2.py` 새로 만들었어
+#### cli.py 작성 + Python SDK 전환
+- `packages/game/src/game/cli.py` 새로 만들었어
 - Hindsight Python SDK(`hindsight-client`) 쓰고, subprocess CLI 호출 제거
-- `game` 진입점을 `cli_v2:main`으로 전환, `game-v2`는 동일 대상
+- `game` 진입점을 `cli:main`으로 전환
 
 #### 로그 포맷 JSONL 전환
-- `game.jsonl` (`~/.sts/logs/game.jsonl`): `cli_v2.py` 모든 이벤트를 JSON Lines로 기록
+- `game.jsonl` (`~/.sts/logs/game.jsonl`): `cli.py` 모든 이벤트를 JSON Lines로 기록
 - `ai.jsonl` (`~/.sts/logs/ai.jsonl`): `ai/main.py` 모든 이벤트를 JSON Lines로 기록
 - `proxy.log`, `bridge.log`는 텍스트 유지 (변경 없음)
 - 이벤트 필드: `event`, `tool`, `arguments`, `state` 등으로 `jq` 필터링 가능
@@ -86,7 +86,7 @@ LLM(deepseek-v4-flash:cloud via Ollama Cloud)이 Slay the Spire를 Communication
 
 #### Document ID 기반 전투 그룹핑
 - `main.py`가 마지막 게임 state에서 `seed`+`act`+`floor`를 추출해서 `document_id` 생성
-- `cli_v2.py`의 `retain()`에 `--document-id` 옵션 추가, `update_mode='append'` 적용
+- `cli.py`의 `retain()`에 `--document-id` 옵션 추가, `update_mode='append'` 적용
 - 같은 전투의 retain들이 **하나의 document**에 쌓임 → Hindsight observation consolidation 품질 향상
 - 예: `document_id = "combat-{seed}-{act}-{floor}"`
 
@@ -239,7 +239,7 @@ AI (packages/ai)
 ## 핵심 파일
 
 - `packages/ai/src/ai/main.py` — 메인 AI 루프, 툴 정의, 시스템 프롬프트
-- `packages/game/src/game/cli_v2.py` — 게임 CLI (proxy 클라이언트 + Hindsight Python SDK 호출)
+- `packages/game/src/game/cli.py` — 게임 CLI (proxy 클라이언트 + Hindsight Python SDK 호출)
 - `packages/proxy/src/proxy/main.py` — HTTP 서버 + WebSocket 클라이언트 + SQLite
 - `packages/bridge/src/bridge/main.py` — WebSocket 서버 + stdin/stdout 브리지
 
