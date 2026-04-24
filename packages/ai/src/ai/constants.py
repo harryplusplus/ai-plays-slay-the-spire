@@ -162,3 +162,22 @@ TOOLS = [
         },
     },
 ]
+
+RUN_ENDED_PROMPT = (
+    "The run has ended (in_game=false). "
+    "Check if you defeated the Heart "
+    "or died. retain a summary of "
+    "this run's outcome, then start "
+    "a new game."
+)
+
+TURN_ENDED_PROMPT = (
+    "\n\nYou have ended your turn. "
+    "You MUST call retain NOW with a strategic summary. "
+    "Format:\n"
+    "- Situation: [enemy/room and key patterns]\n"
+    "- Decision: [what you did and why]\n"
+    "- Outcome: [what worked, 1-2 sentences]\n"
+    "- Lesson: [remember for next time]\n"
+    "NEVER include raw HP/energy/block numbers."
+)

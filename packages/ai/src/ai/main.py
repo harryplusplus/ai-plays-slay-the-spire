@@ -18,9 +18,11 @@ from .constants import (
     OPENAI_API_KEY,
     OPENAI_BASE_URL,
     RETRY_DELAY,
+    RUN_ENDED_PROMPT,
     RUN_LOG,
     SYSTEM_PROMPT,
     TOOLS,
+    TURN_ENDED_PROMPT,
 )
 from .log import init_logger
 
@@ -299,27 +301,12 @@ def _handle_send_command(  # noqa: PLR0913
             content += f"\n\nRelevant memories:\n{auto_recall_result}"
         command = fn_args.get("command", "").strip().upper()
         if command == "END":
-            content += (
-                "\n\nYou have ended your turn. "
-                "You MUST call retain NOW with a strategic summary. "
-                "Format:\n"
-                "- Situation: [enemy/room and key patterns]\n"
-                "- Decision: [what you did and why]\n"
-                "- Outcome: [what worked, 1-2 sentences]\n"
-                "- Lesson: [remember for next time]\n"
-                "NEVER include raw HP/energy/block numbers."
-            )
+            content += TURN_ENDED_PROMPT
         messages.append({"role": "user", "content": content})
         if not in_game:
             messages.append({
                 "role": "user",
-                "content": (
-                    "The run has ended (in_game=false). "
-                    "Check if you defeated the Heart "
-                    "or died. retain a summary of "
-                    "this run's outcome, then start "
-                    "a new game."
-                ),
+                "content": RUN_ENDED_PROMPT,
             })
     except json.JSONDecodeError:
         logger.exception(
