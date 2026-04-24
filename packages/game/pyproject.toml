@@ -5,10 +5,12 @@ description = "CLI for AI plays Slay the Spire"
 dependencies = [
     "httpx>=0.28.1",
     "typer>=0.24.2",
+    "hindsight-client @ file:///Users/harry/repo/nailed-it/external/hindsight/hindsight-clients/python",
 ]
 
 [project.scripts]
-game = "game.cli:main"
+game = "game.cli_v2:main"
+game-v2 = "game.cli_v2:main"
 
 [tool.uv]
 package = true
