@@ -1,6 +1,6 @@
 # AI Plays Slay the Spire
 
-> 이 문서는 **kimi-k2.6**이 Harry의 지시에 따라 한국어로 작성하고 유지보수하는 문서입니다. 모델의 한국어 출력 과정에서 낮은 확률로 글자가 잘못 조합되는 버그가 있어, 의도는 올바른 한국어이나 출력에 가끔 사소한 오타가 포함될 수 있습니다. 이 점 양해 부탁드립니다.
+> 이 문서는 **glm-5.1**이 Harry의 지시에 따라 한국어로 작성하고 유지보수하는 문서입니다. 모델의 한국어 출력 과정에서 낮은 확률로 글자가 잘못 조합되는 버그가 있어, 의도는 올바른 한국어이나 출력에 가끔 사소한 오타가 포함될 수 있습니다. 이 점 양해 부탁드립니다.
 
 이 저장소는 **Harry**와 AI 코딩 에이전트가 함께 만드는 **Slay the Spire 자동 플레이 봇**이다. 궁극적인 목표는 승천 0, 디펙트로 **심장(Heart) 클리어**를 하는 것이지만, 그 과정에서 배우는 것이 더 중요하다.
 
@@ -85,7 +85,7 @@ AI (packages/ai) → Game CLI (packages/game) → Proxy (packages/proxy)
                                               Slay the Spire
 ```
 
-AI는 OpenAI 호환 API(kimi-k2.6 via OpenCode)를 사용하며, tool-calling 방식으로 게임을 제어한다. 장기기억은 Hindsight 뱅크(`sts`)에 저장된다.
+AI는 OpenAI 호환 API(glm-5.1 via Ollama)를 사용하며, tool-calling 방식으로 게임을 제어한다. 장기기억은 Hindsight 뱅크(`sts`)에 저장된다.
 
 자세한 기술 문서는 [AGENTS.md](AGENTS.md)에 기록되어 있다.
 
@@ -100,7 +100,7 @@ git submodule update --init --recursive
 # 3. config.properties 설정 (절대 경로로 bridge 명령 지정)
 
 # 4. 환경변수
-export OPENCODE_API_KEY=...
+export OLLAMA_API_KEY=...
 
 # 5. 실행 (별도 터미널)
 uv run proxy   # 프록시 서버

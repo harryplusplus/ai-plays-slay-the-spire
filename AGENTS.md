@@ -1,7 +1,7 @@
 # AI 에이전트 노트 — Slay the Spire
 
 ## 프로젝트 개요
-LLM(kimi-k2.6 via OpenCode)이 Slay the Spire를 CommunicationMod를 통해 자동으로 플레이하는 봇.
+LLM(glm-5.1 via Ollama)이 Slay the Spire를 CommunicationMod를 통해 자동으로 플레이하는 봇.
 
 ## 목적
 1. **심장(Heart) 클리어** — 승천 0, 디펙트로 심장 클리어가 최종 목표
@@ -252,7 +252,7 @@ default_values = &["world", "experience", "opinion"]
 
 | 변수 | 필요한 패키지 | 설명 |
 |------|--------------|------|
-| `OPENCODE_API_KEY` | `ai` | LLM API 키 (OpenCode) |
+| `OLLAMA_API_KEY` | `ai` | LLM API 키 (Ollama) |
 
 ## 서비스 실행 워크플로우 (tmux)
 

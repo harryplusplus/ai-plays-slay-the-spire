@@ -13,9 +13,9 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-OPENAI_BASE_URL = "https://opencode.ai/zen/go/v1"
-OPENAI_API_KEY = os.environ["OPENCODE_API_KEY"]
-MODEL = "kimi-k2.6"
+OPENAI_BASE_URL = "https://ollama.com/v1"
+OPENAI_API_KEY = os.environ["OLLAMA_API_KEY"]
+MODEL = "glm-5.1"
 MAX_OUTPUT = 20_000
 MAX_MESSAGES_CHARS = 400_000
 RETRY_DELAY = 10.0
