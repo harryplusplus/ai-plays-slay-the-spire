@@ -1,9 +1,11 @@
 import json
+import subprocess
 from typing import Any
 
 import httpx
 import typer
 
+BANK_ID = "sts"
 PROXY_URL = "http://127.0.0.1:8766/command"
 TIMEOUT = 30.0
 
@@ -59,6 +61,30 @@ def potions() -> None:
     """Show the current potions."""
     result = send_command("state")
     typer.echo(json.dumps(extract_game_state_field(result, "potions"), indent=2))
+
+
+@app.command()
+def recall(query: str) -> None:
+    """Recall memories from Hindsight."""
+    result = subprocess.run(
+        ["hindsight", "memory", "recall", BANK_ID, query, "--output", "json"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    typer.echo(result.stdout)
+
+
+@app.command()
+def retain(content: str) -> None:
+    """Store a memory in Hindsight."""
+    result = subprocess.run(
+        ["hindsight", "memory", "retain", BANK_ID, content, "--output", "json"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    typer.echo(result.stdout)
 
 
 @app.command("map")
