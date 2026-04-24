@@ -107,6 +107,8 @@ async def run(server: uvicorn.Server, app_state: AppState) -> None:
         if server_task in done:
             ws_task.cancel()
             await asyncio.gather(ws_task, return_exceptions=True)
+            await ws.close()
+            app_state.ws = None
             return
 
         ws_task.cancel()
