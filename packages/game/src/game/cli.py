@@ -6,6 +6,7 @@ import httpx
 import typer
 
 BANK_ID = "sts"
+RETAIN_CONTEXT = "game"
 PROXY_URL = "http://127.0.0.1:8766/command"
 TIMEOUT = 30.0
 
@@ -74,7 +75,15 @@ def map_cmd() -> None:
 def recall(query: str) -> None:
     """Recall memories from Hindsight."""
     result = subprocess.run(
-        ["hindsight", "memory", "recall", BANK_ID, query, "--output", "json"],
+        [
+            "hindsight",
+            "memory",
+            "recall",
+            BANK_ID,
+            query,
+            "--output",
+            "json",
+        ],
         capture_output=True,
         text=True,
         check=True,
@@ -86,15 +95,23 @@ def recall(query: str) -> None:
 def retain(content: str) -> None:
     """Store a memory in Hindsight."""
     result = subprocess.run(
-        ["hindsight", "memory", "retain", BANK_ID, content, "--output", "json"],
+        [
+            "hindsight",
+            "memory",
+            "retain",
+            BANK_ID,
+            content,
+            "--output",
+            "json",
+            "--context",
+            RETAIN_CONTEXT,
+            "--async",
+        ],
         capture_output=True,
         text=True,
         check=True,
     )
     typer.echo(result.stdout)
-
-
-
 
 
 def main() -> None:
