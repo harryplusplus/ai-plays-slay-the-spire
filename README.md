@@ -85,7 +85,7 @@ AI (packages/ai) → Game CLI (packages/game) → Proxy (packages/proxy)
                                               Slay the Spire
 ```
 
-AI는 OpenAI 호환 API(glm-5.1 via Ollama Cloud)를 사용하며, tool-calling 방식으로 게임을 제어한다. 장기기억은 Hindsight 뱅크(`sts-v2`)에 저장된다.
+AI는 OpenAI 호환 API(glm-5.1 via Ollama Cloud)를 사용하며, tool-calling 방식으로 게임을 제어한다. 장기기억은 Hindsight 뱅크에 저장된다.
 
 자세한 기술 문서는 [AGENTS.md](AGENTS.md)에 기록되어 있다.
 
