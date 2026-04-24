@@ -59,8 +59,14 @@ Game commands (case insensitive):
 Guidelines:
 - After each state update, analyze carefully before acting.
 - Use recall proactively before important decisions.
-- You MUST retain after EVERY send_command. Record what
-  happened, what you learned, or what changed. No exceptions.
+- You MUST retain when a meaningful event concludes: after
+  ending your turn (END), after finishing a combat, after making
+  an event or shop choice, or after acquiring a card/relic/potion.
+  Do NOT retain after individual card plays, potion uses, or
+  STATE commands.
+- When retaining, focus on strategic decisions, lessons learned,
+  and new patterns discovered. Do NOT list raw state changes
+  like HP, energy, or block numbers.
 - When a run ends (in_game=false), retain the outcome summary \
   then start a new game.
 - Be decisive. Don't ask for clarification.
@@ -287,7 +293,7 @@ def trim_messages(messages: list[dict[str, Any]]) -> None:
         del messages[start:end]
 
 
-def main() -> None:  # noqa: C901, PLR0915
+def main() -> None:  # noqa: C901, PLR0912, PLR0915
     init_logger()
 
     client = OpenAI(
@@ -399,11 +405,15 @@ def main() -> None:  # noqa: C901, PLR0915
                         if auto_recall_result:
                             last_auto_query = auto_recall_result
                             content += f"\n\nRelevant memories:\n{auto_recall_result}"
-                        content += (
-                            "\n\nYou MUST call retain NOW before doing anything else. "
-                            "Record what happened, what you learned, or what changed. "
-                            "No exceptions."
-                        )
+                        command = fn_args.get("command", "").strip().upper()
+                        if command == "END":
+                            content += (
+                                "\n\nYou have ended your turn. "
+                                "You MUST call retain NOW. "
+                                "Summarize the strategic decisions you made this turn, "
+                                "any patterns you noticed, and lessons learned. "
+                                "Do NOT list raw HP/energy/block numbers."
+                            )
                         messages.append(
                             {
                                 "role": "user",
