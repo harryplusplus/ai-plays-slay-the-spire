@@ -1,206 +1,169 @@
 # AI Plays Slay the Spire
 
-This repository is an experimental local runtime for letting an AI agent play Slay the Spire through [CommunicationMod](./external/CommunicationMod). It is organized as a `uv` workspace monorepo with three Python packages, one Java git submodule, and a separate agent prompt directory.
+An AI agent that plays Slay the Spire via [CommunicationMod](https://github.com/ForgottenArbiter/CommunicationMod). The agent is a Python LLM loop that calls game commands through a layered CLI/proxy/bridge stack. Memory is stored in a Hindsight bank.
 
-## Overview
+## Architecture
 
-- `packages/core`: shared paths and logging primitives used across the workspace
-- `packages/bridge`: the runtime process launched by CommunicationMod; it speaks the stdin/stdout game protocol, exposes a small HTTP API, and persists a local event journal
-- `packages/tools`: developer CLIs for bootstrapping submodules and building/installing the Java mod
-- `external/CommunicationMod/`: Java mod checked out as a git submodule; it owns the actual integration with Slay the Spire
-- `agent/`: Codex-facing instructions for the gameplay agent
-- `scripts/agent.sh`: helper script that launches the Codex TUI in `agent/` with repo-scoped `CODEX_HOME`
-
-## Repository Layout
-
-```text
-.
-|-- agent/                  # Prompt and behavior instructions for the game-playing agent
-|-- external/
-|   `-- CommunicationMod/   # Java mod submodule
-|-- packages/
-|   |-- bridge/             # FastAPI + protocol bridge + SQLite event journal
-|   |-- core/               # Shared filesystem paths and logging setup
-|   `-- tools/              # bootstrap/build-mod CLIs
-|-- scripts/
-|   `-- agent.sh            # Starts Codex in ./agent with ./.work/codex
-|-- .work/                  # Local runtime artifacts, logs, DB, build outputs
-|-- pyproject.toml          # Workspace root
-`-- uv.lock
+```
+┌─────────────┐     HTTP      ┌──────────────┐     WebSocket   ┌──────────────┐
+│  AI Agent   │ ─────────────→│    Proxy     │ ──────────────→│    Bridge    │
+│ (packages/ai)│   port 8766   │ (packages/proxy)│  port 8765   │(packages/bridge)│
+└─────────────┘               └──────────────┘               └──────────────┘
+       │                                                           │
+       │ tools: send_command, recall, retain, deck, relics,        │ stdin/stdout
+       │       potions, map                                         │
+       ↓                                                           ↓
+┌─────────────┐                                            ┌──────────────┐
+│  Game CLI   │ ← Hindsight CLI (recall/retain)           │ CommunicationMod │
+│ (packages/  │                                            │   (Java mod)   │
+game)         │                                            └──────────────┘
+└─────────────┘                                                   │
+                                                                  ↓
+                                                           ┌──────────────┐
+                                                           │ Slay the Spire │
+                                                           └──────────────┘
 ```
 
-## Workspace Architecture
+### Components
 
-### Package Responsibilities
+| Package | Port / CLI | Role |
+|---------|-----------|------|
+| `ai` | `uv run ai` | LLM agent loop. OpenAI-compatible API. Receives game state, calls tools, auto-recalls and retains memory. |
+| `game` | `uv run game <cmd>` | Typer CLI. Subcommands: `command`, `deck`, `relics`, `potions`, `map`, `recall`, `retain`. Talks to proxy via HTTP. Filters noise (deck/relics/potions/map) from state JSON. Recall/retain delegate to Hindsight CLI. |
+| `proxy` | `http://127.0.0.1:8766/command` | FastAPI + WebSocket client. SQLite monotonic command_id counter (`~/.sts/proxy.db`). Reconnects to bridge automatically. Request-response pattern with 30s timeout. |
+| `bridge` | `ws://127.0.0.1:8765/ws` | FastAPI WebSocket server launched by CommunicationMod. Bridges stdin/stdout (game protocol) with WebSocket (proxy). Writes "ready" handshake on stdout. |
+| `external/CommunicationMod` | — | Java mod (git submodule). Launches bridge process, forwards game state JSON, executes commands. |
 
-| Component | Depends on | Role |
-| --- | --- | --- |
-| `core` | none | Defines canonical filesystem locations in [`core.paths`](./packages/core/src/core/paths.py) and shared structured logging in [`core.log`](./packages/core/src/core/log.py). |
-| `bridge` | `core`, FastAPI, SQLAlchemy, aiosqlite | Runs as the external child process for CommunicationMod. Reads game messages from stdin, writes commands to stdout, exposes `/execute` and `/events`, and stores command/message history in SQLite. |
-| `tools` | `core`, Typer | Provides `uv run bootstrap` and `uv run build-mod` for initializing the submodule and building/installing the Java mod into the local Slay the Spire mods directory. |
-| `CommunicationMod` | Slay the Spire, ModTheSpire, BaseMod | Injects into the game, launches the Python bridge process, converts game state to JSON, and executes commands coming back from the bridge. |
-| `agent` | CommunicationMod protocol knowledge | Stores the prompt used for the Codex gameplay session. It is not a Python package and does not participate in the `uv` workspace dependency graph. |
+### Data Flow
 
-### Dependency Graph
-
-```mermaid
-flowchart TB
-    root["ai-plays-slay-the-spire"]
-
-    subgraph workspace["uv workspace"]
-        core["packages/core"]
-        bridge["packages/bridge"]
-        tools["packages/tools"]
-    end
-
-    subgraph external["agent/runtime-adjacent"]
-        comm["external/CommunicationMod/ (git submodule)"]
-        agent["agent/"]
-        script["scripts/agent.sh"]
-    end
-
-    root --> core
-    root --> bridge
-    root --> tools
-    root --> comm
-    root --> agent
-    root --> script
-
-    core --> bridge
-    core --> tools
-    tools --> comm
-    script --> agent
-```
-
-## Runtime Flow
-
-The runtime path is intentionally small:
-
-1. `CommunicationMod` starts the Python bridge process configured in its `config.properties`.
-2. `bridge` starts a background stdin reader, initializes SQLite, starts FastAPI, and emits its initial handshake through stdout.
-3. When the game reaches a stable state, `CommunicationMod` sends a JSON message to the bridge.
-4. The AI agent sends a command to the bridge over HTTP.
-5. `bridge` allocates a command id, writes `--command-id=<id> <command>` to stdout, and records the command as an event.
-6. `CommunicationMod` executes the command in game and later emits a JSON response or error containing the same `command_id`.
-7. `bridge` matches the response to the pending request, returns it to the caller, and records the incoming message as an event.
-
-`agent/` is the repository's prompt layer for that AI agent; the bridge itself stays narrow and protocol-focused.
-
-### Sequence Diagram
-
-```mermaid
-sequenceDiagram
-    participant Agent as AI Agent
-    participant Bridge as bridge
-    participant Mod as CommunicationMod
-    participant Game as Slay the Spire
-
-    Mod->>Bridge: launch configured process
-    Bridge-->>Mod: initial handshake on stdout
-    Game-->>Mod: state becomes stable
-    Mod-->>Bridge: JSON game state on stdin
-    Agent->>Bridge: POST /execute {"command": "..."}
-    Bridge-->>Mod: --command-id=N <command>
-    Mod->>Game: execute command
-    Game-->>Mod: updated state or error
-    Mod-->>Bridge: JSON response with command_id
-    Bridge-->>Agent: Message payload
-```
-
-### Bridge Internals
-
-Within `packages/bridge`, responsibilities are split by layer:
-
-- API layer: [`bridge.api`](./packages/bridge/src/bridge/api.py) exposes `POST /execute` and `GET /events`
-- Composition root: [`bridge.container`](./packages/bridge/src/bridge/container.py) wires DB, services, and background workers
-- Command path: `ExecutionService -> CommandWriter -> stdout -> CommunicationMod`
-- Message path: `stdin -> message_thread -> MessageService -> ExecutionService/EventService`
-- Persistence: [`bridge.db`](./packages/bridge/src/bridge/db.py), [`bridge.models`](./packages/bridge/src/bridge/models.py), and repository classes persist command/message events plus the monotonic command id counter
-
-## Git Submodule
-
-`external/CommunicationMod/` is tracked as a git submodule:
-
-- path: `external/CommunicationMod`
-- upstream: `https://github.com/harryplusplus/CommunicationMod.git`
-- branch: `master`
-
-`uv run bootstrap` runs:
-
-- `git submodule sync --recursive`
-- `git submodule update --init --recursive`
-
-`uv run build-mod` then builds the Java mod with Maven and symlinks the resulting jar into the local Slay the Spire mods directory.
-
-## Local Environment
-
-This project is currently optimized for a local macOS setup rather than cross-platform portability.
-
-- macOS: `26.3.1`
-- [Slay the Spire - Steam](https://store.steampowered.com/app/646570/Slay_the_Spire/)
-- [ModTheSpire - Steam](https://steamcommunity.com/sharedfiles/filedetails/?id=1605060445)
-- [BaseMod - Steam](https://steamcommunity.com/sharedfiles/filedetails/?id=1605833019)
-- [uv](https://docs.astral.sh/uv/): `0.10.9`
-- Python: `3.11`
-- [SDKMAN!](https://sdkman.io/)
-- [Maven](https://maven.apache.org/)
-- JDK: `8.0.482-zulu`
-
-Some important runtime paths are hard-coded in [`core.paths`](./packages/core/src/core/paths.py), including the Steam workshop jars, the Java installation, and local working directories under `./.work`.
+1. CommunicationMod launches `uv run bridge` and waits for `ready\n` on stdout.
+2. Game state changes → CommunicationMod sends JSON to bridge stdin.
+3. Bridge broadcasts JSON to all WebSocket clients (proxy).
+4. Proxy matches `command_id` in the JSON to pending HTTP requests.
+5. AI agent calls `send_command` → game CLI → proxy HTTP → proxy WebSocket → bridge stdout → CommunicationMod → game.
+6. After each `send_command`, AI auto-recalls from Hindsight and appends memories to context.
+7. AI must `retain` after every command (enforced in system prompt).
 
 ## Setup
 
 ```sh
 uv sync --all-packages --locked
-uv run bootstrap
-uv run build-mod
+git submodule update --init --recursive
 ```
 
-What each step does:
+### Build & Install CommunicationMod
 
-- `uv sync --all-packages --locked`: installs the workspace and all package dependencies
-- `uv run bootstrap`: initializes and updates the `CommunicationMod` submodule
-- `uv run build-mod`: builds `CommunicationMod.jar` and links it into the game's mods directory
-
-## CommunicationMod Configuration
-
-CommunicationMod config file location:
-
-```text
-~/Library/Preferences/ModTheSpire/CommunicationMod/config.properties
+```sh
+cd external/CommunicationMod
+mvn package
+# Copy the jar to your ModTheSpire mods directory
 ```
 
-Use a configuration like this:
+### CommunicationMod Config
+
+File: `~/Library/Preferences/ModTheSpire/CommunicationMod/config.properties` (macOS)
 
 ```properties
-command=/absolute/project/.venv/bin/python -m bridge
+command=/absolute/path/to/repo/.venv/bin/python -m bridge
 runAtGameStart=true
 ```
 
-Notes:
+> The `command` path must be absolute. `python -m bridge` launches the bridge package.
 
-- `command` must be an absolute path that matches your local environment
-- `python -m bridge` launches the workspace package defined in `packages/bridge`
-- `runAtGameStart=true` makes CommunicationMod spawn the bridge automatically when the game starts
+### Environment Variables
 
-## Operational Files
+| Variable | Required By | Description |
+|----------|-------------|-------------|
+| `OLLAMA_API_KEY` | `ai` | API key for the LLM endpoint |
+| `HINDSIGHT_*` | `game` | Hindsight server config (URL, API key, etc.) |
 
-These are the files and directories you will usually want to inspect first while debugging:
+The AI uses `glm-5.1` via `https://ollama.com/v1` with `temperature=0` and `reasoning_effort="high"`.
 
-| Path | Purpose |
-| --- | --- |
-| `./.work/db.sqlite` | SQLite database used by the bridge for events and command ids |
-| `./.work/logs/bridge.log` | rotating bridge runtime log |
-| `./.work/CommunicationMod.jar` | local build output produced by `uv run build-mod` |
-| `./agent/AGENTS.md` | gameplay instructions for the Codex agent |
-| `./scripts/agent.sh` | launches the Codex TUI in `./agent` with `CODEX_HOME=./.work/codex` |
+## Running
 
-## Running the Agent Shell
-
-If you want to launch the Codex TUI scoped to this repository's gameplay prompt and local state directory:
+Start Slay the Spire with ModTheSpire + CommunicationMod enabled. Then:
 
 ```sh
-scripts/agent.sh
+# Terminal 1: proxy (auto-connects to bridge)
+uv run proxy
+
+# Terminal 2: AI agent
+uv run ai
 ```
 
-That script changes into `./agent` and uses `./.work/codex` as `CODEX_HOME`, so the gameplay session keeps its own local state inside the repository.
+The bridge is started automatically by CommunicationMod when the game loads.
+
+## Game CLI
+
+```sh
+uv run game command "state"          # Send raw command, get filtered state
+uv run game command "play 1 0"       # Play card 1 targeting monster 0
+uv run game command "end"            # End turn
+uv run game deck                     # Show deck (extracted from state)
+uv run game relics                   # Show relics
+uv run game potions                  # Show potions
+uv run game map                      # Show map
+uv run game recall "jaw worm act 1"  # Search Hindsight memory
+uv run game retain "learned X"       # Store observation in Hindsight
+```
+
+State filtering: `deck`, `relics`, `potions`, `map` keys are stripped from `game_state` to reduce noise. Use the dedicated subcommands to view them on demand.
+
+## AI Tools
+
+The AI has 7 tools, all calling the game CLI internally:
+
+| Tool | Args | Maps to |
+|------|------|---------|
+| `send_command` | `command: str` | `game command <cmd>` |
+| `recall` | `query: str` | `game recall <query>` |
+| `retain` | `content: str` | `game retain <content>` |
+| `deck` | — | `game deck` |
+| `relics` | — | `game relics` |
+| `potions` | — | `game potions` |
+| `map` | — | `game map` |
+
+### Auto Behaviors
+
+- **Auto recall**: After every `send_command`, builds a query from `screen_type`, `room_type`, `act`, `floor`, and monster names (key=value format). Skipped if the query hasn't changed since last turn.
+- **Retain enforcement**: System prompt requires `retain` after every `send_command`.
+- **Run-end detection**: When `in_game=false`, the full state is logged to `~/.sts/logs/runs.log` and the AI is prompted to retain a summary and start a new game.
+- **Message trimming**: When total message chars exceed 400K, oldest complete turns are dropped (preserving tool_call/result pairs).
+- **LLM retry**: API failures retry after 10s.
+
+## Logs & State
+
+| Path | Purpose |
+|------|---------|
+| `~/.sts/logs/ai.log` | AI agent decisions, tool calls, LLM responses |
+| `~/.sts/logs/proxy.log` | Command IDs, bridge reconnects, timeouts |
+| `~/.sts/logs/bridge.log` | Stdin/stdout protocol messages |
+| `~/.sts/logs/game.log` | Game CLI invocations, Hindsight calls |
+| `~/.sts/logs/runs.log` | Full run-end states |
+| `~/.sts/proxy.db` | SQLite command_id counter |
+
+All logs use rotating file handlers (10MB, 5 backups).
+
+## Development
+
+```sh
+# Type check
+uv run pyright packages/*/src/**/*.py
+
+# Lint
+uv run ruff check packages/*/src/**/*.py
+```
+
+## Repository Layout
+
+```text
+.
+├── external/CommunicationMod/   # Java mod (git submodule)
+├── packages/
+│   ├── ai/                      # LLM agent loop
+│   ├── bridge/                  # WebSocket ↔ stdin/stdout bridge
+│   ├── game/                    # Typer CLI (proxy client + Hindsight)
+│   └── proxy/                   # HTTP API + WebSocket client + SQLite
+├── pyproject.toml               # uv workspace root
+└── uv.lock
+```
