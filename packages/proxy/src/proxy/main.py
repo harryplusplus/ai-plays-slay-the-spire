@@ -81,7 +81,11 @@ async def command(request: Request) -> JSONResponse:
 async def ws_loop(ws: websockets.ClientConnection, app_state: AppState) -> None:
     async for message in ws:
         logger.debug("received from bridge: %s", message)
-        data = json.loads(message)
+        try:
+            data = json.loads(message)
+        except json.JSONDecodeError:
+            logger.warning("invalid json from bridge: %s", message)
+            continue
         cmd_id = data.get("command_id")
         if cmd_id is not None and cmd_id in app_state.pending:
             app_state.pending[cmd_id].set_result(data)
