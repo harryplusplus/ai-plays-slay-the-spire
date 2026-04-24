@@ -58,8 +58,8 @@ Game commands (case insensitive):
 Guidelines:
 - After each state update, analyze carefully before acting.
 - Use recall proactively before important decisions.
-- Use retain frequently: after combat, events, card synergies, \
-  boss patterns.
+- You MUST retain after EVERY send_command. Record what
+  happened, what you learned, or what changed. No exceptions.
 - When a run ends (in_game=false), retain the outcome summary \
   then start a new game.
 - Be decisive. Don't ask for clarification.
@@ -203,8 +203,10 @@ def game_cli(*args: str) -> str:
     return output
 
 
-def auto_recall(state: dict[str, Any]) -> str:
-    """Build a recall query from current game state."""
+def auto_recall(state: dict[str, Any], last_query: str = "") -> str:
+    """Build a recall query from current game state.
+    Returns empty string if query is same as last_query.
+    """
     parts: list[str] = []
     game_state = state.get("game_state")
     if game_state:
@@ -222,6 +224,9 @@ def auto_recall(state: dict[str, Any]) -> str:
             monsters = combat.get("monsters", [])
             parts.extend(m.get("name", "") for m in monsters[:3])
     query = " ".join(parts) if parts else "slay the spire general"
+    if query == last_query:
+        logger.debug("auto recall skipped (same query)")
+        return ""
     logger.info("auto recall query: %s", query)
     return game_cli("recall", query)
 
@@ -279,7 +284,7 @@ so tool_call/tool_result pairs stay intact.
         del messages[start:end]
 
 
-def main() -> None:
+def main() -> None:  # noqa: C901, PLR0915
     init_logger()
 
     client = OpenAI(
@@ -294,13 +299,15 @@ def main() -> None:
     # Initial state
     initial = game_cli("command", "state")
     auto_recall_result = auto_recall(json.loads(initial))
+    last_auto_query = ""
+    content = f"Current game state:\n{initial}"
+    if auto_recall_result:
+        last_auto_query = auto_recall_result
+        content += f"\n\nRelevant memories:\n{auto_recall_result}"
     messages.append(
         {
             "role": "user",
-            "content": (
-                f"Current game state:\n{initial}\n\n"
-                f"Relevant memories:\n{auto_recall_result}"
-            ),
+            "content": content,
         },
     )
     logger.info("initial state: %s", initial)
@@ -370,14 +377,15 @@ def main() -> None:
                                 ),
                             )
                             run_handler.close()
-                        auto_recall_result = auto_recall(new_state)
+                        auto_recall_result = auto_recall(new_state, last_auto_query)
+                        content = f"Updated state:\n{result}"
+                        if auto_recall_result:
+                            last_auto_query = auto_recall_result
+                            content += f"\n\nRelevant memories:\n{auto_recall_result}"
                         messages.append(
                             {
                                 "role": "user",
-                                "content": (
-                                    f"Updated state:\n{result}\n\n"
-                                    f"Relevant memories:\n{auto_recall_result}"
-                                ),
+                                "content": content,
                             },
                         )
                         if not in_game:
