@@ -307,18 +307,12 @@ def auto_recall(state: dict[str, Any], last_query: str = "") -> str:
     parts: list[str] = []
     game_state = state.get("game_state")
     if game_state:
-        screen = game_state.get("screen_type", "")
-        if screen:
-            parts.append(f"screen={screen}")
         room = game_state.get("room_type", "")
         if room:
             parts.append(f"room={room}")
         act = game_state.get("act")
         if act is not None:
             parts.append(f"act={act}")
-        floor = game_state.get("floor")
-        if floor is not None:
-            parts.append(f"floor={floor}")
         combat = game_state.get("combat_state")
         if combat:
             monsters = combat.get("monsters", [])
