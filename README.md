@@ -51,15 +51,9 @@
 - **`retain_async=True`**: Python SDK의 `retain()`은 기본값이 `retain_async=False`로, 서버가 LLM fact extraction + embedding + DB insert를 모두 끝낼 때까지 HTTP 연결을 유지한다. 이게 60초를 넘어 타임아웃이 났었다. `retain_batch(retain_async=True)`로 바꿔서 즉시 반환 + 백그라운드 worker 처리로 변경하니 타임아웃이 완전히 사라졌다.
 - **JSON Lines 로깅**: `game.log`와 `ai.log`를 `game.jsonl`/`ai.jsonl`로 전환. 모든 이벤트를 구조화된 JSON으로 기록하여 `jq`로 필터링 가능. 예: `jq 'select(.event == "retain") | .op_id'`
 
-개선된 retain 품질을 깨끗한 공간에 쌓기 위해 **인프라를 전면 교체**했다:
-
-- **`cli_v2.py` + Python SDK**: 기존 subprocess로 `hindsight` CLI를 호출하던 방식에서, Hindsight Python SDK(`hindsight-client`)를 직접 사용하도록 전환. 더 정확한 타입 제어와 API 파라미터 활용이 가능해졌다.
-- **`sts-v2` 뱅크**: 레거시 `sts` 뱅크(상태 스냅샷 500개+)를 버리지 않고 보존한 채, 2026-04-24 이후 고품질 메모리 101개만 `sts-v2`로 이전. 이제 AI는 `sts-v2`를 사용한다.
-- **`retain_async=True`**: Python SDK의 `retain()`은 기본값이 `retain_async=False`로, 서버가 LLM fact extraction + embedding + DB insert를 모두 끝낼 때까지 HTTP 연결을 유지한다. 이게 60초를 넘어 타임아웃이 났었다. `retain_batch(retain_async=True)`로 바꿔서 즉시 반환 + 백그라운드 worker 처리로 변경하니 타임아웃이 완전히 사라졌다.
-
 ### 발견한 버그들
 
-**Hindsight CLI/DB 스키마 불일치**: Hindsight 소스코드를 직접 읽어보니, CLI의 `recall` 기본값은 `[world, experience, opinion]`인데, DB 마이그레이션(2026-04-02)에서 `opinion`은 이미 제거되고 `observation`이 추가되어 있었다. 결과적으로 우리가 개선한 고품질 기억이 consolidate되어 `observation`으로 생성되었으나, `recall`로는 검색되지 않는 치명적 불일치가 있었다. 이것을 `cli.py`에서 `--fact-type`을 명시적으로 지정하는 것으로 우회했고, `cli_v2.py`에서는 SDK 레벨에서 `types=["world", "experience", "observation"]`를 명시했다.
+**Hindsight CLI/DB 스키마 불일치**: Hindsight 소스코드를 직접 읽어보니, CLI의 `recall` 기본값은 `[world, experience, opinion]`인데, DB 마이그레이션(2026-04-02)에서 `opinion`은 이미 제거되고 `observation`이 추가되어 있었다. 결과적으로 우리가 개선한 고품질 기억이 consolidate되어 `observation`으로 생성되었으나, `recall`로는 검색되지 않는 치명적 불일치가 있었다. 이것을 `cli_v2.py`에서 SDK 레벨로 `types=["world", "experience", "observation"]`를 명시하여 해결했다.
 
 ### 결과: 개선 확인됨
 
@@ -70,7 +64,7 @@ AI가 템플릿을 따륾고, 시너지 분석과 빌드 방향을 포함하는 
 
 ### 모니터링 중인 사항
 
-- **END 후 retain 누락**: AI가 System prompt를 따르지 않고 END 후 retain을 호출하지 않는 경우가 ~30%. Tool call은 LLM의 선택이므로, code-level 강제 호출을 고려 중.
+- **END 후 retain 누락**: ~~AI가 System prompt를 따르지 않고 END 후 retain을 호출하지 않는 경우가 ~30%~~ **실제 누락 0건** — 이전 분석에서 "END 후 다음 커맨드까지 retain 없음"을 누락으로 봤으나, 그 사이에 전투가 계속된 경우(다음 턴 PLAY/END/WAIT)도 포함됐던 것. 전투 종료 후에는 모두 retain 있음.
 - **Recall 지연**: ~26초 (embedding 5s + reranking 21s). Hindsight worker가 OpenClaw bank와 리소스를 경쟁하는 것으로 추정. 기능적 문제는 없으나 전체 턴 시간 증가.
 
 ## 아키텍처 개요
@@ -117,7 +111,7 @@ uv run ai      # AI 에이전트
 - [x] `sts-v2` 뱅크 생성 및 고품질 메모리 마이그레이션
 - [x] Retain 타임아웃 해결 (`retain_async=True`)
 - [~] 효과 측정: 새로운 기억의 질 확인 (진행 중 — 템플릿 준수 확인됨, async retain 안정성 관찰 중)
-- [~] END 후 retain 누락 문제 분석 (AI 자발적 호출에 의존, code-level 강제 호출 검토)
+- [x] ~~END 후 retain 누락 문제 분석~~ — **실제 누락 0건** 확인. 전투 계속 중인 경우를 누락으로 잘못 카운트했던 것
 - [ ] Mental model 생성 ("디펙트 빌드 가이드" 등)
 - [ ] Tags/Entity labels 활용으로 검색 품질 향상
 - [ ] Reflect 활용 (단순 recall → 전략 조언)
