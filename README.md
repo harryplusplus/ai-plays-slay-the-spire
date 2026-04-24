@@ -1,6 +1,6 @@
 # AI Plays Slay the Spire
 
-> 이 문서는 **glm-5.1**이 Harry의 지시에 따라 한국어로 작성하고 유지보수하는 문서입니다. 모델의 한국어 출력 과정에서 낮은 확률로 글자가 잘못 조합되는 버그가 있어, 의도는 올바른 한국어이나 출력에 가끔 사소한 오타가 포함될 수 있습니다. 이 점 양해 부탁드립니다.
+> 이 문서는 **deepseek-v4-flash:cloud**이 Harry의 지시에 따라 한국어로 작성하고 유지보수하는 문서입니다. 모델의 한국어 출력 과정에서 낮은 확률로 글자가 잘못 조합되는 버그가 있어, 의도는 올바른 한국어이나 출력에 가끔 사소한 오타가 포함될 수 있습니다. 이 점 양해 부탁드립니다.
 
 이 저장소는 **Harry**와 AI 코딩 에이전트가 함께 만드는 **Slay the Spire 자동 플레이 봇**이다. 궁극적인 목표는 승천 0, **심장(Heart) 클리어**를 하는 것이지만, 그 과정에서 배우는 것이 더 중요하다.
 
@@ -79,7 +79,7 @@ AI (packages/ai) → Game CLI (packages/game) → Proxy (packages/proxy)
                                               Slay the Spire
 ```
 
-AI는 OpenAI 호환 API(glm-5.1 via Ollama Cloud)를 사용하며, tool-calling 방식으로 게임을 제어한다. 장기기억은 Hindsight 뱅크에 저장된다.
+AI는 OpenAI 호환 API(deepseek-v4-flash:cloud via Ollama Cloud)를 사용하며, tool-calling 방식으로 게임을 제어한다. 장기기억은 Hindsight 뱅크에 저장된다.
 
 자세한 기술 문서는 [AGENTS.md](AGENTS.md)에 기록되어 있다.
 
@@ -106,14 +106,16 @@ uv run ai      # AI 에이전트
 - [x] 기본 AI 루프 구축
 - [x] Hindsight 통합 (retain/recall)
 - [x] Retain 전략 재설계 (빈도/내용 개선)
-- [x] Hindsight CLI/DB mismatch 해결 (observation 타입 누락)
-- [x] Python SDK 전환 (`cli_v2.py`)
-- [x] `sts-v2` 뱅크 생성 및 고품질 메모리 마이그레이션
-- [x] Retain 타임아웃 해결 (`retain_async=True`)
+- [x] LLM 전환: kimi-k2.6(OpenCode) → deepseek-v4-flash:cloud(Ollama Cloud)
+- [x] JSONL 로깅 전환 (ai.jsonl, game.jsonl)
+- [x] LLM 메시지 덤프 (llm_dump/, 최근 10개)
+- [x] LLM 응답 시간 측정 (duration_ms)
+- [x] Recall 쿼리 개선 (class + screen + monsters)
+- [x] ~~END 후 retain 누락 문제 분석~~ — **실제 누락 0건** 확인
 - [~] 효과 측정: 새로운 기억의 질 확인 (진행 중 — 템플릿 준수 확인됨, async retain 안정성 관찰 중)
-- [x] ~~END 후 retain 누락 문제 분석~~ — **실제 누락 0건** 확인. 전투 계속 중인 경우를 누락으로 잘못 카운트했던 것
+- [ ] `last_auto_query` 버그 수정 (query 문자열 저장)
+- [ ] Tags 도입 (class, topic, enemy 태깅)
 - [ ] Mental model 생성 (직업별 빌드 가이드 등)
-- [ ] Tags/Entity labels 활용으로 검색 품질 향상
 - [ ] Reflect 활용 (단순 recall → 전략 조언)
 - [ ] **심장 클리어**
 
