@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import subprocess
+import time
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -15,6 +16,8 @@ logger = logging.getLogger(__name__)
 OLLAMA_API_KEY = os.environ["OLLAMA_API_KEY"]
 MODEL = "glm-5.1"
 MAX_OUTPUT = 20_000
+MAX_MESSAGES_CHARS = 500_000
+RETRY_DELAY = 10.0
 
 SYSTEM_PROMPT = """\
 You are an AI playing Slay the Spire. You have a bash shell.
@@ -130,6 +133,30 @@ def auto_recall(state: dict[str, Any]) -> str:
     return run_bash(f"uv run game recall '{query}'")
 
 
+def trim_messages(messages: list[dict[str, Any]]) -> None:
+    """Drop oldest non-system messages until total chars under limit."""
+    while True:
+        total = sum(
+            len(str(m.get("content", "")))
+            for m in messages
+        )
+        if total <= MAX_MESSAGES_CHARS or len(messages) <= 1:
+            break
+        # Remove the oldest non-system message
+        for i, m in enumerate(messages):
+            if m.get("role") != "system":
+                logger.info(
+                    "trimming message %d (role=%s, %d chars)",
+                    i,
+                    m.get("role"),
+                    len(str(m.get("content", ""))),
+                )
+                del messages[i]
+                break
+        else:
+            break
+
+
 def main() -> None:
     init_logger()
 
@@ -157,11 +184,18 @@ def main() -> None:
     logger.info("initial state: %s", initial)
 
     while True:
-        response = client.chat.completions.create(  # pyright: ignore[reportArgumentType]
-            model=MODEL,
-            messages=messages,
-            tools=TOOLS,
-        )
+        trim_messages(messages)
+
+        try:
+            response = client.chat.completions.create(  # pyright: ignore[reportArgumentType]
+                model=MODEL,
+                messages=messages,
+                tools=TOOLS,
+            )
+        except Exception:
+            logger.exception("LLM API call failed, retrying in %ss", RETRY_DELAY)
+            time.sleep(RETRY_DELAY)
+            continue
 
         choice = response.choices[0]
         assistant_msg = choice.message
