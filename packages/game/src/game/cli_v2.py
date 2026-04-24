@@ -151,11 +151,14 @@ def retain(content: str) -> None:
     """Store a memory in Hindsight."""
     logger.info("retain: %s", content)
     client = _HindsightClient.get()
-    result = client.retain(
+    result = client.retain_batch(
         bank_id=BANK_ID,
-        content=content,
-        context=RETAIN_CONTEXT,
-        timestamp=datetime.now(timezone.utc),  # noqa: UP017
+        items=[{
+            "content": content,
+            "context": RETAIN_CONTEXT,
+            "timestamp": datetime.now(timezone.utc),  # noqa: UP017
+        }],
+        retain_async=True,
     )
     output = {
         "success": result.success,
