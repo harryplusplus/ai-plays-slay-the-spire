@@ -113,7 +113,7 @@ def init_logger() -> None:
 
     handler = RotatingFileHandler(
         Path.home() / ".sts" / "logs" / "ai.log",
-        maxBytes=1_000_000,
+        maxBytes=10_000_000,
         backupCount=5,
         encoding="utf-8",
     )
@@ -169,7 +169,11 @@ def auto_recall(state: dict[str, Any]) -> str:
 
 
 def trim_messages(messages: list[dict[str, Any]]) -> None:
-    """Drop oldest non-system messages until total chars under limit."""
+    """Drop oldest complete turns until total chars under limit.
+
+A turn is: user + assistant + tool(s). We remove whole turns
+so tool_call/tool_result pairs stay intact.
+"""
     while True:
         total = sum(
             len(str(m.get("content", "")))
@@ -177,19 +181,26 @@ def trim_messages(messages: list[dict[str, Any]]) -> None:
         )
         if total <= MAX_MESSAGES_CHARS or len(messages) <= 1:
             break
-        # Remove the oldest non-system message
-        for i, m in enumerate(messages):
-            if m.get("role") != "system":
-                logger.info(
-                    "trimming message %d (role=%s, %d chars)",
-                    i,
-                    m.get("role"),
-                    len(str(m.get("content", ""))),
-                )
-                del messages[i]
+
+        # Find the end of the first complete turn after system
+        # Turn boundary: a user message that starts a new turn
+        start = 1  # skip system message
+        end = start
+        while end < len(messages):
+            if messages[end].get("role") == "user" and end > start:
                 break
-        else:
+            end += 1
+
+        if end <= start:
             break
+
+        removed = messages[start:end]
+        logger.info(
+            "trimming %d messages (roles: %s)",
+            len(removed),
+            [m.get("role") for m in removed],
+        )
+        del messages[start:end]
 
 
 def main() -> None:
@@ -265,7 +276,7 @@ def main() -> None:
                             logger.info("RUN ENDED - in_game=false")
                             run_handler = RotatingFileHandler(
                                 RUN_LOG,
-                                maxBytes=1_000_000,
+                                maxBytes=10_000_000,
                                 backupCount=5,
                                 encoding="utf-8",
                             )

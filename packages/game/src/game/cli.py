@@ -35,7 +35,7 @@ def init_logger() -> None:
 
     handler = RotatingFileHandler(
         Path.home() / ".sts" / "logs" / "game.log",
-        maxBytes=1_000_000,
+        maxBytes=10_000_000,
         backupCount=5,
         encoding="utf-8",
     )
