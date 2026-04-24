@@ -3,7 +3,7 @@ import json
 import logging
 import signal
 import sqlite3
-from contextlib import closing
+from contextlib import closing, suppress
 from dataclasses import dataclass, field
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
@@ -167,6 +167,7 @@ def main() -> None:
         app_state = AppState(db=db)
         app.state.app_state = app_state
         shutting_down = asyncio.Event()
+        run_task: asyncio.Task[None] | None = None
 
         with asyncio.Runner() as runner:
             loop = runner.get_loop()
@@ -176,11 +177,17 @@ def main() -> None:
             def _shutdown() -> None:
                 server.should_exit = True
                 shutting_down.set()
+                if run_task is not None:
+                    run_task.cancel()
 
             loop.add_signal_handler(signal.SIGINT, _shutdown)
             loop.add_signal_handler(signal.SIGTERM, _shutdown)
 
-            runner.run(run(server, app_state, shutting_down))
+            run_task = loop.create_task(
+                run(server, app_state, shutting_down),
+            )
+            with suppress(asyncio.CancelledError):
+                loop.run_until_complete(run_task)
 
     logger.info("stopped.")
 
