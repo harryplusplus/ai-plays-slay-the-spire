@@ -13,8 +13,9 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_API_KEY = os.environ["OLLAMA_API_KEY"]
-MODEL = "glm-5.1"
+OPENAI_BASE_URL = "https://opencode.ai/zen/go/v1"
+OPENAI_API_KEY = os.environ["OPENCODE_API_KEY"]
+MODEL = "kimi-k2.6"
 MAX_OUTPUT = 20_000
 MAX_MESSAGES_CHARS = 400_000
 RETRY_DELAY = 10.0
@@ -257,14 +258,11 @@ def execute_tool(name: str, arguments: dict[str, Any]) -> str:  # noqa: PLR0911
 def trim_messages(messages: list[dict[str, Any]]) -> None:
     """Drop oldest complete turns until total chars under limit.
 
-A turn is: user + assistant + tool(s). We remove whole turns
-so tool_call/tool_result pairs stay intact.
-"""
+    A turn is: user + assistant + tool(s). We remove whole turns
+    so tool_call/tool_result pairs stay intact.
+    """
     while True:
-        total = sum(
-            len(str(m.get("content", "")))
-            for m in messages
-        )
+        total = sum(len(str(m.get("content", ""))) for m in messages)
         if total <= MAX_MESSAGES_CHARS or len(messages) <= 1:
             break
 
@@ -293,8 +291,8 @@ def main() -> None:  # noqa: C901, PLR0915
     init_logger()
 
     client = OpenAI(
-        api_key=OLLAMA_API_KEY,
-        base_url="https://ollama.com/v1",
+        api_key=OPENAI_API_KEY,
+        base_url=OPENAI_BASE_URL,
     )
 
     messages: list[dict[str, Any]] = [  # type: ignore[type-arg]
@@ -383,10 +381,15 @@ def main() -> None:  # noqa: C901, PLR0915
                             )
                             run_handler.close()
                         auto_recall_result = auto_recall(new_state, last_auto_query)
-                        content = f"Updated state:\n{result}"
+                        content = f"State after your last command:\n{result}"
                         if auto_recall_result:
                             last_auto_query = auto_recall_result
                             content += f"\n\nRelevant memories:\n{auto_recall_result}"
+                        content += (
+                            "\n\nYou MUST call retain NOW before doing anything else. "
+                            "Record what happened, what you learned, or what changed. "
+                            "No exceptions."
+                        )
                         messages.append(
                             {
                                 "role": "user",

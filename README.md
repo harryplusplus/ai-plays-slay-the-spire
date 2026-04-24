@@ -1,120 +1,127 @@
 # AI Plays Slay the Spire
 
-An AI agent that plays Slay the Spire via [CommunicationMod](https://github.com/ForgottenArbiter/CommunicationMod). The agent is a Python LLM loop that calls game commands through a layered CLI/proxy/bridge stack. Memory is stored in a Hindsight bank.
+[CommunicationMod](https://github.com/ForgottenArbiter/CommunicationMod)를 통해 Slay the Spire를 플레이하는 AI 에이전트입니다. AI는 Python LLM 루프이며, 계층형 CLI/proxy/bridge 스택을 통해 게임 명령을 호출합니다. 메모리는 Hindsight 뱅크에 저장됩니다.
 
-## Architecture
+## 아키텍처
 
 ```
-┌─────────────┐     HTTP      ┌──────────────┐     WebSocket   ┌──────────────┐
-│  AI Agent   │ ─────────────→│    Proxy     │ ──────────────→│    Bridge    │
-│ (packages/ai)│   port 8766   │ (packages/proxy)│  port 8765   │(packages/bridge)│
-└─────────────┘               └──────────────┘               └──────────────┘
+┌─────────────┐   subprocess    ┌─────────────┐     HTTP      ┌──────────────┐
+│  AI Agent   │ ───────────────→│  Game CLI   │ ─────────────→│    Proxy     │
+│ (packages/ai)│  uv run game   │(packages/game)│  port 8766   │(packages/proxy)│
+└─────────────┘               └─────────────┘               └──────────────┘
        │                                                           │
-       │ tools: send_command, recall, retain, deck, relics,        │ stdin/stdout
-       │       potions, map                                         │
+       │                                                           │ WebSocket
+       │                                                           ↓
+       │                                                    ┌──────────────┐
+       │                                                    │    Bridge    │
+       │                                                    │(packages/bridge)│
+       │                                                    │   port 8765   │
+       │                                                    └──────────────┘
+       │                                                           │
+       │                                                           │ stdin/stdout
+       │                    (AI tools: send_command, recall, etc)   │
        ↓                                                           ↓
 ┌─────────────┐                                            ┌──────────────┐
-│  Game CLI   │ ← Hindsight CLI (recall/retain)           │ CommunicationMod │
-│ (packages/  │                                            │   (Java mod)   │
-game)         │                                            └──────────────┘
-└─────────────┘                                                   │
+│ Hindsight   │                                            │ CommunicationMod │
+│ CLI         │                                            │   (Java mod)   │
+└─────────────┘                                            └──────────────┘
+                                                                  │
                                                                   ↓
                                                            ┌──────────────┐
                                                            │ Slay the Spire │
                                                            └──────────────┘
 ```
 
-### Components
+### 컴포넌트
 
-| Package | Port / CLI | Role |
-|---------|-----------|------|
-| `ai` | `uv run ai` | LLM agent loop. OpenAI-compatible API. Receives game state, calls tools, auto-recalls and retains memory. |
-| `game` | `uv run game <cmd>` | Typer CLI. Subcommands: `command`, `deck`, `relics`, `potions`, `map`, `recall`, `retain`. Talks to proxy via HTTP. Filters noise (deck/relics/potions/map) from state JSON. Recall/retain delegate to Hindsight CLI. |
-| `proxy` | `http://127.0.0.1:8766/command` | FastAPI + WebSocket client. SQLite monotonic command_id counter (`~/.sts/proxy.db`). Reconnects to bridge automatically. Request-response pattern with 30s timeout. |
-| `bridge` | `ws://127.0.0.1:8765/ws` | FastAPI WebSocket server launched by CommunicationMod. Bridges stdin/stdout (game protocol) with WebSocket (proxy). Writes "ready" handshake on stdout. |
-| `external/CommunicationMod` | — | Java mod (git submodule). Launches bridge process, forwards game state JSON, executes commands. |
+| 패키지 | 진입점 / 포트 | 역할 |
+|--------|--------------|------|
+| `ai` | `uv run ai` | LLM 에이전트 루프. OpenAI 호환 API. 게임 상태를 수신하고 툴을 호출하며, 메모리를 자동으로 recall/retain합니다. |
+| `game` | `uv run game <cmd>` | Typer CLI. 서브커맨드: `command`, `deck`, `relics`, `potions`, `map`, `recall`, `retain`. proxy와 HTTP로 통신하며, 상태 JSON에서 불필요한 항목(deck/relics/potions/map)을 필터링합니다. recall/retain은 `hindsight` CLI에 위임합니다. |
+| `proxy` | `http://127.0.0.1:8766/command` | FastAPI + WebSocket 클라이언트. SQLite 단조 증가 `command_id` 카운터(`~/.sts/proxy.db`). bridge에 자동 재연결합니다. 요청-응답 패턴, 타임아웃 30초. |
+| `bridge` | `ws://127.0.0.1:8765/ws` | FastAPI WebSocket 서버. CommunicationMod에 의해 실행됩니다. stdin/stdout(게임 프로토콜)과 WebSocket(proxy)을 연결합니다. stdout에 "ready" 핸드셰이크를 씁니다. |
+| `external/CommunicationMod` | — | Java 모드(git submodule). bridge 프로세스를 실행하고, 게임 상태 JSON을 전달하며, 명령을 실행합니다. |
 
-### Data Flow
+### 데이터 흐름
 
-1. CommunicationMod launches `uv run bridge` and waits for `ready\n` on stdout.
-2. Game state changes → CommunicationMod sends JSON to bridge stdin.
-3. Bridge broadcasts JSON to all WebSocket clients (proxy).
-4. Proxy matches `command_id` in the JSON to pending HTTP requests.
-5. AI agent calls `send_command` → game CLI → proxy HTTP → proxy WebSocket → bridge stdout → CommunicationMod → game.
-6. After each `send_command`, AI auto-recalls from Hindsight and appends memories to context.
-7. AI must `retain` after every command (enforced in system prompt).
+1. CommunicationMod가 `uv run bridge`를 실행하고 stdout의 `ready\n`을 기다립니다.
+2. 게임 상태가 변경되면 CommunicationMod가 bridge의 stdin으로 JSON을 전송합니다.
+3. Bridge가 JSON을 모든 WebSocket 클라이언트(proxy)에 브로드캐스트합니다.
+4. Proxy가 JSON의 `command_id`를 보류 중인 HTTP 요청과 매칭합니다.
+5. AI 에이전트가 `send_command` 호출 → game CLI → proxy HTTP → proxy WebSocket → bridge stdout → CommunicationMod → 게임.
+6. 각 `send_command` 이후 AI가 Hindsight에서 자동으로 recall하여 문맥에 메모리를 추가합니다.
+7. AI는 시스템 프롬프트에 따라 모든 명령 이후 `retain`을 호출해야 합니다.
 
-## Setup
+## 설치
 
 ```sh
 uv sync --all-packages --locked
 git submodule update --init --recursive
 ```
 
-### Build & Install CommunicationMod
+### CommunicationMod 빌드 및 설치
 
 ```sh
 cd external/CommunicationMod
 mvn package
-# Copy the jar to your ModTheSpire mods directory
+# 생성된 jar를 ModTheSpire mods 디렉토리에 복사
 ```
 
-### CommunicationMod Config
+### CommunicationMod 설정
 
-File: `~/Library/Preferences/ModTheSpire/CommunicationMod/config.properties` (macOS)
+파일 경로: `~/Library/Preferences/ModTheSpire/CommunicationMod/config.properties` (macOS)
 
 ```properties
 command=/absolute/path/to/repo/.venv/bin/python -m bridge
 runAtGameStart=true
 ```
 
-> The `command` path must be absolute. `python -m bridge` launches the bridge package.
+> `command` 경로는 절대 경로여야 합니다. `python -m bridge`는 bridge 패키지를 실행합니다.
 
-### Environment Variables
+### 환경변수
 
-| Variable | Required By | Description |
-|----------|-------------|-------------|
-| `OLLAMA_API_KEY` | `ai` | API key for the LLM endpoint |
-| `HINDSIGHT_*` | `game` | Hindsight server config (URL, API key, etc.) |
+| 변수 | 필요한 패키지 | 설명 |
+|------|--------------|------|
+| `OPENCODE_API_KEY` | `ai` | LLM API 키 |
 
-The AI uses `glm-5.1` via `https://ollama.com/v1` with `temperature=0` and `reasoning_effort="high"`.
+AI는 `kimi-k2.6` 모델을 `https://opencode.ai/zen/go/v1` 엔드포인트에서 사용하며, `temperature=0`, `reasoning_effort="high"` 설정입니다.
 
-## Running
+## 실행
 
-Start Slay the Spire with ModTheSpire + CommunicationMod enabled. Then:
+Slay the Spire를 ModTheSpire + CommunicationMod가 활성화된 상태로 실행한 뒤:
 
 ```sh
-# Terminal 1: proxy (auto-connects to bridge)
+# 터미널 1: proxy (bridge에 자동 연결)
 uv run proxy
 
-# Terminal 2: AI agent
+# 터미널 2: AI 에이전트
 uv run ai
 ```
 
-The bridge is started automatically by CommunicationMod when the game loads.
+Bridge는 게임이 로드될 때 CommunicationMod에 의해 자동으로 시작됩니다.
 
-## Game CLI
+## 게임 CLI
 
 ```sh
-uv run game command "state"          # Send raw command, get filtered state
-uv run game command "play 1 0"       # Play card 1 targeting monster 0
-uv run game command "end"            # End turn
-uv run game deck                     # Show deck (extracted from state)
-uv run game relics                   # Show relics
-uv run game potions                  # Show potions
-uv run game map                      # Show map
-uv run game recall "jaw worm act 1"  # Search Hindsight memory
-uv run game retain "learned X"       # Store observation in Hindsight
+uv run game command "state"          # 명령 전송 후 필터링된 상태 수신
+uv run game command "play 1 0"       # 카드 1을 몬스터 0에게 사용
+uv run game command "end"            # 턴 종료
+uv run game deck                     # 현재 덱 보기
+uv run game relics                   # 현재 유물 보기
+uv run game potions                  # 현재 물약 보기
+uv run game map                      # 현재 지도 보기
+uv run game recall "jaw worm act 1"  # Hindsight 메모리 검색
+uv run game retain "learned X"       # Hindsight에 관찰 기록
 ```
 
-State filtering: `deck`, `relics`, `potions`, `map` keys are stripped from `game_state` to reduce noise. Use the dedicated subcommands to view them on demand.
+상태 필터링: `game_state`에서 `deck`, `relics`, `potions`, `map` 키를 제거하여 노이즈를 줄입니다. 전용 서브커맨드로 필요할 때 따로 조회합니다.
 
-## AI Tools
+## AI 툴
 
-The AI has 7 tools, all calling the game CLI internally:
+AI는 7개의 툴을 가지며, 모두 낶게 game CLI를 호출합니다:
 
-| Tool | Args | Maps to |
-|------|------|---------|
+| 툴 | 인자 | 매핑 |
+|------|------|------|
 | `send_command` | `command: str` | `game command <cmd>` |
 | `recall` | `query: str` | `game recall <query>` |
 | `retain` | `content: str` | `game retain <content>` |
@@ -123,47 +130,48 @@ The AI has 7 tools, all calling the game CLI internally:
 | `potions` | — | `game potions` |
 | `map` | — | `game map` |
 
-### Auto Behaviors
+### 자동 동작
 
-- **Auto recall**: After every `send_command`, builds a query from `screen_type`, `room_type`, `act`, `floor`, and monster names (key=value format). Skipped if the query hasn't changed since last turn.
-- **Retain enforcement**: System prompt requires `retain` after every `send_command`.
-- **Run-end detection**: When `in_game=false`, the full state is logged to `~/.sts/logs/runs.log` and the AI is prompted to retain a summary and start a new game.
-- **Message trimming**: When total message chars exceed 400K, oldest complete turns are dropped (preserving tool_call/result pairs).
-- **LLM retry**: API failures retry after 10s.
+- **자동 recall**: `send_command`마다 `screen_type`, `room_type`, `act`, `floor`, 몬스터 이름으로 쿼리를 생성합니다(키=값 형식). 직전 턴과 쿼리가 같으면 스킵됩니다.
+- **retain 강제**: 시스템 프롬프트가 모든 `send_command` 이후 `retain`을 요구합니다.
+- **런 종료 감지**: `in_game=false`가 되면 전체 상태를 `~/.sts/logs/runs.log`에 기록하고, AI에게 요약 retain 후 새 게임 시작을 유도합니다.
+- **메시지 트리밍**: 총 메시지 문자 수가 400K를 초과하면 오래된 완전 턴을 제거합니다(tool_call/result 쌍은 유지).
+- **LLM 재시도**: API 실패 시 10초 후 재시도합니다.
 
-## Logs & State
+## 로그 및 상태
 
-| Path | Purpose |
-|------|---------|
-| `~/.sts/logs/ai.log` | AI agent decisions, tool calls, LLM responses |
-| `~/.sts/logs/proxy.log` | Command IDs, bridge reconnects, timeouts |
-| `~/.sts/logs/bridge.log` | Stdin/stdout protocol messages |
-| `~/.sts/logs/game.log` | Game CLI invocations, Hindsight calls |
-| `~/.sts/logs/runs.log` | Full run-end states |
-| `~/.sts/proxy.db` | SQLite command_id counter |
+| 경로 | 목적 |
+|------|------|
+| `~/.sts/logs/ai.log` | AI 에이전트 결정, 툴 호출, LLM 응답 |
+| `~/.sts/logs/proxy.log` | command_id, bridge 재연결, 타임아웃 |
+| `~/.sts/logs/bridge.log` | stdin/stdout 프로토콜 메시지 |
+| `~/.sts/logs/game.log` | 게임 CLI 호출, Hindsight 호출 |
+| `~/.sts/logs/runs.log` | 런 종료 시 전체 상태 |
+| `~/.sts/proxy.db` | SQLite command_id 카운터 |
 
-All logs use rotating file handlers (10MB, 5 backups).
+모든 로그는 로테이팅 파일 핸들러(10MB, 5 백업)를 사용합니다.
 
-## Development
+## 개발
 
 ```sh
-# Type check
+# 타입 검사
 uv run pyright packages/*/src/**/*.py
 
-# Lint
+# 린트
 uv run ruff check packages/*/src/**/*.py
 ```
 
-## Repository Layout
+## 저장소 구조
 
 ```text
 .
-├── external/CommunicationMod/   # Java mod (git submodule)
+├── external/CommunicationMod/   # Java 모드(git submodule)
 ├── packages/
-│   ├── ai/                      # LLM agent loop
-│   ├── bridge/                  # WebSocket ↔ stdin/stdout bridge
-│   ├── game/                    # Typer CLI (proxy client + Hindsight)
-│   └── proxy/                   # HTTP API + WebSocket client + SQLite
-├── pyproject.toml               # uv workspace root
+│   ├── ai/                      # LLM 에이전트 루프
+│   ├── bridge/                  # WebSocket ↔ stdin/stdout 브리지
+│   ├── game/                    # Typer CLI(proxy 클라이언트 + Hindsight)
+│   ├── proxy/                   # HTTP API + WebSocket 클라이언트 + SQLite
+│   └── tools/                   # 개발 헬퍼(git-submodules, mod 관리)
+├── pyproject.toml               # uv workspace 루트
 └── uv.lock
 ```
