@@ -1,9 +1,15 @@
 import json
+import logging
 import subprocess
-from typing import Any
+from datetime import datetime
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+from typing import Any, override
 
 import httpx
 import typer
+
+logger = logging.getLogger(__name__)
 
 BANK_ID = "sts"
 RETAIN_CONTEXT = "Slay the Spire gameplay"
@@ -11,6 +17,36 @@ PROXY_URL = "http://127.0.0.1:8766/command"
 TIMEOUT = 30.0
 
 NOISE_KEYS = {"deck", "relics", "potions", "map"}
+
+
+def init_logger() -> None:
+    class Formatter(logging.Formatter):
+        @override
+        def formatTime(
+            self,
+            record: logging.LogRecord,
+            datefmt: str | None = None,
+        ) -> str:
+            return (
+                datetime.fromtimestamp(record.created)
+                .astimezone()
+                .isoformat(timespec="milliseconds")
+            )
+
+    handler = RotatingFileHandler(
+        Path.home() / ".sts" / "logs" / "game.log",
+        maxBytes=1_000_000,
+        backupCount=5,
+        encoding="utf-8",
+    )
+    handler.setFormatter(
+        Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"),
+    )
+
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+    root.addHandler(handler)
+
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 
@@ -38,6 +74,7 @@ def extract_game_state_field(data: dict[str, Any], key: str) -> Any:  # noqa: AN
 @app.command()
 def command(cmd: str) -> None:
     """Send a raw command to the game."""
+    logger.info("command: %s", cmd)
     result = send_command(cmd)
     result = filter_game_state(result)
     typer.echo(json.dumps(result, indent=2))
@@ -74,6 +111,7 @@ def map_cmd() -> None:
 @app.command()
 def recall(query: str) -> None:
     """Recall memories from Hindsight."""
+    logger.info("recall: %s", query)
     result = subprocess.run(
         [
             "hindsight",
@@ -89,11 +127,13 @@ def recall(query: str) -> None:
         check=True,
     )
     typer.echo(result.stdout)
+    logger.debug("recall result: %s", result.stdout[:500])
 
 
 @app.command()
 def retain(content: str) -> None:
     """Store a memory in Hindsight."""
+    logger.info("retain: %s", content)
     result = subprocess.run(
         [
             "hindsight",
@@ -115,6 +155,7 @@ def retain(content: str) -> None:
 
 
 def main() -> None:
+    init_logger()
     app()
 
 
