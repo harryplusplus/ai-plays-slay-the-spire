@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 OPENAI_BASE_URL = "https://ollama.com/v1"
 OPENAI_API_KEY = os.environ["OLLAMA_API_KEY"]
-MODEL = "glm-5.1"
+MODEL = "deepseek-v4-flash:cloud"
 MAX_OUTPUT = 20_000
 MAX_MESSAGES_CHARS = 400_000
 RETRY_DELAY = 10.0
@@ -174,13 +174,33 @@ TOOLS = [
 class JsonlFormatter(logging.Formatter):
     """Format log records as JSON Lines."""
 
-    _STANDARD_ATTRS = frozenset({
-        "name", "msg", "args", "levelname", "levelno", "pathname",
-        "filename", "module", "exc_info", "exc_text", "stack_info",
-        "lineno", "funcName", "created", "msecs", "relativeCreated",
-        "thread", "threadName", "processName", "process", "message",
-        "asctime", "taskName",
-    })
+    _STANDARD_ATTRS = frozenset(
+        {
+            "name",
+            "msg",
+            "args",
+            "levelname",
+            "levelno",
+            "pathname",
+            "filename",
+            "module",
+            "exc_info",
+            "exc_text",
+            "stack_info",
+            "lineno",
+            "funcName",
+            "created",
+            "msecs",
+            "relativeCreated",
+            "thread",
+            "threadName",
+            "processName",
+            "process",
+            "message",
+            "asctime",
+            "taskName",
+        },
+    )
 
     @override
     def format(self, record: logging.LogRecord) -> str:
@@ -534,18 +554,22 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
                             try:
                                 recall_data = json.loads(auto_recall_result)
                                 results = (
-                                recall_data.get("results", [])
-                                if isinstance(recall_data, dict)
-                                else []
-                            )
+                                    recall_data.get("results", [])
+                                    if isinstance(recall_data, dict)
+                                    else []
+                                )
                                 logger.info(
                                     "auto recall result",
                                     extra={
                                         "event": "auto_recall_result",
                                         "result_count": len(results),
                                         "types": list(
-                                {r.get("type") for r in results if r.get("type")},
-                            ),
+                                            {
+                                                r.get("type")
+                                                for r in results
+                                                if r.get("type")
+                                            },
+                                        ),
                                     },
                                 )
                             except json.JSONDecodeError:
