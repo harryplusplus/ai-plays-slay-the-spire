@@ -63,6 +63,13 @@ def potions() -> None:
     typer.echo(json.dumps(extract_game_state_field(result, "potions"), indent=2))
 
 
+@app.command("map")
+def map_cmd() -> None:
+    """Show the current map."""
+    result = send_command("state")
+    typer.echo(json.dumps(extract_game_state_field(result, "map"), indent=2))
+
+
 @app.command()
 def recall(query: str) -> None:
     """Recall memories from Hindsight."""
@@ -87,11 +94,7 @@ def retain(content: str) -> None:
     typer.echo(result.stdout)
 
 
-@app.command("map")
-def map_cmd() -> None:
-    """Show the current map."""
-    result = send_command("state")
-    typer.echo(json.dumps(extract_game_state_field(result, "map"), indent=2))
+
 
 
 def main() -> None:
