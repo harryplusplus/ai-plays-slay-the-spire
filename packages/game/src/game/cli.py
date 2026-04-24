@@ -6,7 +6,7 @@ import httpx
 import typer
 
 BANK_ID = "sts"
-RETAIN_CONTEXT = "game"
+RETAIN_CONTEXT = "Slay the Spire gameplay"
 PROXY_URL = "http://127.0.0.1:8766/command"
 TIMEOUT = 30.0
 
