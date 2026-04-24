@@ -51,6 +51,7 @@ RETAIN_CONTEXT = (
 )
 PROXY_URL = "http://127.0.0.1:8766/command"
 TIMEOUT = 30.0
+HINDSIGHT_URL = "http://localhost:8888"
 
 NOISE_KEYS = {"deck", "relics", "potions", "map"}
 
@@ -136,7 +137,7 @@ def map_cmd() -> None:
 def recall(query: str) -> None:
     """Recall memories from Hindsight."""
     logger.info("recall executed", extra={"event": "recall", "query": query})
-    client = Hindsight(base_url="http://localhost:8888")
+    client = Hindsight(base_url=HINDSIGHT_URL)
     result = client.recall(
         bank_id=BANK_ID,
         query=query,
@@ -168,7 +169,7 @@ def recall(query: str) -> None:
 @app.command()
 def retain(content: str, document_id: str | None = None) -> None:
     """Store a memory in Hindsight."""
-    client = Hindsight(base_url="http://localhost:8888")
+    client = Hindsight(base_url=HINDSIGHT_URL)
     item: dict[str, Any] = {
         "content": content,
         "context": RETAIN_CONTEXT,
