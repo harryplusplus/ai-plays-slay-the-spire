@@ -35,11 +35,11 @@ SQL_NEXT = (
 )
 
 
-def next_command_id(db: sqlite3.Connection) -> int:
+def next_command_id(db: sqlite3.Connection) -> str:
     db.execute(SQL_ENSURE_ROW)
     row = db.execute(SQL_NEXT).fetchone()
     db.commit()
-    return row[0]
+    return str(row[0])
 
 
 app = FastAPI()
@@ -48,8 +48,8 @@ app = FastAPI()
 @dataclass(slots=True, kw_only=True)
 class AppState:
     db: sqlite3.Connection
-    pending: dict[int, asyncio.Future[dict[str, Any]]] = field(
-        default_factory=dict[int, asyncio.Future[dict[str, Any]]],
+    pending: dict[str, asyncio.Future[dict[str, Any]]] = field(
+        default_factory=dict[str, asyncio.Future[dict[str, Any]]],
     )
     ws: websockets.ClientConnection | None = None
 
