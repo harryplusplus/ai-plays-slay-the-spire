@@ -3,7 +3,7 @@ import json
 import logging
 import signal
 import sqlite3
-from contextlib import closing
+from contextlib import closing, suppress
 from dataclasses import dataclass, field
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
@@ -113,6 +113,8 @@ async def run(server: uvicorn.Server, app_state: AppState) -> None:
 
         ws_task.cancel()
         await asyncio.gather(ws_task, return_exceptions=True)
+        with suppress(Exception):
+            await ws.close()
         app_state.ws = None
         logger.info("disconnected from bridge, reconnecting...")
 
