@@ -97,10 +97,16 @@ async def ws_loop(ws: websockets.ClientConnection, app_state: AppState) -> None:
             app_state.pending[cmd_id].set_result(data)
 
 
-async def run(server: uvicorn.Server, app_state: AppState) -> None:
+async def run(
+    server: uvicorn.Server,
+    app_state: AppState,
+    shutting_down: asyncio.Event,
+) -> None:
     server_task = asyncio.create_task(server.serve())
 
     async for ws in websockets.connect(BRIDGE_URL):
+        if shutting_down.is_set():
+            return
         logger.info("connected to bridge.")
         app_state.ws = ws
         ws_task = asyncio.create_task(ws_loop(ws, app_state))
@@ -160,6 +166,7 @@ def main() -> None:
 
         app_state = AppState(db=db)
         app.state.app_state = app_state
+        shutting_down = asyncio.Event()
 
         with asyncio.Runner() as runner:
             loop = runner.get_loop()
@@ -168,11 +175,12 @@ def main() -> None:
 
             def _shutdown() -> None:
                 server.should_exit = True
+                shutting_down.set()
 
             loop.add_signal_handler(signal.SIGINT, _shutdown)
             loop.add_signal_handler(signal.SIGTERM, _shutdown)
 
-            runner.run(run(server, app_state))
+            runner.run(run(server, app_state, shutting_down))
 
     logger.info("stopped.")
 
