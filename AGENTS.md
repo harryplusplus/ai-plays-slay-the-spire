@@ -162,6 +162,41 @@ AI (packages/ai)
 - `packages/proxy/src/proxy/main.py` — HTTP 서버 + WebSocket 클라이언트 + SQLite
 - `packages/bridge/src/bridge/main.py` — WebSocket 서버 + stdin/stdout 브리지
 
+## Hindsight 소스코드
+
+Hindsight는 `/Users/harry/repo/nailed-it/external/hindsight/`에 위치하며, 이 프로젝트와는 별도의 저장소다. 우리는 Hindsight의 소스코드를 직접 읽고 분석할 수 있다.
+
+### 핵심 패키지
+
+| 패키지 | 언어 | 역할 |
+|--------|------|------|
+| `hindsight-api-slim/` | Python/FastAPI | API 서버. retain/recall/reflect 로직, DB 스키마, 마이그레이션 |
+| `hindsight-cli/` | Rust | CLI 도구. `hindsight memory recall` 등의 명령어 처리 |
+
+### 중요한 발견: CLI 코드가 DB 스키마보다 outdated
+
+우리가 직접 소스코드를 조사해서 발견한 핵심 버그:
+
+**DB 스키마 (최신)** — `hindsight-api-slim/hindsight_api/alembic/versions/g2h3i4j5k6l7_remove_opinion_fact_type.py` (2026-04-02):
+```sql
+CHECK (fact_type IN ('world', 'experience', 'observation'))
+```
+- `opinion` 타입이 **완전 제거됨**
+- `observation` 타입이 **추가됨** (consolidation 결과)
+
+**CLI 코드 (구식)** — `hindsight-cli/src/main.rs`:
+```rust
+default_values = &["world", "experience", "opinion"]
+```
+- 여전히 `opinion`을 기본값으로 사용
+- `observation`이 **기본값에 없음**
+
+**결과**: `hindsight memory recall` 기본 호출 시 `observation` 타입 메모리가 검색 결과에서 **제외됨**. 우리가 개선한 고품질 기억이 consolidate되어 `observation`으로 생성되었으나, recall로는 검색되지 않는 치명적 불일치.
+
+**해결**: `game/cli.py`에서 `--fact-type world --fact-type experience --fact-type observation`을 명시적으로 전달하여 CLI의 구식 기본값을 우회.
+
+이것이 우리가 소스코드를 직접 읽어야만 발견할 수 있었던 버그다.
+
 ## 환경변수
 
 | 변수 | 필요한 패키지 | 설명 |

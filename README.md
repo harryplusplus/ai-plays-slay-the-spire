@@ -47,7 +47,9 @@
 **이전**: "에너지 2→1, Chosen HP 47→41" ❌
 **지금**: "Against the Act 2 bandit encounter, Electro + Lightning orb passives were extremely effective. Red Mask is an excellent relic pickup since it applies Weak to all enemies at combat start, synergizing perfectly with Electro's AoE lightning." ✅
 
-AI가 템플릿을 따륾고, 시너지 분석과 빌드 방향을 포함하는 retain을 생성하고 있다. 이제 이 기억들이 Hindsight에서 Observation으로 잘 consolidate되는지, recall 시 전략적 조언이 늘어나는지를 지속적으로 관찰할 것이다.
+AI가 템플릿을 따륾고, 시너지 분석과 빌드 방향을 포함하는 retain을 생성하고 있다.
+
+그런데 우리가 또 하나 중요한 것을 발견했다: **Hindsight CLI 코드가 DB 스키마보다 outdated**라는 버그다. Hindsight 소스코드를 직접 읽어보니, CLI의 `recall` 기본값은 `[world, experience, opinion]`인데, DB 마이그레이션(2026-04-02)에서 `opinion`은 이미 제거되고 `observation`이 추가되어 있었다. 결과적으로 우리가 개선한 고품질 기억이 consolidate되어 `observation`으로 생성되었으나, `recall`로는 검색되지 않는 치명적 불일치가 있었다. 이것을 `game/cli.py`에서 `--fact-type`을 명시적으로 지정하는 것으로 해결했다.
 
 ## 아키텍처 개요
 
