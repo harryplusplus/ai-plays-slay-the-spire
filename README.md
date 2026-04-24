@@ -29,18 +29,23 @@
 
 > 이 리드미 역시 AI 에이전트가 Harry의 지시에 따라 작성하고 수정 중이다.
 
-## 현재 도전: 기억의 질
+## 현재 상황: 기억의 질 개선 완료, 효과 검증 중
 
-가장 큰 고민은 **"무엇을 기억해야 하는가"**다. 처음에는 AI가 매 커맨드마다 retain하게 했더니, 500개가 넘는 memory unit이 쌓였지만 대부분이 "에너지 2→1", "몬스터 HP 47→41" 같은 상태 스냅샷이었다.
+가장 큰 고민이었던 **"무엇을 기억해야 하는가"**에 대한 1차적인 해결을 마쳤다. 처음에는 AI가 매 커맨드마다 retain해서 500개가 넘는 memory unit이 쌓였으나, 대부분이 "에너지 2→1" 같은 상태 스냅샷이었다.
 
-이 문제를 해결하기 위해 우리가 시도한 것들:
+### 우리가 한 개선
 
 1. **Retain 타이밍 제한**: 매 커맨드 ❌, 턴 종료(END)만 ✅
 2. **Retain 내용 템플릿**: Situation / Decision / Outcome / Lesson 구조 제시
 3. **Hindsight Bank Mission 설정**: fact extraction이 전략/패턴/교훈을 추출하도록 유도
 4. **Context field 강화**: raw state snapshot 무시하도록 지시
 
-앞으로도 계속 모니터링하고, 기억의 질이 개선되는지 관찰할 것이다.
+### 결과: 개선 확인됨
+
+**이전**: "에너지 2→1, Chosen HP 47→41" ❌
+**지금**: "Against the Act 2 bandit encounter, Electro + Lightning orb passives were extremely effective. Red Mask is an excellent relic pickup since it applies Weak to all enemies at combat start, synergizing perfectly with Electro's AoE lightning." ✅
+
+AI가 템플릿을 따륾고, 시너지 분석과 빌드 방향을 포함하는 retain을 생성하고 있다. 이제 이 기억들이 Hindsight에서 Observation으로 잘 consolidate되는지, recall 시 전략적 조언이 늘어나는지를 지속적으로 관찰할 것이다.
 
 ## 아키텍처 개요
 
@@ -81,7 +86,7 @@ uv run ai      # AI 에이전트
 - [x] 기본 AI 루프 구축
 - [x] Hindsight 통합 (retain/recall)
 - [x] Retain 전략 재설계 (빈도/내용 개선)
-- [ ] 효과 측정: 새로운 기억의 질 확인
+- [~] 효과 측정: 새로운 기억의 질 확인 (진행 중 — 템플릿 준수 확인됨, Observation consolidate 결과 관찰 중)
 - [ ] Mental model 생성 ("디펙트 빌드 가이드" 등)
 - [ ] Tags/Entity labels 활용으로 검색 품질 향상
 - [ ] Reflect 활용 (단순 recall → 전략 조언)
