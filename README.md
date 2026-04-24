@@ -42,7 +42,14 @@
 3. **Hindsight Bank Mission 설정**: fact extraction이 전략/패턴/교훈을 추출하도록 유도
 4. **Context field 강화**: raw state snapshot 무시하도록 지시
 
-### 인프라 전환: Python SDK + 새 뱅크
+### 인프라 전환: Python SDK + JSONL 로깅 + 새 뱅크
+
+개선된 retain 품질을 깨끗한 공간에 쌓기 위해 **인프라를 전면 교체**했다:
+
+- **`cli_v2.py` + Python SDK**: 기존 subprocess로 `hindsight` CLI를 호출하던 방식에서, Hindsight Python SDK(`hindsight-client`)를 직접 사용하도록 전환. 더 정확한 타입 제어와 API 파라미터 활용이 가능해졌다.
+- **`sts-v2` 뱅크**: 레거시 `sts` 뱅크(상태 스냅샷 500개+)를 버리지 않고 보존한 채, 2026-04-24 이후 고품질 메모리 101개를 `sts-v2`로 이전. 이제 AI는 `sts-v2`를 사용한다.
+- **`retain_async=True`**: Python SDK의 `retain()`은 기본값이 `retain_async=False`로, 서버가 LLM fact extraction + embedding + DB insert를 모두 끝낼 때까지 HTTP 연결을 유지한다. 이게 60초를 넘어 타임아웃이 났었다. `retain_batch(retain_async=True)`로 바꿔서 즉시 반환 + 백그라운드 worker 처리로 변경하니 타임아웃이 완전히 사라졌다.
+- **JSON Lines 로깅**: `game.log`와 `ai.log`를 `game.jsonl`/`ai.jsonl`로 전환. 모든 이벤트를 구조화된 JSON으로 기록하여 `jq`로 필터링 가능. 예: `jq 'select(.event == "retain") | .op_id'`
 
 개선된 retain 품질을 깨끗한 공간에 쌓기 위해 **인프라를 전면 교체**했다:
 
