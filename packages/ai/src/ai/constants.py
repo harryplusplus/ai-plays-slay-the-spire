@@ -5,7 +5,7 @@ from typing import Any
 
 OPENAI_BASE_URL = "http://localhost:11434/v1"
 OPENAI_API_KEY = "ollama"
-MODEL = "qwen3.5:0.8b-8k"
+MODEL = "qwen3:0.6b"
 MAX_OUTPUT = 20_000
 MAX_MESSAGES_CHARS = 1_000_000
 RETRY_DELAY = 10.0

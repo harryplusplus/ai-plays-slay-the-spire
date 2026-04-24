@@ -260,10 +260,12 @@ def _handle_send_command(  # noqa: PLR0913
             content += TURN_ENDED_PROMPT
         messages.append({"role": "user", "content": content})
         if not in_game:
-            messages.append({
-                "role": "user",
-                "content": RUN_ENDED_PROMPT,
-            })
+            messages.append(
+                {
+                    "role": "user",
+                    "content": RUN_ENDED_PROMPT,
+                },
+            )
     except json.JSONDecodeError:
         logger.exception(
             "json decode error",
@@ -394,7 +396,11 @@ def _run_agent(run_handler: RotatingFileHandler) -> None:
 
                 if fn_name == "send_command":
                     last_game_state, last_auto_query = _handle_send_command(
-                        result, fn_args, messages, last_game_state, last_auto_query,
+                        result,
+                        fn_args,
+                        messages,
+                        last_game_state,
+                        last_auto_query,
                         run_handler,
                     )
         else:
