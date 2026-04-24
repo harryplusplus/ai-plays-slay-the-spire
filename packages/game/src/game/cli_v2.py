@@ -54,21 +54,6 @@ TIMEOUT = 30.0
 
 NOISE_KEYS = {"deck", "relics", "potions", "map"}
 
-# Initialize Hindsight client once at module level
-_hindsight_client: Hindsight | None = None
-
-
-class _HindsightClient:
-    """Lazy-initialized singleton for Hindsight client."""
-
-    _instance: Hindsight | None = None
-
-    @classmethod
-    def get(cls) -> Hindsight:
-        if cls._instance is None:
-            cls._instance = Hindsight(base_url="http://localhost:8888")
-        return cls._instance
-
 
 def init_logger() -> None:
     handler = RotatingFileHandler(
@@ -151,7 +136,7 @@ def map_cmd() -> None:
 def recall(query: str) -> None:
     """Recall memories from Hindsight."""
     logger.info("recall executed", extra={"event": "recall", "query": query})
-    client = _HindsightClient.get()
+    client = Hindsight(base_url="http://localhost:8888")
     result = client.recall(
         bank_id=BANK_ID,
         query=query,
@@ -183,7 +168,7 @@ def recall(query: str) -> None:
 @app.command()
 def retain(content: str, document_id: str | None = None) -> None:
     """Store a memory in Hindsight."""
-    client = _HindsightClient.get()
+    client = Hindsight(base_url="http://localhost:8888")
     item: dict[str, Any] = {
         "content": content,
         "context": RETAIN_CONTEXT,
