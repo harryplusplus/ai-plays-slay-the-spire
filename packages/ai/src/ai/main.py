@@ -13,7 +13,7 @@ from openai import OpenAI
 logger = logging.getLogger(__name__)
 
 OLLAMA_API_KEY = os.environ["OLLAMA_API_KEY"]
-MODEL = "gpt-4o-mini"
+MODEL = "glm-5.1"
 MAX_OUTPUT = 20_000
 
 SYSTEM_PROMPT = """\
