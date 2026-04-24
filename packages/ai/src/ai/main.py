@@ -21,16 +21,7 @@ RETRY_DELAY = 10.0
 RUN_LOG = Path.home() / ".sts" / "logs" / "runs.log"
 
 SYSTEM_PROMPT = """\
-You are an AI playing Slay the Spire. You have a bash shell.
-
-Game CLI commands:
-- uv run game command <cmd>  Send a game command, get filtered state JSON
-- uv run game recall <query> Search memory for game knowledge
-- uv run game retain <text>  Store an observation in memory
-- uv run game deck           Show current deck
-- uv run game relics         Show current relics
-- uv run game potions        Show current potions
-- uv run game map            Show current map
+You are an AI playing Slay the Spire.
 
 Game commands (case insensitive):
 - START <Class> [Ascension] [Seed]
@@ -64,8 +55,6 @@ Game commands (case insensitive):
 - STATE
   Get current state immediately. Always available.
 
-Use jq, python3, or any tool to process data before deciding.
-
 Guidelines:
 - After each state update, analyze carefully before acting.
 - Use recall proactively before important decisions.
@@ -80,18 +69,84 @@ TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "bash",
-            "description": "Run a bash command.",
+            "name": "send_command",
+            "description": "Send a command to the game and receive the updated state.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "command": {
                         "type": "string",
-                        "description": "Bash command to execute",
+                        "description": "Game command to execute",
                     },
                 },
                 "required": ["command"],
             },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "recall",
+            "description": "Search memory for relevant game knowledge.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "retain",
+            "description": "Store an observation in memory for future reference.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string",
+                        "description": "The observation or lesson to remember",
+                    },
+                },
+                "required": ["content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "deck",
+            "description": "Show the current deck.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "relics",
+            "description": "Show the current relics.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "potions",
+            "description": "Show the current potions.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "map",
+            "description": "Show the current map.",
+            "parameters": {"type": "object", "properties": {}},
         },
     },
 ]
@@ -129,17 +184,20 @@ def init_logger() -> None:
     logging.getLogger("ai").setLevel(logging.DEBUG)
 
 
-def run_bash(command: str) -> str:
-    result = subprocess.run(
-        ["bash", "-c", command],
-        capture_output=True,
-        text=True,
-        timeout=60,
-        check=False,
-    )
-    output = result.stdout
-    if result.returncode != 0:
-        output += result.stderr
+def game_cli(*args: str) -> str:
+    try:
+        result = subprocess.run(
+            ["uv", "run", "game", *args],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        output = result.stdout
+        if result.returncode != 0:
+            output += result.stderr
+    except subprocess.TimeoutExpired:
+        output = "error: command timed out"
     if len(output) > MAX_OUTPUT:
         output = output[:MAX_OUTPUT] + f"\n... truncated ({len(output)} chars)"
     return output
@@ -165,7 +223,25 @@ def auto_recall(state: dict[str, Any]) -> str:
             parts.extend(m.get("name", "") for m in monsters[:3])
     query = " ".join(parts) if parts else "slay the spire general"
     logger.info("auto recall query: %s", query)
-    return run_bash(f"uv run game recall '{query}'")
+    return game_cli("recall", query)
+
+
+def execute_tool(name: str, arguments: dict[str, Any]) -> str:  # noqa: PLR0911
+    if name == "send_command":
+        return game_cli("command", arguments["command"])
+    if name == "recall":
+        return game_cli("recall", arguments["query"])
+    if name == "retain":
+        return game_cli("retain", arguments["content"])
+    if name == "deck":
+        return game_cli("deck")
+    if name == "relics":
+        return game_cli("relics")
+    if name == "potions":
+        return game_cli("potions")
+    if name == "map":
+        return game_cli("map")
+    return f"error: unknown tool {name}"
 
 
 def trim_messages(messages: list[dict[str, Any]]) -> None:
@@ -216,7 +292,7 @@ def main() -> None:
     ]
 
     # Initial state
-    initial = run_bash("uv run game command state")
+    initial = game_cli("command", "state")
     auto_recall_result = auto_recall(json.loads(initial))
     messages.append(
         {
@@ -255,10 +331,9 @@ def main() -> None:
             for tool_call in assistant_msg.tool_calls:
                 fn_name: str = tool_call.function.name  # type: ignore[union-attr]
                 fn_args = json.loads(tool_call.function.arguments)  # type: ignore[union-attr]
-                command = fn_args.get("command", "")
-                logger.info("tool call: %s(%s)", fn_name, command)
+                logger.info("tool call: %s(%s)", fn_name, fn_args)
 
-                result = run_bash(command)
+                result = execute_tool(fn_name, fn_args)
                 logger.info("tool result: %s", result[:500])
 
                 messages.append(
@@ -270,7 +345,7 @@ def main() -> None:
                 )
 
                 # Auto recall after game command
-                if "uv run game command" in command:
+                if fn_name == "send_command":
                     try:
                         new_state = json.loads(result)
                         in_game = new_state.get("in_game", False)
@@ -329,7 +404,7 @@ def main() -> None:
             messages.append(
                 {
                     "role": "user",
-                    "content": "You must use the bash tool.",
+                    "content": "You must use a tool.",
                 },
             )
 
