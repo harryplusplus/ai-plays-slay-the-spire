@@ -220,6 +220,7 @@ def main() -> None:
 
     while True:
         trim_messages(messages)
+        logger.debug("messages count: %d", len(messages))
 
         try:
             response = client.chat.completions.create(  # pyright: ignore[reportArgumentType]
