@@ -3,15 +3,14 @@ import json
 import logging
 import subprocess
 import time
-from datetime import datetime, timezone
-from logging.handlers import RotatingFileHandler
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from logging.handlers import RotatingFileHandler
 
 from openai import OpenAI
 
 from .constants import (
-    LLM_DUMP_DIR,
-    MAX_DUMPS,
     MAX_MESSAGES_CHARS,
     MAX_OUTPUT,
     MODEL,
@@ -19,12 +18,11 @@ from .constants import (
     OPENAI_BASE_URL,
     RETRY_DELAY,
     RUN_ENDED_PROMPT,
-    RUN_LOG,
     SYSTEM_PROMPT,
     TOOLS,
     TURN_ENDED_PROMPT,
 )
-from .log import init_logger
+from .log import dump_messages, init_logger, init_run_handler, log_run_end
 
 logger = logging.getLogger(__name__)
 
@@ -184,24 +182,6 @@ def _build_document_id(game_state: dict[str, Any] | None) -> str | None:
     return None
 
 
-def dump_messages(messages: list[dict[str, Any]]) -> None:
-    """Dump the messages array to a file before LLM API call.
-    Keeps only the last MAX_DUMPS dumps (action-based rotation).
-    """
-    LLM_DUMP_DIR.mkdir(parents=True, exist_ok=True)
-
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")  # noqa: UP017
-    filepath = LLM_DUMP_DIR / f"llm_dump_{timestamp}.json"
-
-    with filepath.open("w", encoding="utf-8") as f:
-        json.dump(messages, f, ensure_ascii=False, indent=2)
-
-    dumps = sorted(LLM_DUMP_DIR.glob("llm_dump_*.json"))
-    while len(dumps) > MAX_DUMPS:
-        oldest = dumps.pop(0)
-        oldest.unlink()
-
-
 def trim_messages(messages: list[dict[str, Any]]) -> None:
     """Drop oldest complete turns until total chars under limit.
 
@@ -235,15 +215,6 @@ def trim_messages(messages: list[dict[str, Any]]) -> None:
         del messages[start:end]
 
 
-def _init_run_handler() -> RotatingFileHandler:
-    return RotatingFileHandler(
-        RUN_LOG,
-        maxBytes=10_000_000,
-        backupCount=5,
-        encoding="utf-8",
-    )
-
-
 def _handle_send_command(  # noqa: PLR0913
     result: str,
     fn_args: dict[str, Any],
@@ -264,17 +235,7 @@ def _handle_send_command(  # noqa: PLR0913
                 "run ended",
                 extra={"event": "run_end", "state": _state_summary(result)},
             )
-            run_handler.emit(
-                logging.LogRecord(
-                    name="run",
-                    level=logging.INFO,
-                    pathname="",
-                    lineno=0,
-                    msg=result,
-                    args=(),
-                    exc_info=None,
-                ),
-            )
+            log_run_end(run_handler, result)
         auto_recall_result = auto_recall(new_state, last_auto_query)
         content = f"State after your last command:\n{result}"
         if auto_recall_result:
@@ -462,7 +423,7 @@ def _run_agent(run_handler: RotatingFileHandler) -> None:
 
 def main() -> None:
     init_logger()
-    run_handler = _init_run_handler()
+    run_handler = init_run_handler()
     try:
         _run_agent(run_handler)
     finally:
