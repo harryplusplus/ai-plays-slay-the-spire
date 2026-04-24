@@ -18,6 +18,7 @@ MODEL = "glm-5.1"
 MAX_OUTPUT = 20_000
 MAX_MESSAGES_CHARS = 500_000
 RETRY_DELAY = 10.0
+RUN_LOG = Path.home() / ".sts" / "logs" / "runs.log"
 
 SYSTEM_PROMPT = """\
 You are an AI playing Slay the Spire. You have a bash shell.
@@ -227,6 +228,24 @@ def main() -> None:
                         in_game = new_state.get("in_game", False)
                         if not in_game:
                             logger.info("RUN ENDED - in_game=false")
+                            run_handler = RotatingFileHandler(
+                                RUN_LOG,
+                                maxBytes=1_000_000,
+                                backupCount=5,
+                                encoding="utf-8",
+                            )
+                            run_handler.emit(
+                                logging.LogRecord(
+                                    name="run",
+                                    level=logging.INFO,
+                                    pathname="",
+                                    lineno=0,
+                                    msg=result,
+                                    args=(),
+                                    exc_info=None,
+                                ),
+                            )
+                            run_handler.close()
                         auto_recall_result = auto_recall(new_state)
                         messages.append(
                             {
