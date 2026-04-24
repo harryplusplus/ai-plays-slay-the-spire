@@ -122,12 +122,11 @@ def init_logger() -> None:
     )
 
     root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
+    root.setLevel(logging.INFO)
     root.addHandler(handler)
 
-    # Suppress noisy third-party loggers
-    for name in ("openai", "httpx", "httpcore", "urllib3"):
-        logging.getLogger(name).setLevel(logging.WARNING)
+    # Our logger at DEBUG for detailed output
+    logging.getLogger("ai").setLevel(logging.DEBUG)
 
 
 def run_bash(command: str) -> str:
