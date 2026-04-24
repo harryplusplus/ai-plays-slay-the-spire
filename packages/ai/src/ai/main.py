@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 OLLAMA_API_KEY = os.environ["OLLAMA_API_KEY"]
 MODEL = "gpt-4o-mini"
+MAX_OUTPUT = 20_000
 
 SYSTEM_PROMPT = """\
 You are an AI playing Slay the Spire. You have a bash shell.
@@ -101,6 +102,8 @@ def run_bash(command: str) -> str:
     output = result.stdout
     if result.returncode != 0:
         output += result.stderr
+    if len(output) > MAX_OUTPUT:
+        output = output[:MAX_OUTPUT] + f"\n... truncated ({len(output)} chars)"
     return output
 
 
