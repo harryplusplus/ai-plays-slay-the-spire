@@ -293,7 +293,7 @@ default_values = &["world", "experience", "opinion"]
 
 | 경로 | 목적 |
 |------|------|
-| `~/.sts/logs/ai.log` | AI 결정, 툴 호출, LLM 응답 |
+| `~/.sts/logs/ai.jsonl` | AI 결정, 툴 호출, LLM 응답 (JSON Lines) |
 | `~/.sts/logs/game.jsonl` | 게임 CLI 호출, Hindsight 호출 (JSON Lines) |
 | `~/.sts/logs/proxy.log` | command_id, 브리지 재연결, 타임아웃 (텍스트) |
 | `~/.sts/logs/bridge.log` | stdin/stdout 프로토콜 메시지 (텍스트) |
