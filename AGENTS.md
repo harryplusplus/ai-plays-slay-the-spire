@@ -294,10 +294,10 @@ default_values = &["world", "experience", "opinion"]
 | 경로 | 목적 |
 |------|------|
 | `~/.sts/logs/ai.log` | AI 결정, 툴 호출, LLM 응답 |
-| `~/.sts/logs/game.log` | 게임 CLI 호출, Hindsight 호출 |
-| `~/.sts/logs/proxy.log` | command_id, 브리지 재연결, 타임아웃 |
-| `~/.sts/logs/bridge.log` | stdin/stdout 프로토콜 메시지 |
-| `~/.sts/logs/runs.log` | 런 종료 시 전체 상태 |
+| `~/.sts/logs/game.jsonl` | 게임 CLI 호출, Hindsight 호출 (JSON Lines) |
+| `~/.sts/logs/proxy.log` | command_id, 브리지 재연결, 타임아웃 (텍스트) |
+| `~/.sts/logs/bridge.log` | stdin/stdout 프로토콜 메시지 (텍스트) |
+| `~/.sts/logs/runs.log` | 런 종료 시 전체 상태 (텍스트) |
 | `~/.sts/proxy.db` | SQLite command_id 카운터 |
 
 모든 로그는 RotatingFileHandler(10MB, 5 백업) 사용.

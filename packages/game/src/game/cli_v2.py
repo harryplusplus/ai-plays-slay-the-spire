@@ -11,6 +11,37 @@ from hindsight_client import Hindsight
 
 logger = logging.getLogger(__name__)
 
+
+class JsonlFormatter(logging.Formatter):
+    """Format log records as JSON Lines."""
+
+    _STANDARD_ATTRS = frozenset({
+        "name", "msg", "args", "levelname", "levelno", "pathname",
+        "filename", "module", "exc_info", "exc_text", "stack_info",
+        "lineno", "funcName", "created", "msecs", "relativeCreated",
+        "thread", "threadName", "processName", "process", "message",
+        "asctime", "taskName",
+    })
+
+    @override
+    def format(self, record: logging.LogRecord) -> str:
+        entry: dict[str, Any] = {
+            "ts": (
+                datetime.fromtimestamp(record.created)
+                .astimezone()
+                .isoformat(timespec="milliseconds")
+            ),
+            "lvl": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        entry |= {
+            key: value
+            for key, value in record.__dict__.items()
+            if key not in self._STANDARD_ATTRS and not key.startswith("_")
+        }
+        return json.dumps(entry, ensure_ascii=False, default=str)
+
 BANK_ID = "sts-v2"
 RETAIN_CONTEXT = (
     "Slay the Spire gameplay: strategic decisions, build directions, "
@@ -39,28 +70,13 @@ class _HindsightClient:
 
 
 def init_logger() -> None:
-    class Formatter(logging.Formatter):
-        @override
-        def formatTime(
-            self,
-            record: logging.LogRecord,
-            datefmt: str | None = None,
-        ) -> str:
-            return (
-                datetime.fromtimestamp(record.created)
-                .astimezone()
-                .isoformat(timespec="milliseconds")
-            )
-
     handler = RotatingFileHandler(
-        Path.home() / ".sts" / "logs" / "game.log",
+        Path.home() / ".sts" / "logs" / "game.jsonl",
         maxBytes=10_000_000,
         backupCount=5,
         encoding="utf-8",
     )
-    handler.setFormatter(
-        Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"),
-    )
+    handler.setFormatter(JsonlFormatter())
 
     root = logging.getLogger()
     root.setLevel(logging.INFO)
@@ -96,7 +112,7 @@ def extract_game_state_field(data: dict[str, Any], key: str) -> Any:  # noqa: AN
 @app.command()
 def command(cmd: str) -> None:
     """Send a raw command to the game."""
-    logger.info("command: %s", cmd)
+    logger.info("command executed", extra={"event": "command", "cmd": cmd})
     result = send_command(cmd)
     result = filter_game_state(result)
     typer.echo(json.dumps(result, indent=2))
@@ -133,7 +149,7 @@ def map_cmd() -> None:
 @app.command()
 def recall(query: str) -> None:
     """Recall memories from Hindsight."""
-    logger.info("recall: %s", query)
+    logger.info("recall executed", extra={"event": "recall", "query": query})
     client = _HindsightClient.get()
     result = client.recall(
         bank_id=BANK_ID,
@@ -143,13 +159,15 @@ def recall(query: str) -> None:
     # Convert RecallResponse to JSON
     output = result.to_dict() if hasattr(result, "to_dict") else str(result)
     typer.echo(json.dumps(output, indent=2, default=str))
-    logger.info("recall result: %s", str(output)[:200])
+    logger.info(
+        "recall result",
+        extra={"event": "recall_result", "result_preview": str(output)[:500]},
+    )
 
 
 @app.command()
 def retain(content: str) -> None:
     """Store a memory in Hindsight."""
-    logger.info("retain: %s", content)
     client = _HindsightClient.get()
     result = client.retain_batch(
         bank_id=BANK_ID,
@@ -164,10 +182,12 @@ def retain(content: str) -> None:
         "success": result.success,
         "items_count": result.items_count,
     }
+    extra: dict[str, Any] = {"event": "retain", "content": content}
     if result.operation_id:
         op_id = str(result.operation_id)
-        logger.info("retain op_id=%s", op_id)
+        extra["op_id"] = op_id
         output["operation_id"] = op_id
+    logger.info("retain executed", extra=extra)
     typer.echo(json.dumps(output, indent=2, default=str))
 
 
