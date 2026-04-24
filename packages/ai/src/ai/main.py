@@ -355,15 +355,20 @@ def auto_recall(state: dict[str, Any], last_query: str = "") -> str:
     return game_cli("recall", query)
 
 
-def execute_tool(name: str, arguments: dict[str, Any]) -> str:  # noqa: PLR0911
+def execute_tool(  # noqa: PLR0911
+    name: str,
+    arguments: dict[str, Any],
+    game_state: dict[str, Any] | None = None,
+) -> str:
     if name == "send_command":
         return game_cli("command", arguments["command"])
     if name == "recall":
         return game_cli("recall", arguments["query"])
     if name == "retain":
+        doc_id = _build_document_id(game_state)
+        if doc_id:
+            return game_cli("retain", arguments["content"], "--document-id", doc_id)
         return game_cli("retain", arguments["content"])
-    if name == "deck":
-        return game_cli("deck")
     if name == "relics":
         return game_cli("relics")
     if name == "potions":
@@ -371,6 +376,21 @@ def execute_tool(name: str, arguments: dict[str, Any]) -> str:  # noqa: PLR0911
     if name == "map":
         return game_cli("map")
     return f"error: unknown tool {name}"
+
+
+def _build_document_id(game_state: dict[str, Any] | None) -> str | None:
+    """Build a stable document_id from game state for combat-scoped memory grouping."""
+    if game_state is None:
+        return None
+    gs = game_state.get("game_state")
+    if not gs:
+        return None
+    seed = gs.get("seed")
+    act = gs.get("act")
+    floor = gs.get("floor")
+    if seed is not None and act is not None and floor is not None:
+        return f"combat-{seed}-{act}-{floor}"
+    return None
 
 
 def dump_messages(messages: list[dict[str, Any]]) -> None:
@@ -458,6 +478,8 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
         extra={"event": "init", "state": _state_summary(initial)},
     )
 
+    last_game_state: dict[str, Any] | None = None
+
     while True:
         trim_messages(messages)
         logger.debug(
@@ -529,7 +551,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
                     extra={"event": "tool_call", "tool": fn_name, "arguments": fn_args},
                 )
 
-                result = execute_tool(fn_name, fn_args)
+                result = execute_tool(fn_name, fn_args, last_game_state)
                 logger.info(
                     "tool result",
                     extra={
@@ -550,6 +572,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
                 if fn_name == "send_command":
                     try:
                         new_state = json.loads(result)
+                        last_game_state = new_state
                         in_game = new_state.get("in_game", False)
                         if not in_game:
                             logger.info(

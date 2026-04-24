@@ -181,16 +181,20 @@ def recall(query: str) -> None:
 
 
 @app.command()
-def retain(content: str) -> None:
+def retain(content: str, document_id: str | None = None) -> None:
     """Store a memory in Hindsight."""
     client = _HindsightClient.get()
+    item: dict[str, Any] = {
+        "content": content,
+        "context": RETAIN_CONTEXT,
+        "timestamp": datetime.now(timezone.utc),  # noqa: UP017
+    }
+    if document_id:
+        item["document_id"] = document_id
+        item["update_mode"] = "append"
     result = client.retain_batch(
         bank_id=BANK_ID,
-        items=[{
-            "content": content,
-            "context": RETAIN_CONTEXT,
-            "timestamp": datetime.now(timezone.utc),  # noqa: UP017
-        }],
+        items=[item],
         retain_async=True,
     )
     output: dict[str, Any] = {
