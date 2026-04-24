@@ -31,7 +31,7 @@
 
 > 이 리드미 역시 AI 에이전트가 Harry의 지시에 따라 작성하고 수정 중이다.
 
-## 현재 상황: 기억의 질 개선 완료, 효과 검증 중
+## 현재 상황: 기억의 질 개선 완료, 인프라 전환, 모니터링 중
 
 가장 큰 고민이었던 **"무엇을 기억해야 하는가"**에 대한 1차적인 해결을 마쳤다. 처음에는 AI가 매 커맨드마다 retain해서 500개가 넘는 memory unit이 쌓였으나, 대부분이 "에너지 2→1" 같은 상태 스냅샷이었다.
 
@@ -42,6 +42,18 @@
 3. **Hindsight Bank Mission 설정**: fact extraction이 전략/패턴/교훈을 추출하도록 유도
 4. **Context field 강화**: raw state snapshot 무시하도록 지시
 
+### 인프라 전환: Python SDK + 새 뱅크
+
+개선된 retain 품질을 깨끗한 공간에 쌓기 위해 **인프라를 전면 교체**했다:
+
+- **`cli_v2.py` + Python SDK**: 기존 subprocess로 `hindsight` CLI를 호출하던 방식에서, Hindsight Python SDK(`hindsight-client`)를 직접 사용하도록 전환. 더 정확한 타입 제어와 API 파라미터 활용이 가능해졌다.
+- **`sts-v2` 뱅크**: 레거시 `sts` 뱅크(상태 스냅샷 500개+)를 버리지 않고 보존한 채, 2026-04-24 이후 고품질 메모리 101개만 `sts-v2`로 이전. 이제 AI는 `sts-v2`를 사용한다.
+- **`retain_async=True`**: Python SDK의 `retain()`은 기본값이 `retain_async=False`로, 서버가 LLM fact extraction + embedding + DB insert를 모두 끝낼 때까지 HTTP 연결을 유지한다. 이게 60초를 넘어 타임아웃이 났었다. `retain_batch(retain_async=True)`로 바꿔서 즉시 반환 + 백그라운드 worker 처리로 변경하니 타임아웃이 완전히 사라졌다.
+
+### 발견한 버그들
+
+**Hindsight CLI/DB 스키마 불일치**: Hindsight 소스코드를 직접 읽어보니, CLI의 `recall` 기본값은 `[world, experience, opinion]`인데, DB 마이그레이션(2026-04-02)에서 `opinion`은 이미 제거되고 `observation`이 추가되어 있었다. 결과적으로 우리가 개선한 고품질 기억이 consolidate되어 `observation`으로 생성되었으나, `recall`로는 검색되지 않는 치명적 불일치가 있었다. 이것을 `cli.py`에서 `--fact-type`을 명시적으로 지정하는 것으로 우회했고, `cli_v2.py`에서는 SDK 레벨에서 `types=["world", "experience", "observation"]`를 명시했다.
+
 ### 결과: 개선 확인됨
 
 **이전**: "에너지 2→1, Chosen HP 47→41" ❌
@@ -49,7 +61,10 @@
 
 AI가 템플릿을 따륾고, 시너지 분석과 빌드 방향을 포함하는 retain을 생성하고 있다.
 
-그런데 우리가 또 하나 중요한 것을 발견했다: **Hindsight CLI 코드가 DB 스키마보다 outdated**라는 버그다. Hindsight 소스코드를 직접 읽어보니, CLI의 `recall` 기본값은 `[world, experience, opinion]`인데, DB 마이그레이션(2026-04-02)에서 `opinion`은 이미 제거되고 `observation`이 추가되어 있었다. 결과적으로 우리가 개선한 고품질 기억이 consolidate되어 `observation`으로 생성되었으나, `recall`로는 검색되지 않는 치명적 불일치가 있었다. 이것을 `game/cli.py`에서 `--fact-type`을 명시적으로 지정하는 것으로 해결했다.
+### 모니터링 중인 사항
+
+- **END 후 retain 누락**: AI가 System prompt를 따르지 않고 END 후 retain을 호출하지 않는 경우가 ~30%. Tool call은 LLM의 선택이므로, code-level 강제 호출을 고려 중.
+- **Recall 지연**: ~26초 (embedding 5s + reranking 21s). Hindsight worker가 OpenClaw bank와 리소스를 경쟁하는 것으로 추정. 기능적 문제는 없으나 전체 턴 시간 증가.
 
 ## 아키텍처 개요
 
@@ -90,7 +105,12 @@ uv run ai      # AI 에이전트
 - [x] 기본 AI 루프 구축
 - [x] Hindsight 통합 (retain/recall)
 - [x] Retain 전략 재설계 (빈도/내용 개선)
-- [~] 효과 측정: 새로운 기억의 질 확인 (진행 중 — 템플릿 준수 확인됨, Observation consolidate 결과 관찰 중)
+- [x] Hindsight CLI/DB mismatch 해결 (observation 타입 누락)
+- [x] Python SDK 전환 (`cli_v2.py`)
+- [x] `sts-v2` 뱅크 생성 및 고품질 메모리 마이그레이션
+- [x] Retain 타임아웃 해결 (`retain_async=True`)
+- [~] 효과 측정: 새로운 기억의 질 확인 (진행 중 — 템플릿 준수 확인됨, async retain 안정성 관찰 중)
+- [~] END 후 retain 누락 문제 분석 (AI 자발적 호출에 의존, code-level 강제 호출 검토)
 - [ ] Mental model 생성 ("디펙트 빌드 가이드" 등)
 - [ ] Tags/Entity labels 활용으로 검색 품질 향상
 - [ ] Reflect 활용 (단순 recall → 전략 조언)

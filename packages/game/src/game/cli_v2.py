@@ -160,10 +160,14 @@ def retain(content: str) -> None:
         }],
         retain_async=True,
     )
-    output = {
+    output: dict[str, Any] = {
         "success": result.success,
         "items_count": result.items_count,
     }
+    if result.operation_id:
+        op_id = str(result.operation_id)
+        logger.info("retain op_id=%s", op_id)
+        output["operation_id"] = op_id
     typer.echo(json.dumps(output, indent=2, default=str))
 
 
