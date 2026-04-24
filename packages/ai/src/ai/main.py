@@ -332,6 +332,20 @@ def main() -> None:  # noqa: C901, PLR0915
             time.sleep(RETRY_DELAY)
             continue
 
+        if not response.choices:
+            resp_str = (
+                response.model_dump_json()
+                if hasattr(response, "model_dump_json")
+                else str(response)
+            )
+            logger.error(
+                "LLM returned empty choices (response=%s), retrying in %ss",
+                resp_str,
+                RETRY_DELAY,
+            )
+            time.sleep(RETRY_DELAY)
+            continue
+
         choice = response.choices[0]
         assistant_msg = choice.message
         logger.debug("assistant: %s", assistant_msg.content)
