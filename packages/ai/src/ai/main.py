@@ -8,17 +8,12 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, override
 
-import httpx
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
 OLLAMA_API_KEY = os.environ["OLLAMA_API_KEY"]
 MODEL = "gpt-4o-mini"
-
-BANK_ID = "sts"
-PROXY_URL = "http://127.0.0.1:8766/command"
-TIMEOUT = 30.0
 
 SYSTEM_PROMPT = """You are an AI playing Slay the Spire.
 
@@ -132,41 +127,26 @@ def init_logger() -> None:
     root.addHandler(handler)
 
 
+def game_cli(*args: str) -> str:
+    result = subprocess.run(
+        ["uv", "run", "game", *args],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout
+
+
 def send_command(cmd: str) -> dict[str, Any]:
-    response = httpx.post(PROXY_URL, content=cmd, timeout=TIMEOUT)
-    response.raise_for_status()
-    return response.json()
+    return json.loads(game_cli("command", cmd))
 
 
 def recall(query: str) -> str:
-    result = subprocess.run(
-        ["hindsight", "memory", "recall", BANK_ID, query, "--output", "json"],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return result.stdout
+    return game_cli("recall", query)
 
 
 def retain(content: str) -> str:
-    result = subprocess.run(
-        [
-            "hindsight",
-            "memory",
-            "retain",
-            BANK_ID,
-            content,
-            "--output",
-            "json",
-            "--context",
-            "Slay the Spire gameplay",
-            "--async",
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return result.stdout
+    return game_cli("retain", content)
 
 
 def auto_recall(state: dict[str, Any]) -> str:
