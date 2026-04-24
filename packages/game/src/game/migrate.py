@@ -1,4 +1,3 @@
-# pyright: reportUnknownVariableType=none, reportUnknownArgumentType=none, reportUnknownMemberType=none, reportMissingTypeArgument=none
 """Migrate high-quality memories from sts to sts-v2 bank."""
 
 import logging
@@ -23,7 +22,7 @@ RETAIN_CONTEXT = (
 
 
 def _fetch_all_memories(client: Hindsight) -> list[dict[str, Any]]:
-    all_memories: list[dict] = []
+    all_memories: list[dict[str, Any]] = []
     offset = 0
     limit = 100
     while True:
@@ -48,7 +47,7 @@ def _parse_date(raw: str | datetime | None) -> datetime | None:
 
 
 def _filter_memories(memories: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    filtered: list[dict] = []
+    filtered: list[dict[str, Any]] = []
     for mem in memories:
         mem_date = _parse_date(mem.get("date") or mem.get("mentioned_at"))
         if mem_date is None or mem_date < CUTOFF_DATE:

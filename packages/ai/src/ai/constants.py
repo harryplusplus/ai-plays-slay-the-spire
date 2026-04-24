@@ -1,4 +1,3 @@
-# pyright: reportUnknownVariableType=none
 """AI agent constants and configuration."""
 
 import os

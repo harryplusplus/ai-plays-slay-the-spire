@@ -1,4 +1,3 @@
-# pyright: reportArgumentType=none, reportUnknownArgumentType=none, reportUnknownVariableType=none, reportUnknownMemberType=none
 import json
 import logging
 from datetime import datetime, timezone
@@ -16,13 +15,33 @@ logger = logging.getLogger(__name__)
 class JsonlFormatter(logging.Formatter):
     """Format log records as JSON Lines."""
 
-    _STANDARD_ATTRS = frozenset({
-        "name", "msg", "args", "levelname", "levelno", "pathname",
-        "filename", "module", "exc_info", "exc_text", "stack_info",
-        "lineno", "funcName", "created", "msecs", "relativeCreated",
-        "thread", "threadName", "processName", "process", "message",
-        "asctime", "taskName",
-    })
+    _STANDARD_ATTRS = frozenset(
+        {
+            "name",
+            "msg",
+            "args",
+            "levelname",
+            "levelno",
+            "pathname",
+            "filename",
+            "module",
+            "exc_info",
+            "exc_text",
+            "stack_info",
+            "lineno",
+            "funcName",
+            "created",
+            "msecs",
+            "relativeCreated",
+            "thread",
+            "threadName",
+            "processName",
+            "process",
+            "message",
+            "asctime",
+            "taskName",
+        },
+    )
 
     @override
     def format(self, record: logging.LogRecord) -> str:
@@ -42,6 +61,7 @@ class JsonlFormatter(logging.Formatter):
             if key not in self._STANDARD_ATTRS and not key.startswith("_")
         }
         return json.dumps(entry, ensure_ascii=False, default=str)
+
 
 BANK_ID = "sts-v2"
 RETAIN_CONTEXT = (
@@ -146,7 +166,9 @@ def recall(query: str) -> None:
     # Convert RecallResponse to JSON
     output = result.to_dict() if hasattr(result, "to_dict") else str(result)
     typer.echo(json.dumps(output, indent=2, default=str))
-    results = output.get("results", []) if isinstance(output, dict) else []
+    results: list[dict[str, Any]] = (
+        output.get("results", []) if isinstance(output, dict) else []
+    )
     logger.info(
         "recall result",
         extra={
