@@ -15,13 +15,14 @@ from .constants import (
     MODEL,
     OPENAI_API_KEY,
     OPENAI_BASE_URL,
+    REASONING_EFFORT,
     RETRY_DELAY,
     RUN_ENDED_PROMPT,
     SYSTEM_PROMPT,
     TOOLS,
     TURN_ENDED_PROMPT,
 )
-from .log import dump_messages, init_logger, init_run_handler, log_run_end
+from .log import dump_messages, init_logger, init_reasoning_logger, init_run_handler, log_run_end
 
 logger = logging.getLogger(__name__)
 
@@ -221,10 +222,11 @@ def _handle_send_command(  # noqa: PLR0913
     last_game_state: dict[str, Any] | None,
     last_auto_query: str,
     run_handler: RotatingFileHandler,
-) -> tuple[dict[str, Any] | None, str]:
+) -> tuple[dict[str, Any] | None, str, dict[str, Any] | None]:
     """Handle the result of a send_command tool call.
     Updates game state, runs auto_recall, builds next user message.
-    Returns (updated_last_game_state, updated_last_auto_query).
+    Returns (updated_last_game_state, updated_last_auto_query, recall_result).
+    recall_result is the parsed auto_recall JSON, or None if skipped.
     """
     try:
         new_state = json.loads(result)
@@ -236,12 +238,13 @@ def _handle_send_command(  # noqa: PLR0913
             )
             log_run_end(run_handler, result)
         auto_recall_result = auto_recall(new_state, last_auto_query)
+        recall_parsed: dict[str, Any] | None = None
         content = f"State after your last command:\n{result}"
         if auto_recall_result:
             last_auto_query = auto_recall_result
             try:
-                recall_data: dict[str, Any] = json.loads(auto_recall_result)
-                results: list[dict[str, Any]] = recall_data.get("results", [])
+                recall_parsed = json.loads(auto_recall_result)
+                results: list[dict[str, Any]] = recall_parsed.get("results", [])
                 logger.info(
                     "auto recall result",
                     extra={
@@ -272,9 +275,9 @@ def _handle_send_command(  # noqa: PLR0913
             extra={"event": "error", "error_type": "json_decode"},
         )
         messages.append({"role": "user", "content": f"Command result:\n{result}"})
-        return last_game_state, last_auto_query
+        return last_game_state, last_auto_query, None
     else:
-        return new_state, last_auto_query
+        return new_state, last_auto_query, recall_parsed
 
 
 def _run_agent(run_handler: RotatingFileHandler) -> None:
@@ -284,6 +287,8 @@ def _run_agent(run_handler: RotatingFileHandler) -> None:
         base_url=OPENAI_BASE_URL,
     )
 
+    reasoning_logger = init_reasoning_logger()
+
     messages: list[dict[str, Any]] = [  # type: ignore[type-arg]
         {"role": "system", "content": SYSTEM_PROMPT},
     ]
@@ -291,9 +296,14 @@ def _run_agent(run_handler: RotatingFileHandler) -> None:
     initial = game_cli("command", "state")
     auto_recall_result = auto_recall(json.loads(initial))
     last_auto_query = ""
+    last_recall_result: dict[str, Any] | None = None
     content = f"Current game state:\n{initial}"
     if auto_recall_result:
         last_auto_query = auto_recall_result
+        try:
+            last_recall_result = json.loads(auto_recall_result)
+        except json.JSONDecodeError:
+            pass
         content += f"\n\nRelevant memories:\n{auto_recall_result}"
     messages.append(
         {
@@ -323,7 +333,7 @@ def _run_agent(run_handler: RotatingFileHandler) -> None:
                 messages=cast("Any", messages),
                 tools=cast("Any", TOOLS),
                 temperature=0,
-                reasoning_effort="high",
+                reasoning_effort=REASONING_EFFORT,  # pyright: ignore[reportArgumentType]
             )
             duration_ms = int((time.monotonic() - start_time) * 1000)
         except Exception:
@@ -355,6 +365,8 @@ def _run_agent(run_handler: RotatingFileHandler) -> None:
         msg = cast("Any", choice.message)
         raw_tool_calls: list[Any] = msg.tool_calls or []
         tool_names: list[str] = [str(tc.function.name) for tc in raw_tool_calls]
+        msg_dict = msg.to_dict()
+        reasoning = msg_dict.get("reasoning_content", "")
         logger.debug(
             "llm response",
             extra={
@@ -363,8 +375,21 @@ def _run_agent(run_handler: RotatingFileHandler) -> None:
                 "tool_names": tool_names,
                 "content_preview": str(msg.content or "")[:200],
                 "duration_ms": duration_ms,
+                "reasoning_length": len(reasoning),
             },
         )
+
+        if reasoning:
+            reasoning_logger.debug(
+                "reasoning",
+                extra={
+                    "event": "reasoning",
+                    "recall_result": last_recall_result,
+                    "reasoning_content": reasoning,
+                    "message_count": len(messages),
+                    "duration_ms": duration_ms,
+                },
+            )
 
         messages.append(msg.to_dict())
 
@@ -395,7 +420,7 @@ def _run_agent(run_handler: RotatingFileHandler) -> None:
                 )
 
                 if fn_name == "send_command":
-                    last_game_state, last_auto_query = _handle_send_command(
+                    last_game_state, last_auto_query, recall_result = _handle_send_command(
                         result,
                         fn_args,
                         messages,
@@ -403,6 +428,8 @@ def _run_agent(run_handler: RotatingFileHandler) -> None:
                         last_auto_query,
                         run_handler,
                     )
+                    if recall_result is not None:
+                        last_recall_result = recall_result
         else:
             logger.warning(
                 "no tool call",

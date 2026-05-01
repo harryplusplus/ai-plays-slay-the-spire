@@ -7,12 +7,14 @@ from typing import Any
 OPENAI_BASE_URL = "https://crof.ai/v1"
 OPENAI_API_KEY = os.environ["CROF_API_KEY"]
 MODEL = "deepseek-v4-pro-precision"
+REASONING_EFFORT = "max"
 MAX_OUTPUT = 20_000
 MAX_MESSAGES_CHARS = 1_000_000
 RETRY_DELAY = 10.0
 RUN_LOG = Path.home() / ".sts" / "logs" / "runs.log"
 LLM_DUMP_DIR = Path.home() / ".sts" / "logs" / "llm_dump"
 MAX_DUMPS = 10
+REASONING_LOG = Path.home() / ".sts" / "logs" / "reasoning.jsonl"
 
 SYSTEM_PROMPT = """\
 You are an AI playing Slay the Spire.

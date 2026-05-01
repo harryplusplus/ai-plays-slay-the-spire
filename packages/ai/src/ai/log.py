@@ -7,7 +7,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, override
 
-from .constants import LLM_DUMP_DIR, MAX_DUMPS, RUN_LOG
+from .constants import LLM_DUMP_DIR, MAX_DUMPS, REASONING_LOG, RUN_LOG
 
 
 class JsonlFormatter(logging.Formatter):
@@ -116,3 +116,23 @@ def dump_messages(messages: list[dict[str, Any]]) -> None:
     while len(dumps) > MAX_DUMPS:
         oldest = dumps.pop(0)
         oldest.unlink()
+
+
+def init_reasoning_logger() -> logging.Logger:
+    """Create a dedicated logger for reasoning.jsonl.
+
+    Each line pairs the recall result that was in context with the
+    full reasoning_content from the LLM response.
+    """
+    handler = RotatingFileHandler(
+        REASONING_LOG,
+        maxBytes=10_000_000,
+        backupCount=5,
+        encoding="utf-8",
+    )
+    handler.setFormatter(JsonlFormatter())
+    logger = logging.getLogger("ai.reasoning")
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
+    logger.propagate = False
+    return logger
