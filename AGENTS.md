@@ -4,7 +4,7 @@
 deepseek-v4-pro-precision(crof.ai)이 CommunicationMod로 Slay the Spire를 자동 플레이.
 목표: 승천 0 심장 클리어. Hindsight 장기기억으로 런 간 학습.
 
-## 현재 상태 (2026-05-01)
+## 현재 상태 (2026-05-02)
 
 ### 실행 중
 - `sts-ai`, `sts-proxy`, `hs-api`, `hs-web` tmux 세션 정상
@@ -22,6 +22,7 @@ deepseek-v4-pro-precision(crof.ai)이 CommunicationMod로 Slay the Spire를 자�
 - [x] Document ID 기반 전투 그룹핑
 - [x] retain_async=True 타임아웃 해결
 - [x] Python SDK 전환, JSONL 로깅
+- [x] **State 필터링 수정**: relics, potions가 state에서 제거되고 있어 AI가 인지 못 함 → `NOISE_KEYS`에서 제거, 시스템 프롬프트에 안내 추가
 
 ## 발견한 것들
 
@@ -32,6 +33,16 @@ deepseek-v4-pro-precision(crof.ai)이 CommunicationMod로 Slay the Spire를 자�
 ### retain은 전투 play-by-play에 치우쳐 있다
 28개 retain 중 93%가 전투 설명. 이벤트 선택, 경로 결정, 캠프파이어, 상점, 빌드 결정 이유 같은 전략적 기억이 거의 없음.
 같은 전투에 3~4번 retain해서 중복도 심함.
+
+### state 필터링이 relics/potions를 숨기고 있었다
+`cli.py`의 `filter_game_state`가 `NOISE_KEYS = {"deck", "relics", "potions", "map"}`로
+모든 state 응답에서 이 필드들을 제거 중. AI가 유물/포션을 전혀 인지하지 못함.
+전용 툴(`deck`, `relics`, `potions`, `map`)이 있지만 1,600회 중 40회만 호출,
+현재 런에서는 0회.
+
+해결: `relics`, `potions`를 `NOISE_KEYS`에서 제거. `deck`은 combat_state로 카드 정보가
+이미 오니까 유지, `map`은 크니까 필요 시 전용 툴로. 시스템 프롬프트에
+"State awareness" 섹션 추가.
 
 ### reasoning은 recall보다 game state에 의존한다
 reasoning 내용 분석 결과, recall 개념이 reasoning에 등장해도 그건 현재 덱에 있는 카드 이름일 뿐.
@@ -46,6 +57,17 @@ LLM은 recall 텍스트보다 state JSON을 직접 보고 판단.
 ```
 `_handle_send_command`가 tool result 다음에 새 user message를 끼워넣어서 recall 주입.
 표준 OpenAI 툴 사이클(user→assistant→tool→assistant)과 다르지만, 의도된 설계.
+
+### crof.ai 524 에러와 OpenAI SDK 재시도
+LLM 추론이 길어지면 crof.ai 앞단 Cloudflare가 524 (origin timeout)를 던짐.
+OpenAI Python SDK가 내부적으로 감지하고 자동 재시도. 로그에 `Retrying request to
+/chat/completions in X.XXX seconds`로 남음. 보통 1~2회 재시도로 해결.
+
+시간 기반 모니터링으로 확인하는 법:
+```bash
+jq -r 'select(.ts >= "2026-05-02T08:39" and .ts <= "2026-05-02T08:42") |
+  "[\(.ts | .[11:19])] [\(.logger)] \(.msg)"' ~/.sts/logs/ai.jsonl
+```
 
 ## 할 일
 
@@ -146,7 +168,7 @@ jq -r '.ts' ~/.sts/logs/ai.jsonl | tail -1
 
 ### 알려진 이슈
 - **메시지 트리밍**: 1MB 초과 시 오래된 턴부터 드롭. system message는 보존.
-- **LLM 재시도**: 실패 시 10초 후.
+- **LLM 재시도**: 실패 시 10초 후. OpenAI SDK 자체 재시도(crof.ai 524 등)는 더 빠름(0.5~0.8초).
 - **런 종료**: `in_game=false` → runs.log 기록 + retain 유도.
 - **retain/recall 동일 턴 금지**: retain은 write, recall은 read. indexing 시간 필요.
 - **START 직후 오탐지**: 새 런 시작 시 `in_game=null`을 run_end로 착각해 불필요한 retain 발생.

@@ -73,7 +73,7 @@ PROXY_URL = "http://127.0.0.1:8766/command"
 TIMEOUT = 30.0
 HINDSIGHT_URL = "http://localhost:8888"
 
-NOISE_KEYS = {"deck", "relics", "potions", "map"}
+NOISE_KEYS = {"deck", "map"}
 
 
 def init_logger() -> None:

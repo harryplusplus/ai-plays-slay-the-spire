@@ -52,6 +52,11 @@ Game commands (case insensitive):
 - STATE
   Get current state immediately. Always available.
 
+State awareness:
+- The game state includes your relics and potions. Check them every turn.
+- Use the deck tool to see your full deck when planning builds.
+- Use the map tool at path choice screens to plan your route.
+
 Guidelines:
 - After each state update, analyze carefully before acting.
 - Use recall proactively before important decisions.

@@ -38,6 +38,7 @@ Harry는 코드를 직접 쓰지 않습니다. AI 에이전트(Pi)와 협업합�
 - **recall이 쿼리를 반영하지 못함** — 뱅크가 78개로 작고 전부 비슷한 내용. 쿼리가 달라도 같은 결과 반환.
 - **retain이 전투 설명에 치우침** — 이벤트, 상점, 경로 선택 같은 전략적 결정 기록 부족.
 - **reasoning은 recall보다 game state에 의존** — LLM이 state JSON을 직접 보고 판단.
+- **state 필터링이 relics/potions를 숨김** — `filter_game_state`가 매 응답에서 유물/포션 정보를 제거. AI가 유물 시너지, 포션 사용을 전혀 고려하지 못함. (2026-05-02 수정 완료)
 
 ### 진행 중
 - 더 많은 런으로 뱅크 확장 중
@@ -76,6 +77,7 @@ uv run ai      # AI 에이전트
 - [x] Python SDK 전환, JSONL 로깅
 - [x] reasoning.jsonl (recall↔reasoning 분석 인프라)
 - [x] LLM: deepseek-v4-pro-precision, reasoning_effort="max"
+- [x] State 필터링 수정 (relics/potions 노출)
 - [~] 뱅크 확장 (다양한 클래스/빌드 런)
 - [ ] Recall diversity 개선
 - [ ] Retain 다양화 (비전투 결정 포함)
