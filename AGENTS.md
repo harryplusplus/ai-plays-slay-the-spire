@@ -1,7 +1,7 @@
 # AI 에이전트 노트 — Slay the Spire
 
 ## 프로젝트 개요
-LLM(deepseek-v4-flash:cloud via Ollama Cloud)이 Slay the Spire를 CommunicationMod 통해 자동으로 플레이하는 봇이야.
+LLM(deepseek-v4-pro-precision via crof.ai)이 Slay the Spire를 CommunicationMod 통해 자동으로 플레이하는 봇이야.
 
 ## 목적
 1. **심장(Heart) 클리어** — 승천 0, 심장 클리어가 최종 목표
@@ -39,6 +39,19 @@ LLM(deepseek-v4-flash:cloud via Ollama Cloud)이 Slay the Spire를 Communication
 
 ### 최근 변경사항
 
+#### reasoning.jsonl 로깅 (recall↔reasoning 쌍)
+- `~/.sts/logs/reasoning.jsonl` 신규 파일: LLM 호출마다 `{recall_result, reasoning_content}` 쌍을 JSONL로 기록
+- recall 정보가 reasoning에 어떤 영향을 끼치는지 분석 가능
+- `ai.jsonl` `llm_response` 이벤트에 `reasoning_length` 필드 추가
+- RotatingFileHandler 10MB×5
+- 분석 예: `jq 'select(.recall_result.results[]?.text | contains("Frost")) | .reasoning_content'`
+
+#### LLM 전환: deepseek-v4-flash:cloud → deepseek-v4-pro-precision
+- API: Ollama Cloud → **crof.ai** (`https://crof.ai/v1`)
+- 모델: deepseek-v4-flash:cloud → **deepseek-v4-pro-precision**
+- API 키: `OLLAMA_API_KEY` → `CROF_API_KEY`
+- `reasoning_effort="max"` 적용
+
 #### cli.py 작성 + Python SDK 전환
 - `packages/game/src/game/cli.py` 새로 만들었어
 - Hindsight Python SDK(`hindsight-client`) 쓰고, subprocess CLI 호출 제거
@@ -63,10 +76,11 @@ LLM(deepseek-v4-flash:cloud via Ollama Cloud)이 Slay the Spire를 Communication
 - async retain 반환 시 `operation_id`를 `game.jsonl`에 기록
 - worker 실패 추적 가능
 
-#### LLM 전환: kimi-k2.6 → deepseek-v4-flash:cloud
-- API: OpenCode → **Ollama Cloud** (`https://ollama.com/v1`)
-- 모델: kimi-k2.6 → **deepseek-v4-flash:cloud** (1M 토큰 컨텍스트)
-- API 키: `OPENCODE_API_KEY` → `OLLAMA_API_KEY`
+#### LLM 전환: kimi-k2.6 → deepseek-v4-flash:cloud → deepseek-v4-pro-precision
+- 최초: kimi-k2.6 (OpenCode)
+- 1차 전환: **deepseek-v4-flash:cloud** (Ollama Cloud, 1M 토큰 컨텍스트)
+- 2차 전환: **deepseek-v4-pro-precision** (crof.ai, `reasoning_effort="max"`)
+- API 키: `OPENCODE_API_KEY` → `OLLAMA_API_KEY` → `CROF_API_KEY`
 - 컨텍스트 제한: 400KB → **1MB** (1M 토큰의 40~50% 활용)
 
 #### LLM 메시지 덤프
@@ -138,7 +152,8 @@ LLM(deepseek-v4-flash:cloud via Ollama Cloud)이 Slay the Spire를 Communication
 ### 로그 현황
 - `game.jsonl` — `event`: `command`/`recall`/`recall_result`/`retain`
 - `ai.jsonl` — `event`: `init`/`llm_call`/`llm_response`/`tool_call`/`tool_result`/`auto_recall`/`message_trim`/`run_end`
-  - `llm_response`에 `duration_ms` 포함
+  - `llm_response`에 `duration_ms`, `reasoning_length` 포함
+- `reasoning.jsonl` — `event`: `reasoning`, `recall_result` + `reasoning_content` 쌍 (LLM 호출당 1라인)
 - `llm_dump/` — LLM API 호출 직전 메시지 배열 (최근 10개, 행위 기반 로테이션)
 - `jq` 필터링 가능: `jq 'select(.event == "tool_call" and .tool == "send_command") | .arguments.command'`
 
@@ -198,7 +213,8 @@ LLM(deepseek-v4-flash:cloud via Ollama Cloud)이 Slay the Spire를 Communication
 2. **~~Recall 품질 확인~~** ✅ — query 개선으로 관련성 향상 (class + screen + monsters)
 3. **~~`last_auto_query` 버그 수정~~** ✅ — query 문자열을 저장하도록 변경, 매 턴 중복 recall 제거
 4. **~~Document ID 기반 전투 그룹핑~~** ✅ — `update_mode='append'`로 같은 전투 retain 통합
-5. **Hindsight consolidation trigger** — `hindsight bank consolidate sts-v2`로 observation 재생성
+5. **~~reasoning.jsonl 로깅~~** ✅ — recall↔reasoning 쌍 분석 인프라 구축
+6. **Hindsight consolidation trigger** — `hindsight bank consolidate sts-v2`로 observation 재생성
 
 ### 중기 (다음 런들에서)
 5. **Tags 도입** — retain 시 `class:ironclad`, `topic:combat`, `enemy:gremlin_nob` 등 태깅 → recall 시 `tags` 필터로 정밀도 향상
@@ -282,7 +298,7 @@ default_values = &["world", "experience", "opinion"]
 
 | 변수 | 필요한 패키지 | 설명 |
 |------|--------------|------|
-| `OLLAMA_API_KEY` | `ai` | LLM API 키 (Ollama Cloud) |
+| `CROF_API_KEY` | `ai` | LLM API 키 (crof.ai) |
 
 ## 서비스 실행 워크플로우 (tmux)
 
@@ -329,15 +345,16 @@ default_values = &["world", "experience", "opinion"]
 - **런 종료**: `in_game=false` 감지 시 `~/.sts/logs/runs.log`에 전체 상태 기록 + "retain 후 새 게임 시작" 유도.
 - **프록시 타임아웃**: 30초. 브리지 재연결은 자동.
 - **Retain/recall 동일 턴 금지**: Hindsight는 write 후 indexing에 시간이 걸려. retain 후 바로 recall하면 새로운 메모리가 안 뜰 수 있어. (현재는 END 후 retain → 다음 턴 시작 시 auto_recall로 자연스럽게 지켜짐)
-- **`last_auto_query` 버그**: `auto_recall()`의 `last_query` 파라미터에 query 문자열이 아니라 recall 결과 JSON 전체가 저장돼. 이러면 `query == last_query` 비교가 항상 false가 되어서 매 턴 recall이 실행됨. 결과적으로 15~20KB의 동일한 recall 결과가 매 user 메시지에 중복 주입됨. (수정 필요)
+- **`last_auto_query` 버그**: ~~`auto_recall()`의 `last_query` 파라미터에 query 문자열이 아니라 recall 결과 JSON 전체가 저장돼. 이러면 `query == last_query` 비교가 항상 false가 되어서 매 턴 recall이 실행됨. 결과적으로 15~20KB의 동일한 recall 결과가 매 user 메시지에 중복 주입됨. (수정 필요)~~ **수정 완료** — query 문자열을 저장하도록 변경, 매 턴 중복 recall 제거됨.
 
 ## 로그 위치
 
 | 경로 | 목적 |
 |------|------|
-| `~/.sts/logs/llm_dump/` | LLM API 호출 직전 메시지 배열 (JSON, 최근 10개) |
+| `~/.sts/logs/reasoning.jsonl` | LLM reasoning + recall 쌍 (JSON Lines, LLM 호출당 1라인) |
 | `~/.sts/logs/ai.jsonl` | AI 결정, 툴 호출, LLM 응답 (JSON Lines) |
 | `~/.sts/logs/game.jsonl` | 게임 CLI 호출, Hindsight 호출 (JSON Lines) |
+| `~/.sts/logs/llm_dump/` | LLM API 호출 직전 메시지 배열 (JSON, 최근 10개) |
 | `~/.sts/logs/proxy.log` | command_id, 브리지 재연결, 타임아웃 (텍스트) |
 | `~/.sts/logs/bridge.log` | stdin/stdout 프로토콜 메시지 (텍스트) |
 | `~/.sts/logs/runs.log` | 런 종료 시 전체 상태 (텍스트) |

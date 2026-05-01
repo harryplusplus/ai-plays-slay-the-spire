@@ -1,6 +1,6 @@
 # AI Plays Slay the Spire
 
-> 이 문서는 **deepseek-v4-flash:cloud**가 Harry 지시대로 쓰고 관리하는 문서야. 모델 한국어 출력에 가끔 오타가 있을 수 있는데 양해 부탁해.
+> 이 문서는 **deepseek-v4-pro-precision**가 Harry 지시대로 쓰고 관리하는 문서야. 모델 한국어 출력에 가끔 오타가 있을 수 있는데 양해 부탁해.
 
 이 저장소는 **Harry**랑 AI 코딩 에이전트가 같이 만든 **Slay the Spire 자동 플레이 봇**이야. 궁극적 목표는 승천 0, **심장(Heart) 클리어**지만, 그 과정에서 배우는 게 더 중요해.
 
@@ -79,7 +79,7 @@ AI (packages/ai) → Game CLI (packages/game) → Proxy (packages/proxy)
                                               Slay the Spire
 ```
 
-AI는 OpenAI 호환 API(deepseek-v4-flash:cloud via Ollama Cloud)를 쓰고, tool-calling 방식으로 게임을 제어해. 장기기억은 Hindsight 뱅크에 저장돼.
+AI는 OpenAI 호환 API(deepseek-v4-pro-precision via crof.ai)를 쓰고, tool-calling 방식으로 게임을 제어해. 장기기억은 Hindsight 뱅크에 저장돼.
 
 자세한 기술 문서는 [AGENTS.md](AGENTS.md)에 있어.
 
@@ -94,7 +94,7 @@ git submodule update --init --recursive
 # 3. config.properties 설정 (절대 경로로 bridge 명령 지정)
 
 # 4. 환경변수
-export OLLAMA_API_KEY=...
+export CROF_API_KEY=...
 
 # 5. 실행 (별도 터미널)
 uv run proxy   # 프록시 서버
@@ -116,8 +116,9 @@ uv run ai      # AI 에이전트
 - [x] LLM 응답 시간 측정 (duration_ms)
 - [x] Recall 쿼리 개선 (class + screen + monsters)
 - [x] ~~END 후 retain 누락 문제 분석~~ — **실제 누락 0건** 확인
+- [x] reasoning.jsonl 로깅 (recall↔reasoning 쌍 분석 인프라)
+- [x] `last_auto_query` 버그 수정
 - [~] 효과 측정: 새로운 기억의 질 확인 (진행 중)
-- [ ] `last_auto_query` 버그 수정 (query 문자열 저장)
 - [ ] Tags 도입 (class, topic, enemy 태깅)
 - [ ] Mental model 생성 (직업별 빌드 가이드 등)
 - [ ] Reflect 활용 (단순 recall → 전략 조언)
