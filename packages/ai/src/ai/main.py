@@ -8,11 +8,17 @@ from typing import TYPE_CHECKING, Any, cast
 if TYPE_CHECKING:
     from logging.handlers import RotatingFileHandler
 
-from openai import OpenAI
+from openai import (
+    APIConnectionError,
+    InternalServerError,
+    OpenAI,
+    RateLimitError,
+)
 
 from .constants import (
     MAX_MESSAGES_CHARS,
     MAX_OUTPUT,
+    MAX_RETRIES,
     MODEL,
     OPENAI_API_KEY,
     OPENAI_BASE_URL,
@@ -287,7 +293,7 @@ def _handle_send_command(  # noqa: PLR0913
         return new_state, last_auto_query, recall_parsed
 
 
-def _run_agent(run_handler: RotatingFileHandler) -> None:  # noqa: PLR0915
+def _run_agent(run_handler: RotatingFileHandler) -> None:  # noqa: PLR0915, PLR0912, C901
     """Main agent loop."""
     client = OpenAI(
         api_key=OPENAI_API_KEY,
@@ -322,6 +328,7 @@ def _run_agent(run_handler: RotatingFileHandler) -> None:  # noqa: PLR0915
     )
 
     last_game_state: dict[str, Any] | None = None
+    retry_count = 0
 
     while True:
         trim_messages(messages)
@@ -341,6 +348,53 @@ def _run_agent(run_handler: RotatingFileHandler) -> None:  # noqa: PLR0915
                 reasoning_effort=REASONING_EFFORT,  # pyright: ignore[reportArgumentType]
             )
             duration_ms = int((time.monotonic() - start_time) * 1000)
+            retry_count = 0
+        except InternalServerError:
+            retry_count += 1
+            logger.warning(
+                "LLM API 500 error, recreating client",
+                extra={
+                    "event": "error",
+                    "error_type": "llm_500",
+                    "retry_count": retry_count,
+                },
+            )
+            client = OpenAI(api_key=OPENAI_API_KEY, base_url=OPENAI_BASE_URL)
+            if retry_count > MAX_RETRIES:
+                logger.exception(
+                    "LLM API 500 error persisted after max retries",
+                    extra={"event": "error", "error_type": "llm_500_max_retries"},
+                )
+                time.sleep(30)
+                retry_count = 0
+            else:
+                time.sleep(min(RETRY_DELAY * (2 ** (retry_count - 1)), 60))
+            continue
+        except RateLimitError:
+            retry_count += 1
+            logger.warning(
+                "LLM API rate limited",
+                extra={
+                    "event": "error",
+                    "error_type": "llm_429",
+                    "retry_count": retry_count,
+                },
+            )
+            time.sleep(min(RETRY_DELAY * (2 ** retry_count), 120))
+            continue
+        except APIConnectionError:
+            retry_count += 1
+            logger.warning(
+                "LLM API connection error, recreating client",
+                extra={
+                    "event": "error",
+                    "error_type": "llm_connection",
+                    "retry_count": retry_count,
+                },
+            )
+            client = OpenAI(api_key=OPENAI_API_KEY, base_url=OPENAI_BASE_URL)
+            time.sleep(RETRY_DELAY)
+            continue
         except Exception:
             logger.exception(
                 "LLM API call failed",

@@ -11,6 +11,7 @@ REASONING_EFFORT = "max"
 MAX_OUTPUT = 20_000
 MAX_MESSAGES_CHARS = 1_000_000
 RETRY_DELAY = 10.0
+MAX_RETRIES = 5
 RUN_LOG = Path.home() / ".sts" / "logs" / "runs.log"
 LLM_DUMP_DIR = Path.home() / ".sts" / "logs" / "llm_dump"
 MAX_DUMPS = 10
