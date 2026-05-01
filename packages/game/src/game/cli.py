@@ -162,7 +162,7 @@ def recall(query: str) -> None:
         bank_id=BANK_ID,
         query=query,
         types=["world", "experience", "observation"],
-        query_timestamp=datetime.now(UTC).isoformat(timespec="seconds"),
+        query_timestamp=datetime.now(UTC).isoformat(timespec="milliseconds"),
     )
     # Convert RecallResponse to JSON
     output = result.to_dict() if hasattr(result, "to_dict") else str(result)
@@ -196,7 +196,7 @@ def retain(content: str, document_id: str | None = None) -> None:
     item: dict[str, Any] = {
         "content": content,
         "context": RETAIN_CONTEXT,
-        "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
+        "timestamp": datetime.now(UTC).isoformat(timespec="milliseconds"),
     }
     if document_id:
         item["document_id"] = document_id
