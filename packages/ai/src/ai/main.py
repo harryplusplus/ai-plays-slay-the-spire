@@ -1,3 +1,4 @@
+import contextlib
 import json
 import logging
 import subprocess
@@ -22,7 +23,13 @@ from .constants import (
     TOOLS,
     TURN_ENDED_PROMPT,
 )
-from .log import dump_messages, init_logger, init_reasoning_logger, init_run_handler, log_run_end
+from .log import (
+    dump_messages,
+    init_logger,
+    init_reasoning_logger,
+    init_run_handler,
+    log_run_end,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -243,7 +250,7 @@ def _handle_send_command(  # noqa: PLR0913
         if auto_recall_result:
             last_auto_query = auto_recall_result
             try:
-                recall_parsed = json.loads(auto_recall_result)
+                recall_parsed = cast("dict[str, Any]", json.loads(auto_recall_result))
                 results: list[dict[str, Any]] = recall_parsed.get("results", [])
                 logger.info(
                     "auto recall result",
@@ -280,7 +287,7 @@ def _handle_send_command(  # noqa: PLR0913
         return new_state, last_auto_query, recall_parsed
 
 
-def _run_agent(run_handler: RotatingFileHandler) -> None:
+def _run_agent(run_handler: RotatingFileHandler) -> None:  # noqa: PLR0915
     """Main agent loop."""
     client = OpenAI(
         api_key=OPENAI_API_KEY,
@@ -300,10 +307,8 @@ def _run_agent(run_handler: RotatingFileHandler) -> None:
     content = f"Current game state:\n{initial}"
     if auto_recall_result:
         last_auto_query = auto_recall_result
-        try:
+        with contextlib.suppress(json.JSONDecodeError):
             last_recall_result = json.loads(auto_recall_result)
-        except json.JSONDecodeError:
-            pass
         content += f"\n\nRelevant memories:\n{auto_recall_result}"
     messages.append(
         {
@@ -420,13 +425,15 @@ def _run_agent(run_handler: RotatingFileHandler) -> None:
                 )
 
                 if fn_name == "send_command":
-                    last_game_state, last_auto_query, recall_result = _handle_send_command(
-                        result,
-                        fn_args,
-                        messages,
-                        last_game_state,
-                        last_auto_query,
-                        run_handler,
+                    last_game_state, last_auto_query, recall_result = (
+                        _handle_send_command(
+                            result,
+                            fn_args,
+                            messages,
+                            last_game_state,
+                            last_auto_query,
+                            run_handler,
+                        )
                     )
                     if recall_result is not None:
                         last_recall_result = recall_result
