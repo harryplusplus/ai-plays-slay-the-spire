@@ -1,11 +1,12 @@
 """AI agent constants and configuration."""
 
+import os
 from pathlib import Path
 from typing import Any
 
-OPENAI_BASE_URL = "http://localhost:11434/v1"
-OPENAI_API_KEY = "ollama"
-MODEL = "qwen3:0.6b"
+OPENAI_BASE_URL = "https://crof.ai/v1"
+OPENAI_API_KEY = os.environ["CROF_API_KEY"]
+MODEL = "deepseek-v4-pro-precision"
 MAX_OUTPUT = 20_000
 MAX_MESSAGES_CHARS = 1_000_000
 RETRY_DELAY = 10.0

@@ -306,7 +306,7 @@ wheels = [
 
 [[package]]
 name = "hindsight-client"
-version = "0.5.4"
+version = "0.5.6"
 source = { directory = "../nailed-it/external/hindsight/hindsight-clients/python" }
 dependencies = [
     { name = "aiohttp" },
