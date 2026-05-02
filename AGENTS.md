@@ -8,100 +8,104 @@ deepseek-v4-pro-precision(crof.ai)이 CommunicationMod로 Slay the Spire를 자�
 
 ### 실행 중
 - `sts-ai`, `sts-proxy`, `hs-api`, `hs-web` tmux 세션 정상
-- 두 번째 Ironclad 런 진행 중 (Neow 1HP 축복)
+- Ironclad 런 진행 중
 
 ### 뱅크: `sts-v2`
-- **78개** memory units (experience 40, observation 36, world 2)
+- **371개** memory units (experience 199, observation 163, world 9)
 - 전부 Ironclad, 전부 Strength 빌드 관련
-- observation이 experience와 거의 동일 — durable pattern 미형성
+- 9,107 links, 202 documents
 
 ### 최근 완료
 - [x] reasoning.jsonl 로깅 (recall↔reasoning 쌍)
 - [x] LLM: deepseek-v4-pro-precision, reasoning_effort="max"
-- [x] `last_auto_query` 버그 수정
 - [x] Document ID 기반 전투 그룹핑
-- [x] retain_async=True 타임아웃 해결
 - [x] Python SDK 전환, JSONL 로깅
-- [x] **State 필터링 수정**: relics, potions가 state에서 제거되고 있어 AI가 인지 못 함 → `NOISE_KEYS`에서 제거, 시스템 프롬프트에 안내 추가
-- [x] **draw_pile/discard_pile awareness**: 데이터는 combat_state에 있었지만 AI가 활용하도록 프롬프트에 안내 추가
+- [x] **State 필터링 수정**: relics, potions가 state에서 제거되고 있어 AI가 인지 못 함 → `NOISE_KEYS`에서 제거
+- [x] **draw_pile/discard_pile awareness**: 시스템 프롬프트에 안내 추가
+- [x] **MAX_OUTPUT 제거**: `game_cli()`의 20K truncation이 recall JSON을 깨뜨림 → truncation 책임을 각 호출부로 분산
+- [x] **call_llm() 추출**: LLM 호출 + retry 로직을 `llm.py`로 분리. 매 요청마다 client 생성/close.
+- [x] **RecallAgent 도입**: `auto_recall()` 제거. 전용 RecallAgent가 state 분석 후 자연어 쿼리로 recall 호출. multi-turn 가능.
+- [x] **RetainAgent 도입**: 코드로 retain 트리거 감지 후 전용 RetainAgent가 메시지 히스토리 기반으로 retain content 생성.
+- [x] **PlayAgent 경량화**: TOOLS에서 recall, retain, relics, potions 제거. send_command, deck, map만 남음.
+- [x] **타입 안전성**: `cast`, `Any`, `type: ignore` 최소화. `isinstance`로 타입 좁히기.
 
 ## 발견한 것들
 
-### recall은 쿼리를 거의 반영하지 않는다
-`DEFECT frost orb`로 검색해도 Ironclad 기억만 나옴. `shop gold`로 검색해도 전투 기억만 나옴.
-원인: 뱅크가 78개뿐이고 전부 비슷한 내용. recall이 사실상 뱅크 전체 덤프.
+### recall은 쿼리 formulation에 민감하다
+`IRONCLAD room=MonsterRoomElite act=3 monsters=Giant Head` 같은 keyword-style 쿼리는
+enemy-specific memory를 잘 못 건진다. 반면 `"What strategy should IRONCLAD use against
+Giant Head in Act 3?"` 같은 자연어 쿼리는 Giant Head 관련 메모리를 1순위로 가져온다.
+쿼리 variant 간 Jaccard similarity는 0.08~0.51 — 쿼리를 어떻게 쓰느냐에 따라 완전히
+다른 결과 집합이 나온다. RecallAgent가 자연어 쿼리를 생성하면서 이 문제가 개선됨.
 
-### retain은 전투 play-by-play에 치우쳐 있다
-28개 retain 중 93%가 전투 설명. 이벤트 선택, 경로 결정, 캠프파이어, 상점, 빌드 결정 이유 같은 전략적 기억이 거의 없음.
-같은 전투에 3~4번 retain해서 중복도 심함.
+### retain은 전투 play-by-play에 치우쳐 있었다 (→ RetainAgent로 해결)
+28개 retain 중 93%가 전투 설명. 이벤트 선택, 경로 결정, 캠프파이어, 상점, 빌드 결정 이유
+같은 전략적 기억이 거의 없었음. 같은 전투에 3~4번 retain해서 중복도 심함.
+→ RetainAgent가 화면 전환을 감지해 자동으로 retain 호출. 전투뿐 아니라 이벤트, 상점,
+캠프파이어, 카드 선택 등 모든 주요 결정을 커버.
 
-### state 필터링이 relics/potions를 숨기고 있었다
+### state 필터링이 relics/potions를 숨기고 있었다 (해결됨)
 `cli.py`의 `filter_game_state`가 `NOISE_KEYS = {"deck", "relics", "potions", "map"}`로
 모든 state 응답에서 이 필드들을 제거 중. AI가 유물/포션을 전혀 인지하지 못함.
-전용 툴(`deck`, `relics`, `potions`, `map`)이 있지만 1,600회 중 40회만 호출,
-현재 런에서는 0회.
+해결: `relics`, `potions`를 `NOISE_KEYS`에서 제거. `deck`, `map`은 여전히 필터링
+(전용 툴로 접근).
 
-해결: `relics`, `potions`를 `NOISE_KEYS`에서 제거. `deck`은 combat_state로 카드 정보가
-이미 오니까 유지, `map`은 크니까 필요 시 전용 툴로. 시스템 프롬프트에
-"State awareness" 섹션 추가.
-
-### draw_pile/discard_pile은 데이터는 있었지만 프롬프트가 없었다
-combat_state에 `draw_pile`, `discard_pile`, `exhaust_pile`이 포함되어 있었지만
-시스템 프롬프트가 AI에게 이 정보를 활용하라고 안내하지 않음.
-relics/potions와 달리 필터링되진 않았지만, AI가 draw_pile로 다음 드로우를
-예측하거나 discard_pile로 Headbutt 등 recursion 대상을 확인하는 전략을
-스스로 하진 못했음.
-
-해결: 시스템 프롬프트 "State awareness"에 draw_pile/discard_pile 확인 안내 추가.
+### MAX_OUTPUT이 recall JSON을 조용히 깨뜨리고 있었다 (해결됨)
+`game_cli()`의 `MAX_OUTPUT=20_000`이 53K짜리 recall JSON을 20K로 잘라서
+`json.loads`가 실패. `JSONDecodeError`가 silently 무시돼서 AI가 recall 결과를
+못 받는 줄 알았으나, 실제로는 깨진 JSON 텍스트로 24개 결과를 받고 있었음.
+해결: `MAX_OUTPUT` 제거. recall은 `max_tokens=2048`로 응답 크기 자체를 제한.
 
 ### reasoning은 recall보다 game state에 의존한다
 reasoning 내용 분석 결과, recall 개념이 reasoning에 등장해도 그건 현재 덱에 있는 카드 이름일 뿐.
 LLM은 recall 텍스트보다 state JSON을 직접 보고 판단.
 
-### messages 구조
+### messages 구조 (3-agent)
 ```
-[system]  게임 규칙
-[user]    State: {게임 state JSON} + Relevant memories: {recall 결과}
-[assistant]  tool_calls: [send_command, retain, ...]
+[system]  PlayAgent 시스템 프롬프트
+[user]    State: {game state JSON} + Recall Analysis: {RecallAgent 분석}
+[assistant]  tool_calls: [send_command, deck, map]
 [tool]    실행 결과
 ```
-`_handle_send_command`가 tool result 다음에 새 user message를 끼워넣어서 recall 주입.
-표준 OpenAI 툴 사이클(user→assistant→tool→assistant)과 다르지만, 의도된 설계.
+`_handle_send_command`가 tool result 다음에:
+1. RecallAgent 호출 → 분석 텍스트를 새 user message에 포함
+2. Trigger 감지 → RetainAgent 호출 → `game_cli("retain", ...)` 실행
 
-### crof.ai 524 에러와 OpenAI SDK 재시도
+### crof.ai 524 에러와 LLM 재시도
 LLM 추론이 길어지면 crof.ai 앞단 Cloudflare가 524 (origin timeout)를 던짐.
-OpenAI Python SDK가 내부적으로 감지하고 자동 재시도. 로그에 `Retrying request to
-/chat/completions in X.XXX seconds`로 남음. 보통 1~2회 재시도로 해결.
-
-시간 기반 모니터링으로 확인하는 법:
-```bash
-jq -r 'select(.ts >= "2026-05-02T08:39" and .ts <= "2026-05-02T08:42") |
-  "[\(.ts | .[11:19])] [\(.logger)] \(.msg)"' ~/.sts/logs/ai.jsonl
-```
+`call_llm()`이 내부적으로 exponential backoff로 처리. 매 요청마다 client를
+새로 생성하고 `close()`하여 connection leak 방지.
 
 ## 할 일
 
 ### 지금
-1. [ ] 현재 런 사망 후 recall/reasoning 재분석
+1. [ ] RecallAgent + RetainAgent 적용 후 런 품질 평가
 2. [ ] `hindsight bank consolidate sts-v2`로 observation 재생성
 
 ### 다음
 3. [ ] 다양한 클래스/빌드로 런 돌려서 뱅크 확장
-4. [ ] retain 다양화: 비전투 결정(이벤트, 상점, 경로, 캠프파이어)도 기록
-5. [ ] Tags 도입 (class, topic, enemy)
-6. [ ] recall diversity 옵션 실험 (max_tokens, budget)
+4. [ ] Tags 도입 (class, topic, enemy)
+5. [ ] RecallAgent 쿼리 전략 튜닝 (multi-query merge 등)
 
 ### 나중
-7. [ ] Reflect로 전략 조언
-8. [ ] Mental model 생성
-9. [ ] 심장 클리어
+6. [ ] Reflect로 전략 조언
+7. [ ] Mental model 생성
+8. [ ] 심장 클리어
 
 ## 아키텍처
+
+### 에이전트 구조
+```
+PlayAgent (tools: send_command, deck, map)
+  ↑ state + recall analysis
+RecallAgent (tool: recall)   ← 매 턴 자동 실행, multi-turn 가능
+RetainAgent (no tools)       ← 화면 전환 감지 시 자동 실행
+```
 
 ### 패키지
 | 패키지 | 진입점 | 역할 |
 |--------|--------|------|
-| `packages/ai` | `uv run ai` | LLM 루프. OpenAI 호환 API로 tool-calling. subprocess로 game CLI 호출 |
+| `packages/ai` | `uv run ai` | 3-agent 루프. OpenAI 호환 API로 tool-calling. subprocess로 game CLI 호출 |
 | `packages/game` | `uv run game <cmd>` | Typer CLI. proxy HTTP(8766)와 통신. Hindsight Python SDK 사용 |
 | `packages/proxy` | `uv run proxy` | FastAPI HTTP 서버(8766) + WebSocket 클라이언트. SQLite로 command_id 관리 |
 | `packages/bridge` | `uv run bridge` | WebSocket 서버(8765). CommunicationMod stdin/stdout 브리지 |
@@ -113,7 +117,11 @@ AI → subprocess game CLI → httpx proxy(8766) → websocket bridge(8765) → 
 ```
 
 ### 핵심 파일
-- `packages/ai/src/ai/main.py` — AI 루프, 툴 정의, 시스템 프롬프트
+- `packages/ai/src/ai/main.py` — PlayAgent 루프, `_handle_send_command`, trigger detection
+- `packages/ai/src/ai/llm.py` — `call_llm()` with retry + client lifecycle
+- `packages/ai/src/ai/recall_agent.py` — `run_recall_agent()`, RecallAgent prompt
+- `packages/ai/src/ai/retain_agent.py` — `run_retain_agent()`, RetainAgent prompt
+- `packages/ai/src/ai/constants.py` — 시스템 프롬프트, TOOLS, 설정 상수
 - `packages/game/src/game/cli.py` — 게임 CLI, Hindsight SDK 호출
 - `packages/proxy/src/proxy/main.py` — HTTP 서버 + WebSocket 클라이언트
 - `packages/bridge/src/bridge/main.py` — WebSocket 서버 + stdin/stdout 브리지
@@ -122,7 +130,12 @@ AI → subprocess game CLI → httpx proxy(8766) → websocket bridge(8765) → 
 
 소스코드: `/Users/harry/repo/nailed-it/external/hindsight/`
 
-### 발견한 버그: CLI/DB 스키마 불일치
+### recall 파라미터
+- `max_tokens=2048` (28개 결과, 24K JSON)
+- `types=["world", "experience", "observation"]`
+- `budget="mid"` (default)
+
+### 발견한 버그: CLI/DB 스키마 불일치 (해결됨)
 - DB 마이그레이션(2026-04-02): `opinion` 제거, `observation` 추가
 - CLI 기본값: 여전히 `[world, experience, opinion]`
 - 결과: recall 기본 호출 시 observation 타입 메모리 검색 제외
@@ -150,7 +163,7 @@ AI → subprocess game CLI → httpx proxy(8766) → websocket bridge(8765) → 
 # 세션 상태
 tmux ls
 
-# 최근 이벤트 (정상: llm_call → llm_response → tool_call 순환)
+# 최근 이벤트 (정상: call_llm → llm_response → tool_call 순환)
 tail -3 ~/.sts/logs/ai.jsonl | jq -r '"[\(.event)] \(.msg)"'
 
 # 에러 확인
@@ -159,14 +172,14 @@ jq 'select(.lvl == "ERROR") | {ts, msg}' ~/.sts/logs/ai.jsonl | tail -5
 # reasoning.jsonl 증가 체크
 wc -l ~/.sts/logs/reasoning.jsonl
 
-# AI 멈춤 감지: 최근 이벤트 ts 확인 후 2분 이상 무반응이면 의심 (LLM 호출 평균 19초, 최대 166초)
+# AI 멈춤 감지: 최근 이벤트 ts 확인 후 2분 이상 무반응이면 의심
 jq -r '.ts' ~/.sts/logs/ai.jsonl | tail -1
 ```
 
 ### 로그
 | 경로 | 내용 | 포맷 |
 |------|------|------|
-| `~/.sts/logs/ai.jsonl` | AI 결정, 툴 호출, LLM 응답 | JSONL |
+| `~/.sts/logs/ai.jsonl` | AI 결정, 툴 호출, LLM 응답, agent 이벤트 | JSONL |
 | `~/.sts/logs/game.jsonl` | 게임 CLI, Hindsight 호출 | JSONL |
 | `~/.sts/logs/reasoning.jsonl` | recall↔reasoning 쌍 | JSONL |
 | `~/.sts/logs/llm_dump/` | LLM 호출 직전 messages | JSON (최근 10개) |
@@ -177,11 +190,10 @@ jq -r '.ts' ~/.sts/logs/ai.jsonl | tail -1
 모두 RotatingFileHandler(10MB×5). `jq`로 필터링 가능.
 
 ### 알려진 이슈
-- **메시지 트리밍**: 1MB 초과 시 오래된 턴부터 드롭. system message는 보존.
-- **LLM 재시도**: SDK 재시도 꺼짐(max_retries=0). 앱 레벨에서 exponential backoff로 처리 (524, 500, 429, connection error).
-- **런 종료**: `in_game=false` → runs.log 기록 + retain 유도.
-- **retain/recall 동일 턴 금지**: retain은 write, recall은 read. indexing 시간 필요.
-- **START 직후 오탐지**: 새 런 시작 시 `in_game=null`을 run_end로 착각해 불필요한 retain 발생.
+- **메시지 트리밍**: `MAX_MESSAGES_CHARS=500K` 초과 시 오래된 턴부터 드롭. system message는 보존.
+- **LLM 재시도**: `call_llm()`이 `MAX_ATTEMPTS=5`까지 exponential backoff. 초과 시 30s sleep 후 리셋.
+- **런 종료**: `in_game=false` → runs.log 기록 + RetainAgent 호출.
+- **START 직후 오탐지**: 새 런 시작 시 `in_game=null`을 run_end로 착각해 불필요한 retain 발생 가능.
 
 ## 개발 워크플로우
 
