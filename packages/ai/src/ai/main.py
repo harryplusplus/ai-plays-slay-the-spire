@@ -1,8 +1,12 @@
+import base64
+import io
 import json
 import logging
 import subprocess
 import time
 from typing import TYPE_CHECKING, Any
+
+from PIL import Image
 
 if TYPE_CHECKING:
     from openai.types.chat import (
@@ -130,19 +134,38 @@ def execute_tool(
     return f"error: unknown tool {name}"
 
 
-def _capture_screenshot() -> str:
-    """Capture the Slay the Spire window and return base64-encoded PNG.
+_MAX_SCREENSHOT_DIMENSION = 800
+_SCREENSHOT_JPEG_QUALITY = 70
 
+
+def _capture_screenshot() -> str:
+    """Capture, resize, and return base64-encoded JPEG.
+
+    Resizes to at most 800px on the longest edge to keep context small.
     Raises on failure — no fallback. Screenshot is mandatory.
     """
     window = find_window("Modded Slay the Spire")
     if window is None:
         msg = "Slay the Spire window not found"
         raise RuntimeError(msg)
-    b64 = capture(window["id"])
+    raw_b64 = capture(window["id"])
+    img = Image.open(io.BytesIO(base64.b64decode(raw_b64)))
+    w, h = img.size
+    if w > _MAX_SCREENSHOT_DIMENSION or h > _MAX_SCREENSHOT_DIMENSION:
+        ratio = _MAX_SCREENSHOT_DIMENSION / max(w, h)
+        img = img.resize((int(w * ratio), int(h * ratio)), Image.Resampling.LANCZOS)  # pyright: ignore[reportUnknownMemberType,reportAttributeAccessIssue]
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=_SCREENSHOT_JPEG_QUALITY)
+    b64 = base64.b64encode(buf.getvalue()).decode()
     logger.info(
         "screenshot captured",
-        extra={"event": "screenshot", "window_id": window["id"], "size": len(b64)},
+        extra={
+            "event": "screenshot",
+            "window_id": window["id"],
+            "original_size": len(raw_b64),
+            "resized_size": len(b64),
+            "original_dims": f"{w}x{h}",
+        },
     )
     return b64
 
