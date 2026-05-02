@@ -9,8 +9,8 @@ if TYPE_CHECKING:
 
 OPENAI_BASE_URL = "https://crof.ai/v1"
 OPENAI_API_KEY = os.environ["CROF_API_KEY"]
-MODEL = "deepseek-v4-pro-precision"
-REASONING_EFFORT = "max"
+MODEL = "glm-5.1-precision"
+REASONING_EFFORT = "high"
 MAX_MESSAGES_CHARS = 500_000
 RETRY_DELAY = 10.0
 MAX_ATTEMPTS = 5

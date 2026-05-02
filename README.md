@@ -1,6 +1,6 @@
 # AI Plays Slay the Spire
 
-> 이 문서는 **deepseek-v4-pro-precision**이 Harry의 지시에 따라 작성합니다. 모델의 한국어 출력에 가끔 오타가 있을 수 있습니다.
+> 이 문서는 AI가 Harry의 지시에 따라 작성합니다. 모델의 한국어 출력에 가끔 오타가 있을 수 있습니다.
 
 **Harry**와 AI 코딩 에이전트가 함께 만드는 Slay the Spire 자동 플레이 봇입니다.
 목표는 승천 0 심장 클리어. 하지만 과정에서 배우는 것이 더 중요합니다.

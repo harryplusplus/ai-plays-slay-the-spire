@@ -127,13 +127,9 @@ def execute_tool(
     return f"error: unknown tool {name}"
 
 
-def _build_document_id(game_state: dict[str, Any] | None) -> str | None:
+def _build_document_id(state: dict[str, Any]) -> str | None:
     """Build a stable document_id from game state for combat-scoped memory grouping."""
-    if game_state is None:
-        return None
-    gs = game_state.get("game_state")
-    if not gs:
-        return None
+    gs = state.get("game_state", {})
     seed = gs.get("seed")
     act = gs.get("act")
     floor = gs.get("floor")
@@ -208,99 +204,38 @@ def _detect_trigger(  # noqa: PLR0911
     return None
 
 
-def _handle_send_command(
-    result: str,
-    fn_args: dict[str, Any],
-    messages: list[ChatCompletionMessageParam],
-    last_game_state: dict[str, Any] | None,
-) -> dict[str, Any] | None:
-    """Handle the result of a send_command tool call.
-    Updates game state, runs recall agent, detects retain triggers.
-    Returns updated last_game_state, or None on parse error.
-    """
-    try:
-        new_state = json.loads(result)
-        in_game = new_state.get("in_game", False)
-        if not in_game:
-            logger.info(
-                "run ended",
-                extra={"event": "run_end", "state": _state_summary(result)},
-            )
-            run_logger.info(result)
-        analysis = run_recall_agent(result)
-        content = (
-            f"State after your last command:\n```json\n{result}\n```\n"
-            f"Recall Analysis:\n{analysis}"
-        )
-        messages.append({"role": "user", "content": content})
-        if not in_game:
-            messages.append(
-                {
-                    "role": "user",
-                    "content": RUN_ENDED_PROMPT,
-                },
-            )
-
-        trigger = _detect_trigger(
-            fn_args.get("command", "").strip().upper(),
-            last_game_state,
-            new_state,
-        )
-        if trigger:
-            retain_content = run_retain_agent(messages, trigger)
-            doc_id = _build_document_id(new_state)
-            if doc_id:
-                game_cli("retain", retain_content, "--document-id", doc_id)
-            else:
-                game_cli("retain", retain_content)
-            logger.info(
-                "retain agent",
-                extra={"event": "retain_agent", "trigger": trigger},
-            )
-    except json.JSONDecodeError:
-        logger.exception(
-            "json decode error",
-            extra={"event": "error", "error_type": "json_decode"},
-        )
-        messages.append(
-            {"role": "user", "content": f"Command result:\n```json\n{result}\n```"}
-        )
-        return None
-    else:
-        return new_state
+def _build_user_message(state_json: str, recall_analysis: str) -> str:
+    return f"State:\n```json\n{state_json}\n```\n\nRecall Analysis:\n{recall_analysis}"
 
 
-def _run_agent() -> None:
+def _run_agent() -> None:  # noqa: PLR0915
     """Main agent loop."""
     messages: list[ChatCompletionMessageParam] = [
         {"role": "system", "content": SYSTEM_PROMPT},
     ]
 
-    initial = game_cli("command", "state")
-    analysis = run_recall_agent(initial)
-    content = (
-        f"Current game state:\n```json\n{initial}\n```\n\nRecall Analysis:\n{analysis}"
-    )
-    messages.append(
-        {
-            "role": "user",
-            "content": content,
-        },
-    )
-    logger.info(
-        "initial state",
-        extra={"event": "init", "state": _state_summary(initial)},
-    )
-
-    last_game_state: dict[str, Any] | None = None
+    current_state_json = game_cli("command", "state")
+    current_state = json.loads(current_state_json)
 
     while True:
         trim_messages(messages)
+
+        # 1. Recall
+        recall_analysis = run_recall_agent(current_state_json)
+
+        # 2. Build user message with state + recall analysis
+        messages.append(
+            {
+                "role": "user",
+                "content": _build_user_message(current_state_json, recall_analysis),
+            }
+        )
+
+        # 3. Play
         logger.debug(
             "llm call",
             extra={"event": "call_llm", "message_count": len(messages)},
         )
-
         start_time = time.monotonic()
         dump_messages(messages)
         response = call_llm(
@@ -339,60 +274,27 @@ def _run_agent() -> None:
                 "tool_names": tool_names,
                 "content_preview": str(parsed.content or "")[:200],
                 "duration_ms": duration_ms,
-                "reasoning_length": len(parsed.reasoning_content),
             },
         )
 
+        # 4. Reasoning log
         if parsed.reasoning_content:
             reasoning_logger.debug(
                 "reasoning",
                 extra={
                     "event": "reasoning",
+                    "recall_analysis": recall_analysis,
                     "reasoning_content": parsed.reasoning_content,
                     "message_count": len(messages),
                     "duration_ms": duration_ms,
                 },
             )
 
-        assistant_msg = build_assistant_message(
-            parsed.content, parsed.tool_calls, parsed.reasoning_content
-        )
-        messages.append(assistant_msg)
+        # 5. Assistant message
+        messages.append(build_assistant_message(parsed.content, parsed.tool_calls))
 
-        if parsed.tool_calls:
-            for tool_call in parsed.tool_calls:
-                fn_name: str = tool_call.function.name
-                fn_args = json.loads(tool_call.function.arguments)
-                logger.info(
-                    "tool call",
-                    extra={"event": "tool_call", "tool": fn_name, "arguments": fn_args},
-                )
-
-                result = execute_tool(fn_name, fn_args)
-                logger.info(
-                    "tool result",
-                    extra={
-                        "event": "tool_result",
-                        **_tool_result_summary(fn_name, result),
-                    },
-                )
-
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": result,
-                    },
-                )
-
-                if fn_name == "send_command":
-                    last_game_state = _handle_send_command(
-                        result,
-                        fn_args,
-                        messages,
-                        last_game_state,
-                    )
-        else:
+        # 6. Execute tools
+        if not parsed.tool_calls:
             logger.warning(
                 "no tool call",
                 extra={
@@ -402,11 +304,65 @@ def _run_agent() -> None:
                 },
             )
             messages.append(
-                {
-                    "role": "user",
-                    "content": "You must use a tool.",
+                {"role": "user", "content": "You must use a tool."},
+            )
+            continue
+
+        for tool_call in parsed.tool_calls:
+            fn_name: str = tool_call.function.name
+            fn_args = json.loads(tool_call.function.arguments)
+            logger.info(
+                "tool call",
+                extra={"event": "tool_call", "tool": fn_name, "arguments": fn_args},
+            )
+
+            result = execute_tool(fn_name, fn_args)
+            logger.info(
+                "tool result",
+                extra={
+                    "event": "tool_result",
+                    **_tool_result_summary(fn_name, result),
                 },
             )
+
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": result,
+                },
+            )
+
+            if fn_name == "send_command":
+                command = fn_args.get("command", "").strip().upper()
+                new_state = json.loads(result)
+
+                if not new_state.get("in_game", False):
+                    logger.info(
+                        "run ended",
+                        extra={"event": "run_end", "state": _state_summary(result)},
+                    )
+                    run_logger.info(result)
+                    messages.append(
+                        {"role": "user", "content": RUN_ENDED_PROMPT},
+                    )
+
+                # 7. Retain
+                trigger = _detect_trigger(command, current_state, new_state)
+                if trigger:
+                    retain_content = run_retain_agent(messages, trigger)
+                    doc_id = _build_document_id(new_state)
+                    if doc_id:
+                        game_cli("retain", retain_content, "--document-id", doc_id)
+                    else:
+                        game_cli("retain", retain_content)
+                    logger.info(
+                        "retain agent",
+                        extra={"event": "retain_agent", "trigger": trigger},
+                    )
+
+                current_state = new_state
+                current_state_json = result
 
 
 def main() -> None:

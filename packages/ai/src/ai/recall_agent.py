@@ -104,11 +104,7 @@ def run_recall_agent(
         )
         parsed = parse_llm_response(response)
 
-        messages.append(
-            build_assistant_message(
-                parsed.content, parsed.tool_calls, parsed.reasoning_content
-            )
-        )
+        messages.append(build_assistant_message(parsed.content, parsed.tool_calls))
 
         if not parsed.tool_calls:
             return parsed.content or ""
