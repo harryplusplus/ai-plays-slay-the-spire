@@ -181,12 +181,15 @@ def _detect_trigger(  # noqa: PLR0911
 
     prev_screen = prev_state.get("game_state", {}).get("screen_type", "")
     new_screen = new_state.get("game_state", {}).get("screen_type", "")
-    if new_screen == prev_screen:
+    prev_room = prev_state.get("game_state", {}).get("room_type", "")
+    new_room = new_state.get("game_state", {}).get("room_type", "")
+    if new_screen == prev_screen and new_room == prev_room:
         return None
 
     transitions: dict[str, str] = {
         "EVENT": "event",
-        "SHOP": "shop",
+        "SHOP_SCREEN": "shop",
+        "SHOP_ROOM": "shop",
         "REST": "campfire",
         "CHEST": "chest",
         "CARD_REWARD": "card_pick",
@@ -265,6 +268,7 @@ def _run_agent() -> None:  # noqa: PLR0915
             "llm response",
             extra={
                 "event": "llm_response",
+                "caller": "play",
                 "has_tool_calls": bool(parsed.tool_calls),
                 "tool_names": tool_names,
                 "content_preview": str(parsed.content or "")[:200],

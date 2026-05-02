@@ -60,6 +60,14 @@ State awareness:
 - In combat, check draw_pile and discard_pile to anticipate upcoming draws
   and know what's available for recursion (e.g., Headbutt, Hologram).
 
+Command selection:
+- The state JSON includes an "available_commands" array. Use ONLY those
+  commands. If a command fails, check available_commands again — the
+  available set changes with each screen transition.
+- Do NOT guess or reuse commands from earlier screens.
+- Consecutive errors mean you are using the wrong command set. Pause,
+  send STATE, and read available_commands from the fresh response.
+
 Guidelines:
 - After each state update, analyze carefully before acting.
 - Be decisive. Don't ask for clarification.
