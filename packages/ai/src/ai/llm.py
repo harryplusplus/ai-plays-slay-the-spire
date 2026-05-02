@@ -2,6 +2,7 @@
 
 import logging
 import time
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from openai import (
@@ -17,11 +18,65 @@ from .constants import MAX_ATTEMPTS, OPENAI_API_KEY, OPENAI_BASE_URL, RETRY_DELA
 if TYPE_CHECKING:
     from openai.types.chat import (
         ChatCompletion,
+        ChatCompletionAssistantMessageParam,
         ChatCompletionMessageParam,
         ChatCompletionToolUnionParam,
     )
 
+from openai.types.chat import ChatCompletionMessageToolCall
+
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ParsedResponse:
+    content: str | None
+    tool_calls: list[ChatCompletionMessageToolCall]
+    reasoning_content: str
+
+
+def parse_llm_response(response: ChatCompletion) -> ParsedResponse:
+    """Extract typed fields from an LLM response."""
+    msg = response.choices[0].message
+    return ParsedResponse(
+        content=msg.content,
+        tool_calls=[
+            tc
+            for tc in (msg.tool_calls or [])
+            if isinstance(tc, ChatCompletionMessageToolCall)
+        ],
+        reasoning_content=getattr(msg, "reasoning_content", None) or "",
+    )
+
+
+def build_assistant_message(
+    content: str | None,
+    tool_calls: list[ChatCompletionMessageToolCall],
+    reasoning_content: str | None = None,
+) -> ChatCompletionAssistantMessageParam:
+    """Build an assistant message dict.
+
+    Includes reasoning_content for DeepSeek compatibility.
+    """
+    msg: ChatCompletionAssistantMessageParam = {
+        "role": "assistant",
+        "content": content,
+    }
+    if reasoning_content is not None:
+        msg["reasoning_content"] = reasoning_content  # pyright: ignore[reportGeneralTypeIssues]
+    if tool_calls:
+        msg["tool_calls"] = [
+            {
+                "id": tc.id,
+                "type": "function",
+                "function": {
+                    "name": tc.function.name,
+                    "arguments": tc.function.arguments,
+                },
+            }
+            for tc in tool_calls
+        ]
+    return msg
 
 
 def _backoff(attempt: int, max_seconds: float) -> float:

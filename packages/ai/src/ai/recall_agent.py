@@ -7,17 +7,13 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from openai.types.chat import (
-        ChatCompletionAssistantMessageParam,
         ChatCompletionFunctionToolParam,
         ChatCompletionMessageParam,
     )
 
-from openai.types.chat import (
-    ChatCompletionMessageToolCall,
-)
 
 from .constants import MODEL, REASONING_EFFORT
-from .llm import call_llm
+from .llm import build_assistant_message, call_llm, parse_llm_response
 
 logger = logging.getLogger(__name__)
 
@@ -70,29 +66,6 @@ def _execute_recall(query_json: str) -> str:
     return result.stdout
 
 
-def build_assistant_message(
-    content: str | None,
-    tool_calls: list[ChatCompletionMessageToolCall],
-) -> ChatCompletionAssistantMessageParam:
-    msg: ChatCompletionAssistantMessageParam = {
-        "role": "assistant",
-        "content": content,
-    }
-    if tool_calls:
-        msg["tool_calls"] = [
-            {
-                "id": tc.id,
-                "type": "function",
-                "function": {
-                    "name": tc.function.name,
-                    "arguments": tc.function.arguments,
-                },
-            }
-            for tc in tool_calls
-        ]
-    return msg
-
-
 def run_recall_agent(
     game_state_json: str,
     model: str = MODEL,
@@ -129,21 +102,18 @@ def run_recall_agent(
             reasoning_effort,
             caller="recall",
         )
-        choice = response.choices[0]
-        msg = choice.message
+        parsed = parse_llm_response(response)
 
-        raw_tool_calls = [
-            tc
-            for tc in (msg.tool_calls or [])
-            if isinstance(tc, ChatCompletionMessageToolCall)
-        ]
+        messages.append(
+            build_assistant_message(
+                parsed.content, parsed.tool_calls, parsed.reasoning_content
+            )
+        )
 
-        messages.append(build_assistant_message(msg.content, raw_tool_calls))
+        if not parsed.tool_calls:
+            return parsed.content or ""
 
-        if not raw_tool_calls:
-            return msg.content or ""
-
-        for tc in raw_tool_calls:
+        for tc in parsed.tool_calls:
             fn_args = json.loads(tc.function.arguments)
             query = fn_args.get("query", "")
             logger.info(

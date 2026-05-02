@@ -9,9 +9,6 @@ if TYPE_CHECKING:
         ChatCompletionMessageParam,
     )
 
-from openai.types.chat import (
-    ChatCompletionMessageToolCall,
-)
 
 from .constants import (
     MAX_MESSAGES_CHARS,
@@ -22,14 +19,14 @@ from .constants import (
     SYSTEM_PROMPT,
     TOOLS,
 )
-from .llm import call_llm
+from .llm import build_assistant_message, call_llm, parse_llm_response
 from .log import (
     dump_messages,
     init_ai_logger,
     init_reasoning_logger,
     init_run_logger,
 )
-from .recall_agent import build_assistant_message, run_recall_agent
+from .recall_agent import run_recall_agent
 from .retain_agent import run_retain_agent
 
 logger = logging.getLogger(__name__)
@@ -332,43 +329,38 @@ def _run_agent() -> None:
             time.sleep(RETRY_DELAY)
             continue
 
-        choice = response.choices[0]
-        msg = choice.message
-        raw_tool_calls = [
-            tc
-            for tc in (msg.tool_calls or [])
-            if isinstance(tc, ChatCompletionMessageToolCall)
-        ]
-        tool_names: list[str] = [tc.function.name for tc in raw_tool_calls]
-        reasoning = str(getattr(msg, "reasoning_content", ""))
+        parsed = parse_llm_response(response)
+        tool_names: list[str] = [tc.function.name for tc in parsed.tool_calls]
         logger.debug(
             "llm response",
             extra={
                 "event": "llm_response",
-                "has_tool_calls": bool(msg.tool_calls),
+                "has_tool_calls": bool(parsed.tool_calls),
                 "tool_names": tool_names,
-                "content_preview": str(msg.content or "")[:200],
+                "content_preview": str(parsed.content or "")[:200],
                 "duration_ms": duration_ms,
-                "reasoning_length": len(reasoning),
+                "reasoning_length": len(parsed.reasoning_content),
             },
         )
 
-        if reasoning:
+        if parsed.reasoning_content:
             reasoning_logger.debug(
                 "reasoning",
                 extra={
                     "event": "reasoning",
-                    "reasoning_content": reasoning,
+                    "reasoning_content": parsed.reasoning_content,
                     "message_count": len(messages),
                     "duration_ms": duration_ms,
                 },
             )
 
-        msg_dict = build_assistant_message(msg.content, raw_tool_calls)
-        messages.append(msg_dict)
+        assistant_msg = build_assistant_message(
+            parsed.content, parsed.tool_calls, parsed.reasoning_content
+        )
+        messages.append(assistant_msg)
 
-        if raw_tool_calls:
-            for tool_call in raw_tool_calls:
+        if parsed.tool_calls:
+            for tool_call in parsed.tool_calls:
                 fn_name: str = tool_call.function.name
                 fn_args = json.loads(tool_call.function.arguments)
                 logger.info(
@@ -406,7 +398,7 @@ def _run_agent() -> None:
                 extra={
                     "event": "warning",
                     "warning_type": "no_tool_call",
-                    "content_preview": str(msg.content or "")[:200],
+                    "content_preview": str(parsed.content or "")[:200],
                 },
             )
             messages.append(
