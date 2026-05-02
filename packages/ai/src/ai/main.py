@@ -1,18 +1,17 @@
-import contextlib
 import json
 import logging
 import subprocess
 import time
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from openai.types.chat import (
-        ChatCompletionAssistantMessageParam,
         ChatCompletionMessageParam,
-        ChatCompletionMessageToolCall,
     )
-else:
-    from openai.types.chat import ChatCompletionMessageToolCall
+
+from openai.types.chat import (
+    ChatCompletionMessageToolCall,
+)
 
 from .constants import (
     MAX_MESSAGES_CHARS,
@@ -31,6 +30,7 @@ from .log import (
     init_reasoning_logger,
     init_run_logger,
 )
+from .recall_agent import build_assistant_message, run_recall_agent
 
 logger = logging.getLogger(__name__)
 run_logger = logging.getLogger("run")
@@ -117,48 +117,13 @@ def _tool_result_summary(name: str, result: str) -> dict[str, Any]:
     return summary
 
 
-def auto_recall(state: dict[str, Any], last_query: str = "") -> str:
-    """Build a recall query from current game state.
-    Returns empty string if query is same as last_query.
-    """
-    parts: list[str] = []
-    game_state = state.get("game_state")
-    if game_state:
-        cls = game_state.get("class", "")
-        if cls:
-            parts.append(cls)
-        room = game_state.get("room_type", "")
-        if room:
-            parts.append(f"room={room}")
-        act = game_state.get("act")
-        if act is not None:
-            parts.append(f"act={act}")
-        screen = game_state.get("screen_type", "")
-        if screen:
-            parts.append(f"screen={screen}")
-        combat = game_state.get("combat_state")
-        if combat:
-            monsters = combat.get("monsters", [])
-            names = [m.get("name", "") for m in monsters[:3] if m.get("name")]
-            if names:
-                parts.append(f"monsters={','.join(names)}")
-    query = " ".join(parts) if parts else "slay the spire general"
-    if query == last_query:
-        logger.debug("auto recall skipped (same query)")
-        return ""
-    logger.info("auto recall", extra={"event": "auto_recall", "query": query})
-    return game_cli("recall", query)
-
-
-def execute_tool(  # noqa: PLR0911
+def execute_tool(
     name: str,
     arguments: dict[str, Any],
     game_state: dict[str, Any] | None = None,
 ) -> str:
     if name == "send_command":
         return game_cli("command", arguments["command"])
-    if name == "recall":
-        return game_cli("recall", arguments["query"])
     if name == "retain":
         doc_id = _build_document_id(game_state)
         if doc_id:
@@ -166,10 +131,6 @@ def execute_tool(  # noqa: PLR0911
         return game_cli("retain", arguments["content"])
     if name == "deck":
         return game_cli("deck")
-    if name == "relics":
-        return game_cli("relics")
-    if name == "potions":
-        return game_cli("potions")
     if name == "map":
         return game_cli("map")
     return f"error: unknown tool {name}"
@@ -227,13 +188,10 @@ def _handle_send_command(
     result: str,
     fn_args: dict[str, Any],
     messages: list[ChatCompletionMessageParam],
-    last_game_state: dict[str, Any] | None,
-    last_auto_query: str,
-) -> tuple[dict[str, Any] | None, str, dict[str, Any] | None]:
+) -> dict[str, Any] | None:
     """Handle the result of a send_command tool call.
-    Updates game state, runs auto_recall, builds next user message.
-    Returns (updated_last_game_state, updated_last_auto_query, recall_result).
-    recall_result is the parsed auto_recall JSON, or None if skipped.
+    Updates game state, runs recall agent, builds next user message.
+    Returns updated last_game_state, or None on parse error.
     """
     try:
         new_state = json.loads(result)
@@ -244,27 +202,11 @@ def _handle_send_command(
                 extra={"event": "run_end", "state": _state_summary(result)},
             )
             run_logger.info(result)
-        auto_recall_result = auto_recall(new_state, last_auto_query)
-        recall_parsed: dict[str, Any] | None = None
-        content = f"State after your last command:\n```json\n{result}\n```"
-        if auto_recall_result:
-            last_auto_query = auto_recall_result
-            try:
-                recall_parsed = cast("dict[str, Any]", json.loads(auto_recall_result))
-                results: list[dict[str, Any]] = recall_parsed.get("results", [])
-                logger.info(
-                    "auto recall result",
-                    extra={
-                        "event": "auto_recall_result",
-                        "result_count": len(results),
-                        "types": list(
-                            {r.get("type") for r in results if r.get("type")},
-                        ),
-                    },
-                )
-            except json.JSONDecodeError:
-                pass
-            content += f"\n\nRelevant memories:\n```json\n{auto_recall_result}\n```"
+        analysis = run_recall_agent(result)
+        content = (
+            f"State after your last command:\n```json\n{result}\n```\n"
+            f"Recall Analysis:\n{analysis}"
+        )
         command = fn_args.get("command", "").strip().upper()
         if command == "END":
             content += TURN_ENDED_PROMPT
@@ -284,27 +226,22 @@ def _handle_send_command(
         messages.append(
             {"role": "user", "content": f"Command result:\n```json\n{result}\n```"}
         )
-        return last_game_state, last_auto_query, None
+        return None
     else:
-        return new_state, last_auto_query, recall_parsed
+        return new_state
 
 
-def _run_agent() -> None:  # noqa: PLR0915
+def _run_agent() -> None:
     """Main agent loop."""
     messages: list[ChatCompletionMessageParam] = [
         {"role": "system", "content": SYSTEM_PROMPT},
     ]
 
     initial = game_cli("command", "state")
-    auto_recall_result = auto_recall(json.loads(initial))
-    last_auto_query = ""
-    last_recall_result: dict[str, Any] | None = None
-    content = f"Current game state:\n```json\n{initial}\n```"
-    if auto_recall_result:
-        last_auto_query = auto_recall_result
-        with contextlib.suppress(json.JSONDecodeError):
-            last_recall_result = json.loads(auto_recall_result)
-        content += f"\n\nRelevant memories:\n```json\n{auto_recall_result}\n```"
+    analysis = run_recall_agent(initial)
+    content = (
+        f"Current game state:\n```json\n{initial}\n```\n\nRecall Analysis:\n{analysis}"
+    )
     messages.append(
         {
             "role": "user",
@@ -378,29 +315,13 @@ def _run_agent() -> None:  # noqa: PLR0915
                 "reasoning",
                 extra={
                     "event": "reasoning",
-                    "recall_result": last_recall_result,
                     "reasoning_content": reasoning,
                     "message_count": len(messages),
                     "duration_ms": duration_ms,
                 },
             )
 
-        msg_dict: ChatCompletionAssistantMessageParam = {
-            "role": "assistant",
-            "content": msg.content,
-        }
-        if raw_tool_calls:
-            msg_dict["tool_calls"] = [
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments,
-                    },
-                }
-                for tc in raw_tool_calls
-            ]
+        msg_dict = build_assistant_message(msg.content, raw_tool_calls)
         messages.append(msg_dict)
 
         if raw_tool_calls:
@@ -430,17 +351,11 @@ def _run_agent() -> None:  # noqa: PLR0915
                 )
 
                 if fn_name == "send_command":
-                    last_game_state, last_auto_query, recall_result = (
-                        _handle_send_command(
-                            result,
-                            fn_args,
-                            messages,
-                            last_game_state,
-                            last_auto_query,
-                        )
+                    last_game_state = _handle_send_command(
+                        result,
+                        fn_args,
+                        messages,
                     )
-                    if recall_result is not None:
-                        last_recall_result = recall_result
         else:
             logger.warning(
                 "no tool call",

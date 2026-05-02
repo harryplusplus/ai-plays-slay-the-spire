@@ -63,7 +63,6 @@ State awareness:
 
 Guidelines:
 - After each state update, analyze carefully before acting.
-- Use recall proactively before important decisions.
 - You MUST retain when a meaningful event concludes: after
   ending your turn (END), after finishing a combat, after making
   an event or shop choice, or after acquiring a card/relic/potion.
@@ -92,23 +91,6 @@ TOOLS: list[ChatCompletionToolUnionParam] = [
                     },
                 },
                 "required": ["command"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "recall",
-            "description": "Search memory for relevant game knowledge.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Search query",
-                    },
-                },
-                "required": ["query"],
             },
         },
     },
@@ -146,22 +128,6 @@ TOOLS: list[ChatCompletionToolUnionParam] = [
         "function": {
             "name": "deck",
             "description": "Show the current deck.",
-            "parameters": {"type": "object", "properties": {}},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "relics",
-            "description": "Show the current relics.",
-            "parameters": {"type": "object", "properties": {}},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "potions",
-            "description": "Show the current potions.",
             "parameters": {"type": "object", "properties": {}},
         },
     },
