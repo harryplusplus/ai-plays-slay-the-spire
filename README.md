@@ -39,6 +39,7 @@ Harry는 코드를 직접 쓰지 않습니다. AI 에이전트(Pi)와 협업합�
 - **retain이 전투 설명에 치우침** — 이벤트, 상점, 경로 선택 같은 전략적 결정 기록 부족.
 - **reasoning은 recall보다 game state에 의존** — LLM이 state JSON을 직접 보고 판단.
 - **state 필터링이 relics/potions를 숨김** — `filter_game_state`가 매 응답에서 유물/포션 정보를 제거. AI가 유물 시너지, 포션 사용을 전혀 고려하지 못함. (2026-05-02 수정 완료)
+- **draw_pile/discard_pile 데이터는 있었지만 AI가 활용 못 함** — combat_state에 포함되어 있었으나 시스템 프롬프트에 안내가 없어 AI가 다음 드로우 예측이나 recursion 전략을 세우지 못함. (2026-05-02 수정 완료)
 
 ### 진행 중
 - 더 많은 런으로 뱅크 확장 중

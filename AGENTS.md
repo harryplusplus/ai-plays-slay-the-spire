@@ -23,6 +23,7 @@ deepseek-v4-pro-precision(crof.ai)이 CommunicationMod로 Slay the Spire를 자�
 - [x] retain_async=True 타임아웃 해결
 - [x] Python SDK 전환, JSONL 로깅
 - [x] **State 필터링 수정**: relics, potions가 state에서 제거되고 있어 AI가 인지 못 함 → `NOISE_KEYS`에서 제거, 시스템 프롬프트에 안내 추가
+- [x] **draw_pile/discard_pile awareness**: 데이터는 combat_state에 있었지만 AI가 활용하도록 프롬프트에 안내 추가
 
 ## 발견한 것들
 
@@ -43,6 +44,15 @@ deepseek-v4-pro-precision(crof.ai)이 CommunicationMod로 Slay the Spire를 자�
 해결: `relics`, `potions`를 `NOISE_KEYS`에서 제거. `deck`은 combat_state로 카드 정보가
 이미 오니까 유지, `map`은 크니까 필요 시 전용 툴로. 시스템 프롬프트에
 "State awareness" 섹션 추가.
+
+### draw_pile/discard_pile은 데이터는 있었지만 프롬프트가 없었다
+combat_state에 `draw_pile`, `discard_pile`, `exhaust_pile`이 포함되어 있었지만
+시스템 프롬프트가 AI에게 이 정보를 활용하라고 안내하지 않음.
+relics/potions와 달리 필터링되진 않았지만, AI가 draw_pile로 다음 드로우를
+예측하거나 discard_pile로 Headbutt 등 recursion 대상을 확인하는 전략을
+스스로 하진 못했음.
+
+해결: 시스템 프롬프트 "State awareness"에 draw_pile/discard_pile 확인 안내 추가.
 
 ### reasoning은 recall보다 game state에 의존한다
 reasoning 내용 분석 결과, recall 개념이 reasoning에 등장해도 그건 현재 덱에 있는 카드 이름일 뿐.
