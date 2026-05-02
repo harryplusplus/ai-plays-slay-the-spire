@@ -172,6 +172,10 @@ def _detect_trigger(
 ) -> str | None:
     """Detect what kind of retain-worthy event just occurred."""
     if new_state.get("in_game") is False:
+        logger.info(
+            "run_end detected",
+            extra={"event": "retain_trigger", "trigger": "run_end"},
+        )
         return "run_end"
     if prev_state is None:
         return None
@@ -180,7 +184,24 @@ def _detect_trigger(
     new_screen = new_state.get("game_state", {}).get("screen_type", "")
     prev_room = prev_state.get("game_state", {}).get("room_type", "")
     new_room = new_state.get("game_state", {}).get("room_type", "")
+
+    logger.debug(
+        "screen_transition",
+        extra={
+            "event": "screen_transition",
+            "prev_screen": prev_screen,
+            "new_screen": new_screen,
+            "prev_room": prev_room,
+            "new_room": new_room,
+            "floor": new_state.get("game_state", {}).get("floor"),
+        },
+    )
+
     if new_screen == prev_screen and new_room == prev_room:
+        logger.debug(
+            "no screen change",
+            extra={"event": "screen_transition", "reason": "no_change"},
+        )
         return None
 
     transitions: dict[str, str] = {
@@ -192,10 +213,42 @@ def _detect_trigger(
         "CARD_REWARD": "card_pick",
     }
     if prev_screen in transitions:
-        return transitions[prev_screen]
+        trigger = transitions[prev_screen]
+        logger.info(
+            "trigger detected",
+            extra={
+                "event": "retain_trigger",
+                "trigger": trigger,
+                "matched_by": "transition_map",
+                "prev_screen": prev_screen,
+                "new_screen": new_screen,
+            },
+        )
+        return trigger
     if prev_screen in ("NONE", "HAND_SELECT") and new_screen == "COMBAT_REWARD":
+        logger.info(
+            "trigger detected",
+            extra={
+                "event": "retain_trigger",
+                "trigger": "combat_end",
+                "matched_by": "combat_end_transition",
+                "prev_screen": prev_screen,
+                "new_screen": new_screen,
+            },
+        )
         return "combat_end"
 
+    logger.debug(
+        "no trigger matched",
+        extra={
+            "event": "screen_transition",
+            "reason": "unmatched",
+            "prev_screen": prev_screen,
+            "new_screen": new_screen,
+            "prev_room": prev_room,
+            "new_room": new_room,
+        },
+    )
     return None
 
 
@@ -353,7 +406,17 @@ def _run_agent() -> None:  # noqa: PLR0915
                         game_cli("retain", retain_content)
                     logger.info(
                         "retain agent",
-                        extra={"event": "retain_agent", "trigger": trigger},
+                        extra={
+                            "event": "retain_agent",
+                            "trigger": trigger,
+                            "prev_screen": current_state.get("game_state", {}).get(
+                                "screen_type"
+                            ),
+                            "new_screen": new_state.get("game_state", {}).get(
+                                "screen_type"
+                            ),
+                            "floor": new_state.get("game_state", {}).get("floor"),
+                        },
                     )
 
                 current_state = new_state
