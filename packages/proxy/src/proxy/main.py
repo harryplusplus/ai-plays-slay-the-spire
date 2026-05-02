@@ -30,9 +30,7 @@ COMMAND_TIMEOUT = 30.0
 
 SQL_ENSURE_ROW = "INSERT OR IGNORE INTO command_id_counter (rowid) VALUES (1)"
 SQL_NEXT = (
-    "UPDATE command_id_counter "
-    "SET command_id = command_id + 1 "
-    "RETURNING command_id"
+    "UPDATE command_id_counter SET command_id = command_id + 1 RETURNING command_id"
 )
 
 

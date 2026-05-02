@@ -250,7 +250,7 @@ def _handle_send_command(
             run_logger.info(result)
         auto_recall_result = auto_recall(new_state, last_auto_query)
         recall_parsed: dict[str, Any] | None = None
-        content = f"State after your last command:\n{result}"
+        content = f"State after your last command:\n```json\n{result}\n```"
         if auto_recall_result:
             last_auto_query = auto_recall_result
             try:
@@ -268,7 +268,7 @@ def _handle_send_command(
                 )
             except json.JSONDecodeError:
                 pass
-            content += f"\n\nRelevant memories:\n{auto_recall_result}"
+            content += f"\n\nRelevant memories:\n```json\n{auto_recall_result}\n```"
         command = fn_args.get("command", "").strip().upper()
         if command == "END":
             content += TURN_ENDED_PROMPT
@@ -285,7 +285,9 @@ def _handle_send_command(
             "json decode error",
             extra={"event": "error", "error_type": "json_decode"},
         )
-        messages.append({"role": "user", "content": f"Command result:\n{result}"})
+        messages.append(
+            {"role": "user", "content": f"Command result:\n```json\n{result}\n```"}
+        )
         return last_game_state, last_auto_query, None
     else:
         return new_state, last_auto_query, recall_parsed
@@ -311,12 +313,12 @@ def _run_agent() -> None:  # noqa: PLR0915, PLR0912, C901
     auto_recall_result = auto_recall(json.loads(initial))
     last_auto_query = ""
     last_recall_result: dict[str, Any] | None = None
-    content = f"Current game state:\n{initial}"
+    content = f"Current game state:\n```json\n{initial}\n```"
     if auto_recall_result:
         last_auto_query = auto_recall_result
         with contextlib.suppress(json.JSONDecodeError):
             last_recall_result = json.loads(auto_recall_result)
-        content += f"\n\nRelevant memories:\n{auto_recall_result}"
+        content += f"\n\nRelevant memories:\n```json\n{auto_recall_result}\n```"
     messages.append(
         {
             "role": "user",
