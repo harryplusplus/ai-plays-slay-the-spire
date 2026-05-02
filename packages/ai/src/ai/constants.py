@@ -54,6 +54,8 @@ Game commands (case insensitive):
 
 State awareness:
 - The game state includes your relics and potions. Check them every turn.
+- In combat, check draw_pile and discard_pile to anticipate upcoming draws
+  and know what's available for recursion (e.g., Headbutt, Hologram).
 - Use the deck tool to see your full deck when planning builds.
 - Use the map tool at path choice screens to plan your route.
 
