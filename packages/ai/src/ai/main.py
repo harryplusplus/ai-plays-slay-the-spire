@@ -13,10 +13,10 @@ if TYPE_CHECKING:
 from .constants import (
     MAX_MESSAGES_CHARS,
     MODEL,
+    PLAY_SYSTEM_PROMPT,
     REASONING_EFFORT,
     RETRY_DELAY,
     RUN_ENDED_PROMPT,
-    SYSTEM_PROMPT,
     TOOLS,
 )
 from .llm import build_assistant_message, call_llm, parse_llm_response
@@ -120,10 +120,6 @@ def execute_tool(
 ) -> str:
     if name == "send_command":
         return game_cli("command", arguments["command"])
-    if name == "deck":
-        return game_cli("deck")
-    if name == "map":
-        return game_cli("map")
     return f"error: unknown tool {name}"
 
 
@@ -149,17 +145,16 @@ def trim_messages(messages: list[ChatCompletionMessageParam]) -> None:
         if total <= MAX_MESSAGES_CHARS or len(messages) <= 1:
             break
 
-        start = 1  # skip system message
-        end = start
+        end = 1
         while end < len(messages):
-            if messages[end].get("role") == "user" and end > start:
+            if messages[end].get("role") == "user" and end > 1:
                 break
             end += 1
 
-        if end <= start:
+        if end <= 1:
             break
 
-        removed = messages[start:end]
+        removed = messages[:end]
         logger.info(
             "message trim",
             extra={
@@ -168,7 +163,7 @@ def trim_messages(messages: list[ChatCompletionMessageParam]) -> None:
                 "dropped_roles": [m.get("role") for m in removed],
             },
         )
-        del messages[start:end]
+        del messages[:end]
 
 
 def _detect_trigger(  # noqa: PLR0911
@@ -210,9 +205,7 @@ def _build_user_message(state_json: str, recall_analysis: str) -> str:
 
 def _run_agent() -> None:  # noqa: PLR0915
     """Main agent loop."""
-    messages: list[ChatCompletionMessageParam] = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-    ]
+    messages: list[ChatCompletionMessageParam] = []
 
     current_state_json = game_cli("command", "state")
     current_state = json.loads(current_state_json)
@@ -221,25 +214,27 @@ def _run_agent() -> None:  # noqa: PLR0915
         trim_messages(messages)
 
         # 1. Recall
-        recall_analysis = run_recall_agent(current_state_json)
+        recall_analysis = run_recall_agent(messages, current_state_json)
 
-        # 2. Build user message with state + recall analysis
-        messages.append(
+        # 2. Build play prompt with system prompt + history + state
+        play_messages: list[ChatCompletionMessageParam] = [
+            {"role": "system", "content": PLAY_SYSTEM_PROMPT},
+            *messages,
             {
                 "role": "user",
                 "content": _build_user_message(current_state_json, recall_analysis),
-            }
-        )
+            },
+        ]
 
         # 3. Play
         logger.debug(
             "llm call",
-            extra={"event": "call_llm", "message_count": len(messages)},
+            extra={"event": "call_llm", "message_count": len(play_messages)},
         )
         start_time = time.monotonic()
-        dump_messages(messages)
+        dump_messages(play_messages)
         response = call_llm(
-            messages,
+            play_messages,
             TOOLS,
             MODEL,
             REASONING_EFFORT,

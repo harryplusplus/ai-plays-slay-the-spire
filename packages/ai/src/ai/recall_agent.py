@@ -67,7 +67,8 @@ def _execute_recall(query_json: str) -> str:
 
 
 def run_recall_agent(
-    game_state_json: str,
+    messages: list[ChatCompletionMessageParam],
+    current_state_json: str,
     model: str = MODEL,
     reasoning_effort: str = REASONING_EFFORT,
     max_turns: int = 3,
@@ -75,7 +76,8 @@ def run_recall_agent(
     """Run a mini agent loop with only the recall tool.
 
     Args:
-        game_state_json: Raw JSON game state to analyze.
+        messages: Conversation history (user/assistant/tool only).
+        current_state_json: Raw JSON game state to analyze.
         model: LLM model name.
         reasoning_effort: Reasoning effort level.
         max_turns: Maximum recall calls before forcing output.
@@ -83,12 +85,13 @@ def run_recall_agent(
     Returns:
         Analysis text.
     """
-    messages: list[ChatCompletionMessageParam] = [
+    prompt: list[ChatCompletionMessageParam] = [
         {"role": "system", "content": RECALL_AGENT_PROMPT},
+        *messages,
         {
             "role": "user",
             "content": (
-                f"Game state:\n```json\n{game_state_json}\n```\n\n"
+                f"Game state:\n```json\n{current_state_json}\n```\n\n"
                 "Analyze this state and recall relevant memories."
             ),
         },
@@ -96,7 +99,7 @@ def run_recall_agent(
 
     for _ in range(max_turns):
         response = call_llm(
-            messages,
+            prompt,
             [RECALL_TOOL],
             model,
             reasoning_effort,
@@ -104,7 +107,7 @@ def run_recall_agent(
         )
         parsed = parse_llm_response(response)
 
-        messages.append(build_assistant_message(parsed.content, parsed.tool_calls))
+        prompt.append(build_assistant_message(parsed.content, parsed.tool_calls))
 
         if not parsed.tool_calls:
             return parsed.content or ""
@@ -117,7 +120,7 @@ def run_recall_agent(
                 extra={"event": "recall_agent_query", "query": query},
             )
             result = _execute_recall(query)
-            messages.append(
+            prompt.append(
                 {
                     "role": "tool",
                     "tool_call_id": tc.id,
@@ -126,6 +129,6 @@ def run_recall_agent(
             )
 
     # Max turns reached — force final analysis without tools
-    response = call_llm(messages, [], model, reasoning_effort, caller="recall")
+    response = call_llm(prompt, [], model, reasoning_effort, caller="recall")
     final = response.choices[0].message
     return final.content or ""

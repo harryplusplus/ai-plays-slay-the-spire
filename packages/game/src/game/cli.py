@@ -73,8 +73,6 @@ PROXY_URL = "http://127.0.0.1:8766/command"
 TIMEOUT = 30.0
 HINDSIGHT_URL = "http://localhost:8888"
 
-NOISE_KEYS = {"deck", "map"}
-
 
 def _create_handler(path: Path) -> RotatingFileHandler:
     handler = RotatingFileHandler(
@@ -107,15 +105,6 @@ def send_command(cmd: str) -> dict[str, Any]:
     return response.json()
 
 
-def filter_game_state(data: dict[str, Any]) -> dict[str, Any]:
-    game_state = data.get("game_state")
-    if game_state is None:
-        return data
-    for key in NOISE_KEYS:
-        game_state.pop(key, None)
-    return data
-
-
 def extract_game_state_field(data: dict[str, Any], key: str) -> Any:  # noqa: ANN401
     game_state = data.get("game_state", {})
     return game_state.get(key)
@@ -126,7 +115,6 @@ def command(cmd: str) -> None:
     """Send a raw command to the game."""
     logger.info("command executed", extra={"event": "command", "cmd": cmd})
     result = send_command(cmd)
-    result = filter_game_state(result)
     typer.echo(json.dumps(result, indent=2))
 
 

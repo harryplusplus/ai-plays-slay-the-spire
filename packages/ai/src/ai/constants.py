@@ -19,7 +19,7 @@ LLM_DUMP_DIR = Path.home() / ".sts" / "logs" / "llm_dump"
 MAX_DUMPS = 10
 REASONING_LOG = Path.home() / ".sts" / "logs" / "reasoning.jsonl"
 
-SYSTEM_PROMPT = """\
+PLAY_SYSTEM_PROMPT = """\
 You are an AI playing Slay the Spire.
 
 Game commands (case insensitive):
@@ -55,11 +55,10 @@ Game commands (case insensitive):
   Get current state immediately. Always available.
 
 State awareness:
-- The game state includes your relics and potions. Check them every turn.
+- The game state includes your full deck, relics, potions, and map.
+  Check them every turn.
 - In combat, check draw_pile and discard_pile to anticipate upcoming draws
   and know what's available for recursion (e.g., Headbutt, Hologram).
-- Use the deck tool to see your full deck when planning builds.
-- Use the map tool at path choice screens to plan your route.
 
 Guidelines:
 - After each state update, analyze carefully before acting.
@@ -82,22 +81,6 @@ TOOLS: list[ChatCompletionToolUnionParam] = [
                 },
                 "required": ["command"],
             },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "deck",
-            "description": "Show the current deck.",
-            "parameters": {"type": "object", "properties": {}},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "map",
-            "description": "Show the current map.",
-            "parameters": {"type": "object", "properties": {}},
         },
     },
 ]
