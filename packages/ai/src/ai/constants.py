@@ -63,16 +63,6 @@ State awareness:
 
 Guidelines:
 - After each state update, analyze carefully before acting.
-- You MUST retain when a meaningful event concludes: after
-  ending your turn (END), after finishing a combat, after making
-  an event or shop choice, or after acquiring a card/relic/potion.
-  Do NOT retain after individual card plays, potion uses, or
-  STATE commands.
-- When retaining, focus on strategic decisions, lessons learned,
-  and new patterns discovered. Do NOT list raw state changes
-  like HP, energy, or block numbers.
-- When a run ends (in_game=false), retain the outcome summary \
-  then start a new game.
 - Be decisive. Don't ask for clarification.
 - Prefer safe plays when uncertain."""
 
@@ -97,35 +87,6 @@ TOOLS: list[ChatCompletionToolUnionParam] = [
     {
         "type": "function",
         "function": {
-            "name": "retain",
-            "description": (
-                "Store a strategic lesson or key decision. "
-                "Only after turn end, combat end, event/shop choice, "
-                "or card/relic acquisition. "
-                "NEVER after individual card plays or STATE. "
-                "Describe WHY and WHAT was learned, not raw numbers."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "content": {
-                        "type": "string",
-                        "description": (
-                            "Strategic lesson or decision rationale. "
-                            "Focus: build direction, enemy patterns, "
-                            "card synergies, why a choice was made, "
-                            "what to remember later. "
-                            "Avoid HP/energy/block or play-by-play."
-                        ),
-                    },
-                },
-                "required": ["content"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "deck",
             "description": "Show the current deck.",
             "parameters": {"type": "object", "properties": {}},
@@ -141,21 +102,4 @@ TOOLS: list[ChatCompletionToolUnionParam] = [
     },
 ]
 
-RUN_ENDED_PROMPT = (
-    "The run has ended (in_game=false). "
-    "Check if you defeated the Heart "
-    "or died. retain a summary of "
-    "this run's outcome, then start "
-    "a new game."
-)
-
-TURN_ENDED_PROMPT = (
-    "\n\nYou have ended your turn. "
-    "You MUST call retain NOW with a strategic summary. "
-    "Format:\n"
-    "- Situation: [enemy/room and key patterns]\n"
-    "- Decision: [what you did and why]\n"
-    "- Outcome: [what worked, 1-2 sentences]\n"
-    "- Lesson: [remember for next time]\n"
-    "NEVER include raw HP/energy/block numbers."
-)
+RUN_ENDED_PROMPT = "The run has ended (in_game=false). Start a new game."

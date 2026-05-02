@@ -21,7 +21,6 @@ from .constants import (
     RUN_ENDED_PROMPT,
     SYSTEM_PROMPT,
     TOOLS,
-    TURN_ENDED_PROMPT,
 )
 from .llm import call_llm
 from .log import (
@@ -31,6 +30,7 @@ from .log import (
     init_run_logger,
 )
 from .recall_agent import build_assistant_message, run_recall_agent
+from .retain_agent import run_retain_agent
 
 logger = logging.getLogger(__name__)
 run_logger = logging.getLogger("run")
@@ -120,15 +120,9 @@ def _tool_result_summary(name: str, result: str) -> dict[str, Any]:
 def execute_tool(
     name: str,
     arguments: dict[str, Any],
-    game_state: dict[str, Any] | None = None,
 ) -> str:
     if name == "send_command":
         return game_cli("command", arguments["command"])
-    if name == "retain":
-        doc_id = _build_document_id(game_state)
-        if doc_id:
-            return game_cli("retain", arguments["content"], "--document-id", doc_id)
-        return game_cli("retain", arguments["content"])
     if name == "deck":
         return game_cli("deck")
     if name == "map":
@@ -184,13 +178,47 @@ def trim_messages(messages: list[ChatCompletionMessageParam]) -> None:
         del messages[start:end]
 
 
+def _detect_trigger(  # noqa: PLR0911
+    command: str,
+    prev_state: dict[str, Any] | None,
+    new_state: dict[str, Any],
+) -> str | None:
+    """Detect what kind of retain-worthy event just occurred."""
+    if not new_state.get("in_game", False):
+        return "run_end"
+    if command == "END":
+        return "turn_end"
+    if prev_state is None:
+        return None
+
+    prev_screen = prev_state.get("game_state", {}).get("screen_type", "")
+    new_screen = new_state.get("game_state", {}).get("screen_type", "")
+    if new_screen == prev_screen:
+        return None
+
+    transitions: dict[str, str] = {
+        "EVENT": "event",
+        "SHOP": "shop",
+        "REST": "campfire",
+        "CHEST": "chest",
+        "CARD_REWARD": "card_pick",
+    }
+    if prev_screen in transitions:
+        return transitions[prev_screen]
+    if prev_screen in ("NONE", "HAND_SELECT") and new_screen == "COMBAT_REWARD":
+        return "combat_end"
+
+    return None
+
+
 def _handle_send_command(
     result: str,
     fn_args: dict[str, Any],
     messages: list[ChatCompletionMessageParam],
+    last_game_state: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
     """Handle the result of a send_command tool call.
-    Updates game state, runs recall agent, builds next user message.
+    Updates game state, runs recall agent, detects retain triggers.
     Returns updated last_game_state, or None on parse error.
     """
     try:
@@ -207,9 +235,6 @@ def _handle_send_command(
             f"State after your last command:\n```json\n{result}\n```\n"
             f"Recall Analysis:\n{analysis}"
         )
-        command = fn_args.get("command", "").strip().upper()
-        if command == "END":
-            content += TURN_ENDED_PROMPT
         messages.append({"role": "user", "content": content})
         if not in_game:
             messages.append(
@@ -217,6 +242,23 @@ def _handle_send_command(
                     "role": "user",
                     "content": RUN_ENDED_PROMPT,
                 },
+            )
+
+        trigger = _detect_trigger(
+            fn_args.get("command", "").strip().upper(),
+            last_game_state,
+            new_state,
+        )
+        if trigger:
+            retain_content = run_retain_agent(messages, trigger)
+            doc_id = _build_document_id(new_state)
+            if doc_id:
+                game_cli("retain", retain_content, "--document-id", doc_id)
+            else:
+                game_cli("retain", retain_content)
+            logger.info(
+                "retain agent",
+                extra={"event": "retain_agent", "trigger": trigger},
             )
     except json.JSONDecodeError:
         logger.exception(
@@ -333,7 +375,7 @@ def _run_agent() -> None:
                     extra={"event": "tool_call", "tool": fn_name, "arguments": fn_args},
                 )
 
-                result = execute_tool(fn_name, fn_args, last_game_state)
+                result = execute_tool(fn_name, fn_args)
                 logger.info(
                     "tool result",
                     extra={
@@ -355,6 +397,7 @@ def _run_agent() -> None:
                         result,
                         fn_args,
                         messages,
+                        last_game_state,
                     )
         else:
             logger.warning(
