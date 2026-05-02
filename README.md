@@ -30,7 +30,7 @@ Harry는 코드를 직접 쓰지 않습니다. AI 에이전트(Pi)와 협업합�
 ## 현재 상태
 
 ### 인프라
-- LLM: crof.ai (reasoning_effort="max")
+- LLM: crof.ai (reasoning_effort="high")
 - 장기기억: Hindsight `sts-v2` 뱅크 (371개 memory units, Python SDK)
 - 로깅: JSONL (ai.jsonl, game.jsonl, reasoning.jsonl) + llm_dump
 
@@ -99,7 +99,7 @@ messages = [
 
 | 파일 | 역할 |
 |------|------|
-| `packages/ai/src/ai/main.py` | 메인 루프, trigger detection, `call_llm` 호출 |
+| `packages/ai/src/ai/main.py` | 메인 루프, trigger detection, recall/retain/play 조율 |
 | `packages/ai/src/ai/llm.py` | `call_llm()` retry + client lifecycle, `parse_llm_response()`, `build_assistant_message()` |
 | `packages/ai/src/ai/recall_agent.py` | `run_recall_agent()`, RecallAgent 프롬프트, recall 툴 |
 | `packages/ai/src/ai/retain_agent.py` | `run_retain_agent()`, RetainAgent 프롬프트, 트리거별 메시지 |

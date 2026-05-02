@@ -109,7 +109,7 @@ while True:
          result = execute_tool(...)
          messages += tool_result
          if send_command: current_state = result
-    ⑤ trigger = detect_trigger(prev_screen, new_screen)
+    ⑤ trigger = _detect_trigger(command, current_state, new_state)
        if trigger: RetainAgent(messages, trigger) → game_cli("retain", ...)
 ```
 
@@ -154,7 +154,7 @@ AI → subprocess game CLI → httpx proxy(8766) → websocket bridge(8765)
 ### recall 파라미터
 - `max_tokens=2048` (28개 결과, 24K JSON)
 - `types=["world", "experience", "observation"]`
-- `budget="mid"` (default)
+- `budget`은 SDK 기본값(`"mid"`) 사용, 명시적으로 넘기지 않음
 
 ### 발견한 버그: CLI/DB 스키마 불일치 (해결됨)
 - DB 마이그레이션(2026-04-02): `opinion` 제거, `observation` 추가
