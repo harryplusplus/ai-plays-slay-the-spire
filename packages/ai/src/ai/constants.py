@@ -8,7 +8,6 @@ OPENAI_BASE_URL = "https://crof.ai/v1"
 OPENAI_API_KEY = os.environ["CROF_API_KEY"]
 MODEL = "deepseek-v4-pro-precision"
 REASONING_EFFORT = "max"
-MAX_OUTPUT = 20_000
 MAX_MESSAGES_CHARS = 500_000
 RETRY_DELAY = 10.0
 MAX_RETRIES = 5

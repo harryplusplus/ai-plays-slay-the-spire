@@ -15,7 +15,6 @@ from openai import (
 
 from .constants import (
     MAX_MESSAGES_CHARS,
-    MAX_OUTPUT,
     MAX_RETRIES,
     MODEL,
     OPENAI_API_KEY,
@@ -53,8 +52,6 @@ def game_cli(*args: str) -> str:
             output += result.stderr
     except subprocess.TimeoutExpired:
         output = "error: command timed out"
-    if len(output) > MAX_OUTPUT:
-        output = output[:MAX_OUTPUT] + f"\n... truncated ({len(output)} chars)"
     return output
 
 

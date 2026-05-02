@@ -167,6 +167,7 @@ def recall(query: str) -> None:
         bank_id=BANK_ID,
         query=query,
         types=["world", "experience", "observation"],
+        max_tokens=2048,
         query_timestamp=datetime.now(UTC).isoformat(),
     )
     # Convert RecallResponse to JSON
