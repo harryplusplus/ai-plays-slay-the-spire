@@ -172,7 +172,7 @@ def _detect_trigger(  # noqa: PLR0911
     new_state: dict[str, Any],
 ) -> str | None:
     """Detect what kind of retain-worthy event just occurred."""
-    if not new_state.get("in_game", False):
+    if new_state.get("in_game") is False:
         return "run_end"
     if command == "END":
         return "turn_end"
@@ -332,7 +332,7 @@ def _run_agent() -> None:  # noqa: PLR0915
                 command = fn_args.get("command", "").strip().upper()
                 new_state = json.loads(result)
 
-                if not new_state.get("in_game", False):
+                if new_state.get("in_game") is False:
                     logger.info(
                         "run ended",
                         extra={"event": "run_end", "state": _state_summary(result)},
