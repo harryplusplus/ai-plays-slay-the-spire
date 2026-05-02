@@ -13,7 +13,12 @@ if TYPE_CHECKING:
 
 
 from .constants import MODEL, REASONING_EFFORT
-from .llm import build_assistant_message, call_llm, parse_llm_response
+from .llm import (
+    build_assistant_message,
+    build_multimodal_content,
+    call_llm,
+    parse_llm_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -69,15 +74,17 @@ def _execute_recall(query_json: str) -> str:
 def run_recall_agent(
     messages: list[ChatCompletionMessageParam],
     current_state_json: str,
+    screenshot_b64: str,
     model: str = MODEL,
     reasoning_effort: str = REASONING_EFFORT,
-    max_turns: int = 3,
+    max_turns: int = 2,
 ) -> str:
     """Run a mini agent loop with only the recall tool.
 
     Args:
         messages: Conversation history (user/assistant/tool only).
         current_state_json: Raw JSON game state to analyze.
+        screenshot_b64: Base64-encoded PNG screenshot of the current game screen.
         model: LLM model name.
         reasoning_effort: Reasoning effort level.
         max_turns: Maximum recall calls before forcing output.
@@ -90,9 +97,10 @@ def run_recall_agent(
         *messages,
         {
             "role": "user",
-            "content": (
+            "content": build_multimodal_content(
                 f"Game state:\n```json\n{current_state_json}\n```\n\n"
-                "Analyze this state and recall relevant memories."
+                "Analyze this state and recall relevant memories.",
+                screenshot_b64,
             ),
         },
     ]

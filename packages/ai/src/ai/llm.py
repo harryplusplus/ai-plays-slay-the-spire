@@ -23,7 +23,10 @@ if TYPE_CHECKING:
         ChatCompletionToolUnionParam,
     )
 
-from openai.types.chat import ChatCompletionMessageToolCall
+from openai.types.chat import (
+    ChatCompletionContentPartParam,
+    ChatCompletionMessageToolCall,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +50,19 @@ def parse_llm_response(response: ChatCompletion) -> ParsedResponse:
         ],
         reasoning_content=getattr(msg, "reasoning_content", None),
     )
+
+
+def build_multimodal_content(
+    text: str, screenshot_b64: str
+) -> list[ChatCompletionContentPartParam]:
+    """Build user message content list with text and an image."""
+    return [
+        {"type": "text", "text": text},
+        {
+            "type": "image_url",
+            "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"},
+        },
+    ]
 
 
 def build_assistant_message(
@@ -78,7 +94,7 @@ def _backoff(attempt: int, max_seconds: float) -> float:
     return min(RETRY_DELAY * (2 ** (attempt - 1)), max_seconds)
 
 
-def call_llm(  # noqa: PLR0913
+def call_llm(
     messages: list[ChatCompletionMessageParam],
     tools: list[ChatCompletionToolUnionParam],
     model: str,

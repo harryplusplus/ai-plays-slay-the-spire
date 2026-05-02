@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from openai.types.chat import (
+        ChatCompletionContentPartParam,
         ChatCompletionMessageParam,
     )
 
@@ -19,7 +20,12 @@ from .constants import (
     RUN_ENDED_PROMPT,
     TOOLS,
 )
-from .llm import build_assistant_message, call_llm, parse_llm_response
+from .llm import (
+    build_assistant_message,
+    build_multimodal_content,
+    call_llm,
+    parse_llm_response,
+)
 from .log import (
     dump_messages,
     init_ai_logger,
@@ -28,6 +34,7 @@ from .log import (
 )
 from .recall_agent import run_recall_agent
 from .retain_agent import run_retain_agent
+from .window import capture, find_window
 
 logger = logging.getLogger(__name__)
 run_logger = logging.getLogger("run")
@@ -121,6 +128,23 @@ def execute_tool(
     if name == "send_command":
         return game_cli("command", arguments["command"])
     return f"error: unknown tool {name}"
+
+
+def _capture_screenshot() -> str:
+    """Capture the Slay the Spire window and return base64-encoded PNG.
+
+    Raises on failure — no fallback. Screenshot is mandatory.
+    """
+    window = find_window("Modded Slay the Spire")
+    if window is None:
+        msg = "Slay the Spire window not found"
+        raise RuntimeError(msg)
+    b64 = capture(window["id"])
+    logger.info(
+        "screenshot captured",
+        extra={"event": "screenshot", "window_id": window["id"], "size": len(b64)},
+    )
+    return b64
 
 
 def _build_document_id(state: dict[str, Any]) -> str | None:
@@ -286,8 +310,11 @@ def _detect_trigger(
     return None
 
 
-def _build_user_message(state_json: str, recall_analysis: str) -> str:
-    return f"State:\n```json\n{state_json}\n```\n\nRecall Analysis:\n{recall_analysis}"
+def _build_user_message(
+    state_json: str, recall_analysis: str, screenshot_b64: str
+) -> list[ChatCompletionContentPartParam]:
+    text = f"State:\n```json\n{state_json}\n```\n\nRecall Analysis:\n{recall_analysis}"
+    return build_multimodal_content(text, screenshot_b64)
 
 
 def _run_agent() -> None:  # noqa: PLR0915
@@ -300,20 +327,29 @@ def _run_agent() -> None:  # noqa: PLR0915
     while True:
         trim_messages(messages)
 
-        # 1. Recall
-        recall_analysis = run_recall_agent(messages, current_state_json)
+        # 1. Screenshot (before action — for Recall + Play)
+        screenshot_before = _capture_screenshot()
 
-        # 2. Build play prompt with system prompt + history + state
+        # 2. Recall
+        recall_analysis = run_recall_agent(
+            messages, current_state_json, screenshot_b64=screenshot_before
+        )
+
+        # 3. Build play prompt with system prompt + history + state
         play_messages: list[ChatCompletionMessageParam] = [
             {"role": "system", "content": PLAY_AGENT_PROMPT},
             *messages,
             {
                 "role": "user",
-                "content": _build_user_message(current_state_json, recall_analysis),
+                "content": _build_user_message(
+                    current_state_json,
+                    recall_analysis,
+                    screenshot_b64=screenshot_before,
+                ),
             },
         ]
 
-        # 3. Play
+        # 4. Play
         logger.debug(
             "llm call",
             extra={"event": "call_llm", "message_count": len(play_messages)},
@@ -360,7 +396,7 @@ def _run_agent() -> None:  # noqa: PLR0915
             },
         )
 
-        # 4. Reasoning log
+        # 5. Reasoning log
         if parsed.reasoning_content:
             reasoning_logger.debug(
                 "reasoning",
@@ -373,10 +409,10 @@ def _run_agent() -> None:  # noqa: PLR0915
                 },
             )
 
-        # 5. Assistant message
+        # 6. Assistant message
         messages.append(build_assistant_message(parsed.content, parsed.tool_calls))
 
-        # 6. Execute tools
+        # 7. Execute tools
         if not parsed.tool_calls:
             logger.warning(
                 "no tool call",
@@ -429,10 +465,13 @@ def _run_agent() -> None:  # noqa: PLR0915
                         {"role": "user", "content": RUN_ENDED_PROMPT},
                     )
 
-                # 7. Retain
+                # 8. Retain
                 trigger = _detect_trigger(current_state, new_state)
                 if trigger:
-                    retain_content = run_retain_agent(messages, trigger)
+                    screenshot_after = _capture_screenshot()
+                    retain_content = run_retain_agent(
+                        messages, trigger, screenshot_b64=screenshot_after
+                    )
                     doc_id = _build_document_id(new_state)
                     if doc_id:
                         game_cli("retain", retain_content, "--document-id", doc_id)

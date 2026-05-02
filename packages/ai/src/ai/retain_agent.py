@@ -4,7 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from .constants import MODEL, REASONING_EFFORT
-from .llm import call_llm
+from .llm import build_multimodal_content, call_llm
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessageParam
@@ -67,6 +67,7 @@ TRIGGER_PROMPTS: dict[str, str] = {
 def run_retain_agent(
     messages: list[ChatCompletionMessageParam],
     trigger: str,
+    screenshot_b64: str,
     model: str = MODEL,
     reasoning_effort: str = REASONING_EFFORT,
 ) -> str:
@@ -75,6 +76,7 @@ def run_retain_agent(
     Args:
         messages: Recent conversation history.
         trigger: What triggered the retain (turn_end, combat_end, etc.).
+        screenshot_b64: Base64-encoded PNG screenshot of the result screen.
         model: LLM model name.
         reasoning_effort: Reasoning effort level.
 
@@ -85,7 +87,10 @@ def run_retain_agent(
     prompt: list[ChatCompletionMessageParam] = [
         {"role": "system", "content": RETAIN_AGENT_PROMPT},
         *messages,
-        {"role": "user", "content": trigger_prompt},
+        {
+            "role": "user",
+            "content": build_multimodal_content(trigger_prompt, screenshot_b64),
+        },
     ]
 
     response = call_llm(prompt, [], model, reasoning_effort, caller="retain")
