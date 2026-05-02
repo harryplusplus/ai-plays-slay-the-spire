@@ -32,10 +32,6 @@ Do NOT include:
 Output ONLY the retain content — no preamble, no formatting."""
 
 TRIGGER_PROMPTS: dict[str, str] = {
-    "turn_end": (
-        "The player just ended their turn. Summarize the key strategic "
-        "decision made this turn and any enemy pattern observed."
-    ),
     "combat_end": (
         "A combat just ended. Summarize the overall strategy used, "
         "what worked well, and what could be improved."

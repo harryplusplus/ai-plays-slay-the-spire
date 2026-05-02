@@ -166,16 +166,13 @@ def trim_messages(messages: list[ChatCompletionMessageParam]) -> None:
         del messages[:end]
 
 
-def _detect_trigger(  # noqa: PLR0911
-    command: str,
+def _detect_trigger(
     prev_state: dict[str, Any] | None,
     new_state: dict[str, Any],
 ) -> str | None:
     """Detect what kind of retain-worthy event just occurred."""
     if new_state.get("in_game") is False:
         return "run_end"
-    if command == "END":
-        return "turn_end"
     if prev_state is None:
         return None
 
@@ -333,7 +330,6 @@ def _run_agent() -> None:  # noqa: PLR0915
             )
 
             if fn_name == "send_command":
-                command = fn_args.get("command", "").strip().upper()
                 new_state = json.loads(result)
 
                 if new_state.get("in_game") is False:
@@ -347,7 +343,7 @@ def _run_agent() -> None:  # noqa: PLR0915
                     )
 
                 # 7. Retain
-                trigger = _detect_trigger(command, current_state, new_state)
+                trigger = _detect_trigger(current_state, new_state)
                 if trigger:
                     retain_content = run_retain_agent(messages, trigger)
                     doc_id = _build_document_id(new_state)

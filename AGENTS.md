@@ -107,14 +107,11 @@ transitions 딕셔너리는 GRID를 아예 처리하지 않음.
 수정 시 `prev_screen == "GRID"`를 transitions에 추가하고 room 분기로
 처리할 것. `combat_end`도 GRID 상태에서 전투가 종료될 수 있으니 함께 고려.
 
-#### `turn_end` retain 과다
-매 END 명령어마다 retain 발생. 19개 retain 중 9개(47%)가 `turn_end`.
-`combat_end` retain은 1회만 기록됨. 뱅크에 전투 play-by-play 노이즈가
-쌓이고 있음 (AGENTS.md에도 이미 동일 문제 지적).
-
-- `turn_end` retain을 제한하거나 제거하는 방안 검토.
-- `combat_end` retain quality를 높이는 것이 더 나을 수 있음.
-- 영향: 뱅크 quality 저하, 유의미한 전략 메모리 비중 감소.
+#### `turn_end` retain 제거됨 (2026-05-02)
+`_detect_trigger`에서 `command == "END"` 브랜치 삭제.
+`retain_agent.py` TRIGGER_PROMPTS에서 `"turn_end"` 제거.
+이제 `combat_end`가 모든 전투 종료를 커버.
+이전 통계: retains 33개 중 turn_end 13개(39%) — 전투 play-by-play 노이즈.
 
 #### RecallAgent 병목 (retain보다 우선)
 RecallAgent `max_turns=3`으로 매 루프 2~6회 recall 호출.
@@ -129,13 +126,12 @@ recall loop에 갇혀 SCREEN 전환 자체가 안 되면서 retain도 의미 없
 
 ### 지금
 1. [ ] RecallAgent + RetainAgent 적용 후 런 품질 평가
-2. [ ] `hindsight bank consolidate sts-v2`로 observation 재생성
 
 ### 검토 중
-3. [ ] `turn_end` retain 제한 또는 제거
-    - 문제: 매 END마다 retain → 19개 중 9개(47%). 전투 play-by-play 노이즈.
-    - `combat_end` retain은 1회만 기록됨.
-    - 참고: `_detect_trigger()`에서 `command == "END"` 체크하는 부분.
+3. [x] `turn_end` retain 제거
+    - `_detect_trigger`에서 `command == "END"` 브랜치 삭제.
+    - `retain_agent.py` TRIGGER_PROMPTS에서 `"turn_end"` 제거.
+    - `combat_end`가 모든 전투 종료를 커버하게 됨.
 
 4. [ ] `_detect_trigger` 단위 테스트 추가
     - 문제: EVENT→MAP, SHOP_ROOM→MAP, CHEST→COMBAT_REWARD 전환에서
