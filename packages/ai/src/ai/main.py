@@ -155,6 +155,7 @@ def _capture_screenshot() -> str:
         ratio = _MAX_SCREENSHOT_DIMENSION / max(w, h)
         img = img.resize((int(w * ratio), int(h * ratio)), Image.Resampling.LANCZOS)  # pyright: ignore[reportUnknownMemberType,reportAttributeAccessIssue]
     buf = io.BytesIO()
+    img = img.convert("RGB")
     img.save(buf, format="JPEG", quality=_SCREENSHOT_JPEG_QUALITY)
     b64 = base64.b64encode(buf.getvalue()).decode()
     logger.info(
