@@ -5,9 +5,12 @@ import logging
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, override
+from typing import TYPE_CHECKING, Any, override
 
 from .constants import LLM_DUMP_DIR, MAX_DUMPS, REASONING_LOG, RUN_LOG
+
+if TYPE_CHECKING:
+    from openai.types.chat import ChatCompletionMessageParam
 
 
 class JsonlFormatter(logging.Formatter):
@@ -97,7 +100,7 @@ def init_reasoning_logger() -> None:
     logger.propagate = False
 
 
-def dump_messages(messages: list[dict[str, Any]]) -> None:
+def dump_messages(messages: list[ChatCompletionMessageParam]) -> None:
     """Dump the messages array to a file before LLM API call.
     Keeps only the last MAX_DUMPS dumps (action-based rotation).
     """

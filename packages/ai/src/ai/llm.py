@@ -29,7 +29,7 @@ def _backoff(attempt: int, max_seconds: float) -> float:
     return min(RETRY_DELAY * (2 ** (attempt - 1)), max_seconds)
 
 
-def llm_call(
+def call_llm(
     messages: list[ChatCompletionMessageParam],
     tools: list[ChatCompletionToolUnionParam],
     model: str,

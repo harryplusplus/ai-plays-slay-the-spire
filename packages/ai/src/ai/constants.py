@@ -2,7 +2,10 @@
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from openai.types.chat import ChatCompletionToolUnionParam
 
 OPENAI_BASE_URL = "https://crof.ai/v1"
 OPENAI_API_KEY = os.environ["CROF_API_KEY"]
@@ -74,7 +77,7 @@ Guidelines:
 - Be decisive. Don't ask for clarification.
 - Prefer safe plays when uncertain."""
 
-TOOLS: list[dict[str, Any]] = [
+TOOLS: list[ChatCompletionToolUnionParam] = [
     {
         "type": "function",
         "function": {

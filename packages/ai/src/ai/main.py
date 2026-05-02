@@ -3,22 +3,20 @@ import json
 import logging
 import subprocess
 import time
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
-from openai import (
-    APIConnectionError,
-    APIStatusError,
-    InternalServerError,
-    OpenAI,
-    RateLimitError,
-)
+if TYPE_CHECKING:
+    from openai.types.chat import (
+        ChatCompletionAssistantMessageParam,
+        ChatCompletionMessageParam,
+        ChatCompletionMessageToolCall,
+    )
+else:
+    from openai.types.chat import ChatCompletionMessageToolCall
 
 from .constants import (
     MAX_MESSAGES_CHARS,
-    MAX_RETRIES,
     MODEL,
-    OPENAI_API_KEY,
-    OPENAI_BASE_URL,
     REASONING_EFFORT,
     RETRY_DELAY,
     RUN_ENDED_PROMPT,
@@ -26,6 +24,7 @@ from .constants import (
     TOOLS,
     TURN_ENDED_PROMPT,
 )
+from .llm import call_llm
 from .log import (
     dump_messages,
     init_ai_logger,
@@ -191,7 +190,7 @@ def _build_document_id(game_state: dict[str, Any] | None) -> str | None:
     return None
 
 
-def trim_messages(messages: list[dict[str, Any]]) -> None:
+def trim_messages(messages: list[ChatCompletionMessageParam]) -> None:
     """Drop oldest complete turns until total chars under limit.
 
     A turn is: user + assistant + tool(s). We remove whole turns
@@ -227,7 +226,7 @@ def trim_messages(messages: list[dict[str, Any]]) -> None:
 def _handle_send_command(
     result: str,
     fn_args: dict[str, Any],
-    messages: list[dict[str, Any]],
+    messages: list[ChatCompletionMessageParam],
     last_game_state: dict[str, Any] | None,
     last_auto_query: str,
 ) -> tuple[dict[str, Any] | None, str, dict[str, Any] | None]:
@@ -290,19 +289,9 @@ def _handle_send_command(
         return new_state, last_auto_query, recall_parsed
 
 
-def _create_client() -> OpenAI:
-    return OpenAI(
-        api_key=OPENAI_API_KEY,
-        base_url=OPENAI_BASE_URL,
-        max_retries=0,
-    )
-
-
-def _run_agent() -> None:  # noqa: PLR0915, PLR0912, C901
+def _run_agent() -> None:  # noqa: PLR0915
     """Main agent loop."""
-    client = _create_client()
-
-    messages: list[dict[str, Any]] = [  # type: ignore[type-arg]
+    messages: list[ChatCompletionMessageParam] = [
         {"role": "system", "content": SYSTEM_PROMPT},
     ]
 
@@ -328,101 +317,23 @@ def _run_agent() -> None:  # noqa: PLR0915, PLR0912, C901
     )
 
     last_game_state: dict[str, Any] | None = None
-    retry_count = 0
 
     while True:
         trim_messages(messages)
         logger.debug(
             "llm call",
-            extra={"event": "llm_call", "message_count": len(messages)},
+            extra={"event": "call_llm", "message_count": len(messages)},
         )
 
-        try:
-            start_time = time.monotonic()
-            dump_messages(messages)
-            response = client.chat.completions.create(
-                model=MODEL,
-                messages=cast("Any", messages),
-                tools=cast("Any", TOOLS),
-                temperature=0,
-                reasoning_effort=REASONING_EFFORT,  # pyright: ignore[reportArgumentType]
-            )
-            duration_ms = int((time.monotonic() - start_time) * 1000)
-            retry_count = 0
-        except InternalServerError:
-            retry_count += 1
-            logger.warning(
-                "LLM API 500 error, recreating client",
-                extra={
-                    "event": "error",
-                    "error_type": "llm_500",
-                    "retry_count": retry_count,
-                },
-            )
-            client = _create_client()
-            if retry_count > MAX_RETRIES:
-                logger.exception(
-                    "LLM API 500 error persisted after max retries",
-                    extra={"event": "error", "error_type": "llm_500_max_retries"},
-                )
-                time.sleep(30)
-                retry_count = 0
-            else:
-                time.sleep(min(RETRY_DELAY * (2 ** (retry_count - 1)), 60))
-            continue
-        except RateLimitError:
-            retry_count += 1
-            logger.warning(
-                "LLM API rate limited",
-                extra={
-                    "event": "error",
-                    "error_type": "llm_429",
-                    "retry_count": retry_count,
-                },
-            )
-            time.sleep(min(RETRY_DELAY * (2**retry_count), 120))
-            continue
-        except APIConnectionError:
-            retry_count += 1
-            logger.warning(
-                "LLM API connection error, recreating client",
-                extra={
-                    "event": "error",
-                    "error_type": "llm_connection",
-                    "retry_count": retry_count,
-                },
-            )
-            client = _create_client()
-            time.sleep(RETRY_DELAY)
-            continue
-        except APIStatusError as e:
-            retry_count += 1
-            logger.warning(
-                "LLM API status error",
-                extra={
-                    "event": "error",
-                    "error_type": "llm_status",
-                    "status_code": e.status_code,
-                    "retry_count": retry_count,
-                },
-            )
-            if retry_count > MAX_RETRIES:
-                logger.exception(
-                    "LLM API status error persisted after max retries",
-                    extra={"event": "error", "error_type": "llm_status_max_retries"},
-                )
-                time.sleep(30)
-                retry_count = 0
-            else:
-                time.sleep(min(RETRY_DELAY * (2 ** (retry_count - 1)), 60))
-            continue
-        except Exception:
-            logger.exception(
-                "LLM API call failed",
-                extra={"event": "error", "error_type": "llm_api"},
-            )
-            time.sleep(RETRY_DELAY)
-            continue
+        start_time = time.monotonic()
+        dump_messages(messages)
+        response = call_llm(
+            messages,
+            TOOLS,
+            MODEL,
+            REASONING_EFFORT,
+        )
+        duration_ms = int((time.monotonic() - start_time) * 1000)
 
         if not response.choices:
             resp_str = (
@@ -442,11 +353,14 @@ def _run_agent() -> None:  # noqa: PLR0915, PLR0912, C901
             continue
 
         choice = response.choices[0]
-        msg = cast("Any", choice.message)
-        raw_tool_calls: list[Any] = msg.tool_calls or []
-        tool_names: list[str] = [str(tc.function.name) for tc in raw_tool_calls]
-        msg_dict = msg.to_dict()
-        reasoning = msg_dict.get("reasoning_content", "")
+        msg = choice.message
+        raw_tool_calls = [
+            tc
+            for tc in (msg.tool_calls or [])
+            if isinstance(tc, ChatCompletionMessageToolCall)
+        ]
+        tool_names: list[str] = [tc.function.name for tc in raw_tool_calls]
+        reasoning = str(getattr(msg, "reasoning_content", ""))
         logger.debug(
             "llm response",
             extra={
@@ -471,12 +385,28 @@ def _run_agent() -> None:  # noqa: PLR0915, PLR0912, C901
                 },
             )
 
-        messages.append(msg.to_dict())
+        msg_dict: ChatCompletionAssistantMessageParam = {
+            "role": "assistant",
+            "content": msg.content,
+        }
+        if raw_tool_calls:
+            msg_dict["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in raw_tool_calls
+            ]
+        messages.append(msg_dict)
 
-        if msg.tool_calls:
-            for tool_call in msg.tool_calls:
-                fn_name: str = str(tool_call.function.name)
-                fn_args = json.loads(str(tool_call.function.arguments))
+        if raw_tool_calls:
+            for tool_call in raw_tool_calls:
+                fn_name: str = tool_call.function.name
+                fn_args = json.loads(tool_call.function.arguments)
                 logger.info(
                     "tool call",
                     extra={"event": "tool_call", "tool": fn_name, "arguments": fn_args},
