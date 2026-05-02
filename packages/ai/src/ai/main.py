@@ -204,6 +204,40 @@ def _detect_trigger(
         )
         return None
 
+    # GRID entry suppress: REST/SHOP_SCREEN→GRID fires retain prematurely.
+    if new_screen == "GRID":
+        logger.debug(
+            "no trigger on enter GRID",
+            extra={
+                "event": "screen_transition",
+                "reason": "enter_grid",
+                "prev_screen": prev_screen,
+                "new_screen": new_screen,
+                "prev_room": prev_room,
+            },
+        )
+        return None
+
+    if prev_screen == "GRID":
+        grid_trigger = {
+            "RestRoom": "campfire",
+            "ShopRoom": "shop",
+            "EventRoom": "event",
+        }.get(prev_room)
+        logger.info(
+            "trigger detected",
+            extra={
+                "event": "retain_trigger",
+                "trigger": grid_trigger,
+                "matched_by": "grid_transition",
+                "prev_screen": prev_screen,
+                "new_screen": new_screen,
+                "prev_room": prev_room,
+                "new_room": new_room,
+            },
+        )
+        return grid_trigger
+
     transitions: dict[str, str] = {
         "EVENT": "event",
         "SHOP_SCREEN": "shop",

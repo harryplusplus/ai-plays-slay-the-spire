@@ -15,22 +15,6 @@ LLM(crof.ai)이 CommunicationMod로 Slay the Spire를 자동 플레이.
 - 전부 Ironclad, 전부 Strength 빌드 관련
 - 9,107 links, 202 documents
 
-### 최근 완료
-- [x] reasoning.jsonl 로깅 (recall↔reasoning 쌍)
-- [x] Document ID 기반 전투 그룹핑
-- [x] Python SDK 전환, JSONL 로깅
-- [x] **State 필터링 완전 폐기**: `NOISE_KEYS` 제거. deck, map, relics, potions 모두 state에 포함.
-- [x] **draw_pile/discard_pile awareness**: 시스템 프롬프트에 안내 추가
-- [x] **MAX_OUTPUT 제거**: `game_cli()`의 20K truncation 제거. recall은 `max_tokens=2048`로 크기 제한.
-- [x] **call_llm() 추출**: LLM 호출 + retry 로직을 `llm.py`로 분리. 매 요청마다 client 생성/close. `caller` 파라미터로 에이전트 식별.
-- [x] **RecallAgent 도입**: `auto_recall()` 제거. 전용 RecallAgent가 state + 히스토리 기반 자연어 쿼리로 recall 호출. multi-turn 가능.
-- [x] **RetainAgent 도입**: 화면 전환 감지로 retain 트리거. RetainAgent가 히스토리 기반으로 retain content 생성.
-- [x] **PlayAgent 경량화**: TOOLS에서 recall, retain, deck, map, relics, potions 모두 제거. `send_command`만 남음.
-- [x] **시스템 프롬프트 분리**: messages는 순수 대화 히스토리만. 각 에이전트가 자신의 시스템 프롬프트를 call_llm 시점에 주입.
-- [x] **루프 평탄화**: `_handle_send_command` 해체. recall → play → execute → retain 흐름이 메인 루프에 평평하게 드러남.
-- [x] **parse_llm_response()**: 응답 파싱 로직을 `ParsedResponse` 데이터클래스로 통일.
-- [x] **타입 안전성**: `cast`, `Any`, `type: ignore` 최소화. `isinstance`로 타입 좁히기.
-
 ## 발견한 것들
 
 ### recall은 쿼리 formulation에 민감하다
@@ -39,22 +23,6 @@ enemy-specific memory를 잘 못 건진다. 반면 `"What strategy should IRONCL
 Giant Head in Act 3?"` 같은 자연어 쿼리는 Giant Head 관련 메모리를 1순위로 가져온다.
 쿼리 variant 간 Jaccard similarity는 0.08~0.51 — 쿼리를 어떻게 쓰느냐에 따라 완전히
 다른 결과 집합이 나온다. RecallAgent가 자연어 쿼리를 생성하면서 이 문제가 개선됨.
-
-### retain은 전투 play-by-play에 치우쳐 있었다 (→ RetainAgent로 해결)
-28개 retain 중 93%가 전투 설명. 이벤트 선택, 경로 결정, 캠프파이어, 상점, 빌드 결정 이유
-같은 전략적 기억이 거의 없었음. 같은 전투에 3~4번 retain해서 중복도 심함.
-→ RetainAgent가 화면 전환을 감지해 자동으로 retain 호출. 전투뿐 아니라 이벤트, 상점,
-캠프파이어, 카드 선택 등 모든 주요 결정을 커버.
-
-### state 필터링이 모든 정보를 숨기고 있었다 (해결됨)
-`cli.py`의 `filter_game_state`가 `NOISE_KEYS`로 deck, relics, potions, map을
-모든 state 응답에서 제거 중이었음. AI가 유물/포션/덱/맵을 전혀 인지하지 못함.
-→ `NOISE_KEYS`와 `filter_game_state` 완전 제거. 모든 정보가 state에 포함됨.
-
-### MAX_OUTPUT이 recall JSON을 조용히 깨뜨리고 있었다 (해결됨)
-`game_cli()`의 `MAX_OUTPUT=20_000`이 53K짜리 recall JSON을 20K로 잘라서
-`json.loads`가 실패. 깨진 JSON 텍스트로 24개 결과만 부분 수신 중이었음.
-→ `MAX_OUTPUT` 제거. recall은 `max_tokens=2048`로 응답 크기 자체를 제한.
 
 ### reasoning은 recall보다 game state에 의존한다
 reasoning 내용 분석 결과, recall 개념이 reasoning에 등장해도 그건 현재 덱에 있는 카드 이름일 뿐.
@@ -81,90 +49,30 @@ messages (순수 히스토리, 시스템 프롬프트 없음):
 
 ### Retain 시스템 — 알려진 문제와 대응법
 
-이 섹션은 retain 시스템 수정/확장 시 알아야 할 정보.
-
 #### `_detect_trigger` 검증되지 않은 브랜치
 `packages/ai/src/ai/main.py`의 `_detect_trigger()`는 다음 SCREEN 전환에서
-단 한 번도 테스트되지 않음: EVENT→MAP, SHOP_ROOM→MAP, CHEST→COMBAT_REWARD.
-배포 직후 AI가 floor 8에서 멈춰서 해당 전환을 만나지 못했기 때문.
+아직 테스트되지 않음: EVENT→MAP, SHOP_ROOM→MAP, CHEST→COMBAT_REWARD.
 
-- `_detect_trigger` 내부에 로깅이 없음. retain이 왜 안 터졌는지 로그만으로 추적 불가.
-- ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생 여부를
-  비교해야 검증 가능.
-- 수정 시 단위 테스트 추가할 것. `packages/ai/tests/` 참고.
+ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생 여부를
+비교해서 검증 필요. 수정 시 `packages/ai/tests/`에 단위 테스트 추가.
 
-#### GRID 스크린 미처리
-`screen_type: "GRID"`는 카드/선택지를 그리드로 보여주는 공용 UI.
-room에 따라 retain 필요 여부가 다르지만, 현재 `_detect_trigger`의
-transitions 딕셔너리는 GRID를 아예 처리하지 않음.
-
-의미별 분류:
-- room=RestRoom → REST: 캠프파이어 업그레이드 화면. REST로 돌아갈 때 `campfire` retain.
-- room=ShopRoom → SHOP_SCREEN: 상점 구매/제거 화면. 돌아갈 때 `shop` retain.
-- room=EventRoom → EVENT: 이벤트 카드 선택 화면. 돌아갈 때 `event` retain.
-- room=MonsterRoom → NONE: 전투 중 Headbutt 등 카드 선택. retain 불필요.
-
-수정 시 `prev_screen == "GRID"`를 transitions에 추가하고 room 분기로
-처리할 것. `combat_end`도 GRID 상태에서 전투가 종료될 수 있으니 함께 고려.
-
-#### `turn_end` retain 제거됨 (2026-05-02)
-`_detect_trigger`에서 `command == "END"` 브랜치 삭제.
-`retain_agent.py` TRIGGER_PROMPTS에서 `"turn_end"` 제거.
-이제 `combat_end`가 모든 전투 종료를 커버.
-이전 통계: retains 33개 중 turn_end 13개(39%) — 전투 play-by-play 노이즈.
-
-#### RecallAgent 병목 (retain보다 우선)
-RecallAgent `max_turns=3`으로 매 루프 2~6회 recall 호출.
-ai.jsonl 18:09~18:12 구간 참고: card pick 하나에 recall 7회, 3분 소요.
-recall loop에 갇혀 SCREEN 전환 자체가 안 되면서 retain도 의미 없어짐.
-
-- `max_turns`를 2 또는 1로 낮추는 것이 retain 개선보다 우선순위 높음.
-- `packages/ai/src/ai/recall_agent.py`의 `run_recall_agent()` 파라미터.
-- `packages/ai/src/ai/constants.py`에 하드코딩된 값 없음 — 함수 인자로 전달.
+#### GRID 스크린 (2026-05-02 처리 완료)
+`_detect_trigger` 로직:
+- `new_screen == "GRID"` → suppress (REST→GRID, SHOP_SCREEN→GRID FALSE POSITIVE 방지)
+- `prev_screen == "GRID"` → room 분기: RestRoom→campfire, ShopRoom→shop, EventRoom→event
+- MonsterRoom GRID → unmatched fall-through, 정상 무시
 
 ## 할 일
 
-### 지금
-1. [ ] RecallAgent + RetainAgent 적용 후 런 품질 평가
-
-### 검토 중
-3. [x] `turn_end` retain 제거
-    - `_detect_trigger`에서 `command == "END"` 브랜치 삭제.
-    - `retain_agent.py` TRIGGER_PROMPTS에서 `"turn_end"` 제거.
-    - `combat_end`가 모든 전투 종료를 커버하게 됨.
-
-4. [ ] `_detect_trigger` 단위 테스트 추가
-    - 문제: EVENT→MAP, SHOP_ROOM→MAP, CHEST→COMBAT_REWARD 전환에서
-      단 한 번도 테스트되지 않음. 배포 직후 AI가 floor 8에서 멈춤.
-    - `_detect_trigger` 내부에 로깅도 없어서 실패 추적 불가.
-
-5. [ ] RecallAgent `max_turns` 축소 (3→2 또는 1)
-    - 현재: 매 루프 2~6회 recall 호출, 선택 하나에 1~2분.
-    - ai.jsonl 18:09~18:12: card pick에 recall 7회, 3분 소요.
-    - recall loop에 AI가 갇혀 SCREEN 전환 실패 → retain이 의미 없어짐.
-    - `recall_agent.py`의 `run_recall_agent(max_turns=...)` 수정.
-    - retain보다 우선순위 높음.
-
-6. [ ] GRID 스크린 retain 처리
-    - `_detect_trigger`가 GRID 전환을 전혀 다루지 않음.
-    - room=RestRoom→REST: `campfire`, ShopRoom→SHOP_SCREEN: `shop`,
-      EventRoom→EVENT: `event`, MonsterRoom→NONE: 불필요.
-    - 수정 시 `prev_screen == "GRID"` + room 분기.
-
-7. [ ] `combat_end` retain quality 평가
-    - 현재 NONE→COMBAT_REWARD만 감지. 전투가 GRID/HAND_SELECT에서
-      끝날 경우 놓칠 수 있음.
-    - `_detect_trigger()`의 마지막 조건문 확인.
-
 ### 다음
-8. [ ] 다양한 클래스/빌드로 런 돌려서 뱅크 확장
-9. [ ] Tags 도입 (class, topic, enemy)
-10. [ ] RecallAgent 쿼리 전략 튜닝 (multi-query merge 등)
+1. [ ] 다양한 클래스/빌드로 런 돌려서 뱅크 확장
+2. [ ] Tags 도입 (class, topic, enemy)
+3. [ ] RecallAgent 쿼리 전략 튜닝 (multi-query merge 등)
 
 ### 나중
-11. [ ] Reflect로 전략 조언
-12. [ ] Mental model 생성
-13. [ ] 심장 클리어
+4. [ ] Reflect로 전략 조언
+5. [ ] Mental model 생성
+6. [ ] 심장 클리어
 
 ## 아키텍처
 
@@ -226,12 +134,6 @@ AI → subprocess game CLI → httpx proxy(8766) → websocket bridge(8765)
 - `max_tokens=2048` (28개 결과, 24K JSON)
 - `types=["world", "experience", "observation"]`
 - `budget`은 SDK 기본값(`"mid"`) 사용, 명시적으로 넘기지 않음
-
-### 발견한 버그: CLI/DB 스키마 불일치 (해결됨)
-- DB 마이그레이션(2026-04-02): `opinion` 제거, `observation` 추가
-- CLI 기본값: 여전히 `[world, experience, opinion]`
-- 결과: recall 기본 호출 시 observation 타입 메모리 검색 제외
-- 해결: `cli.py`에서 `types=["world", "experience", "observation"]` 명시
 
 ## 운영
 
