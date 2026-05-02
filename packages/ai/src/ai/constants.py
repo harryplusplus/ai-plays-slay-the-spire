@@ -47,8 +47,6 @@ Game commands (case insensitive):
   Press a key. Keynames: Confirm, Cancel, Map, Deck, Draw_Pile,
   Discard_Pile, Exhaust_Pile, End_Turn, Up, Down, Left, Right,
   Drop_Card, Card_1..Card_10. Timeout: frames to wait (default 100).
-- CLICK <Left|Right> <X> <Y>
-  Click at coordinates. (0,0)=top-left, (1920,1080)=bottom-right.
 - WAIT <Timeout>
   Wait for frames or until state change.
 - STATE
