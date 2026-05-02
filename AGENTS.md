@@ -79,21 +79,96 @@ messages (순수 히스토리, 시스템 프롬프트 없음):
 매 요청마다 client를 새로 생성하고 `close()`하여 connection leak 방지.
 `caller` 파라미터로 로그에서 에이전트 식별 가능.
 
+### Retain 시스템 — 알려진 문제와 대응법
+
+이 섹션은 retain 시스템 수정/확장 시 알아야 할 정보.
+
+#### `_detect_trigger` 검증되지 않은 브랜치
+`packages/ai/src/ai/main.py`의 `_detect_trigger()`는 다음 SCREEN 전환에서
+단 한 번도 테스트되지 않음: EVENT→MAP, SHOP_ROOM→MAP, CHEST→COMBAT_REWARD.
+배포 직후 AI가 floor 8에서 멈춰서 해당 전환을 만나지 못했기 때문.
+
+- `_detect_trigger` 내부에 로깅이 없음. retain이 왜 안 터졌는지 로그만으로 추적 불가.
+- ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생 여부를
+  비교해야 검증 가능.
+- 수정 시 단위 테스트 추가할 것. `packages/ai/tests/` 참고.
+
+#### GRID 스크린 미처리
+`screen_type: "GRID"`는 카드/선택지를 그리드로 보여주는 공용 UI.
+room에 따라 retain 필요 여부가 다르지만, 현재 `_detect_trigger`의
+transitions 딕셔너리는 GRID를 아예 처리하지 않음.
+
+의미별 분류:
+- room=RestRoom → REST: 캠프파이어 업그레이드 화면. REST로 돌아갈 때 `campfire` retain.
+- room=ShopRoom → SHOP_SCREEN: 상점 구매/제거 화면. 돌아갈 때 `shop` retain.
+- room=EventRoom → EVENT: 이벤트 카드 선택 화면. 돌아갈 때 `event` retain.
+- room=MonsterRoom → NONE: 전투 중 Headbutt 등 카드 선택. retain 불필요.
+
+수정 시 `prev_screen == "GRID"`를 transitions에 추가하고 room 분기로
+처리할 것. `combat_end`도 GRID 상태에서 전투가 종료될 수 있으니 함께 고려.
+
+#### `turn_end` retain 과다
+매 END 명령어마다 retain 발생. 19개 retain 중 9개(47%)가 `turn_end`.
+`combat_end` retain은 1회만 기록됨. 뱅크에 전투 play-by-play 노이즈가
+쌓이고 있음 (AGENTS.md에도 이미 동일 문제 지적).
+
+- `turn_end` retain을 제한하거나 제거하는 방안 검토.
+- `combat_end` retain quality를 높이는 것이 더 나을 수 있음.
+- 영향: 뱅크 quality 저하, 유의미한 전략 메모리 비중 감소.
+
+#### RecallAgent 병목 (retain보다 우선)
+RecallAgent `max_turns=3`으로 매 루프 2~6회 recall 호출.
+ai.jsonl 18:09~18:12 구간 참고: card pick 하나에 recall 7회, 3분 소요.
+recall loop에 갇혀 SCREEN 전환 자체가 안 되면서 retain도 의미 없어짐.
+
+- `max_turns`를 2 또는 1로 낮추는 것이 retain 개선보다 우선순위 높음.
+- `packages/ai/src/ai/recall_agent.py`의 `run_recall_agent()` 파라미터.
+- `packages/ai/src/ai/constants.py`에 하드코딩된 값 없음 — 함수 인자로 전달.
+
 ## 할 일
 
 ### 지금
 1. [ ] RecallAgent + RetainAgent 적용 후 런 품질 평가
 2. [ ] `hindsight bank consolidate sts-v2`로 observation 재생성
 
+### 검토 중
+3. [ ] `turn_end` retain 제한 또는 제거
+    - 문제: 매 END마다 retain → 19개 중 9개(47%). 전투 play-by-play 노이즈.
+    - `combat_end` retain은 1회만 기록됨.
+    - 참고: `_detect_trigger()`에서 `command == "END"` 체크하는 부분.
+
+4. [ ] `_detect_trigger` 단위 테스트 추가
+    - 문제: EVENT→MAP, SHOP_ROOM→MAP, CHEST→COMBAT_REWARD 전환에서
+      단 한 번도 테스트되지 않음. 배포 직후 AI가 floor 8에서 멈춤.
+    - `_detect_trigger` 내부에 로깅도 없어서 실패 추적 불가.
+
+5. [ ] RecallAgent `max_turns` 축소 (3→2 또는 1)
+    - 현재: 매 루프 2~6회 recall 호출, 선택 하나에 1~2분.
+    - ai.jsonl 18:09~18:12: card pick에 recall 7회, 3분 소요.
+    - recall loop에 AI가 갇혀 SCREEN 전환 실패 → retain이 의미 없어짐.
+    - `recall_agent.py`의 `run_recall_agent(max_turns=...)` 수정.
+    - retain보다 우선순위 높음.
+
+6. [ ] GRID 스크린 retain 처리
+    - `_detect_trigger`가 GRID 전환을 전혀 다루지 않음.
+    - room=RestRoom→REST: `campfire`, ShopRoom→SHOP_SCREEN: `shop`,
+      EventRoom→EVENT: `event`, MonsterRoom→NONE: 불필요.
+    - 수정 시 `prev_screen == "GRID"` + room 분기.
+
+7. [ ] `combat_end` retain quality 평가
+    - 현재 NONE→COMBAT_REWARD만 감지. 전투가 GRID/HAND_SELECT에서
+      끝날 경우 놓칠 수 있음.
+    - `_detect_trigger()`의 마지막 조건문 확인.
+
 ### 다음
-3. [ ] 다양한 클래스/빌드로 런 돌려서 뱅크 확장
-4. [ ] Tags 도입 (class, topic, enemy)
-5. [ ] RecallAgent 쿼리 전략 튜닝 (multi-query merge 등)
+8. [ ] 다양한 클래스/빌드로 런 돌려서 뱅크 확장
+9. [ ] Tags 도입 (class, topic, enemy)
+10. [ ] RecallAgent 쿼리 전략 튜닝 (multi-query merge 등)
 
 ### 나중
-6. [ ] Reflect로 전략 조언
-7. [ ] Mental model 생성
-8. [ ] 심장 클리어
+11. [ ] Reflect로 전략 조언
+12. [ ] Mental model 생성
+13. [ ] 심장 클리어
 
 ## 아키텍처
 
