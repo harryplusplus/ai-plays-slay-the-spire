@@ -4,7 +4,7 @@
 LLM(crof.ai)이 CommunicationMod로 Slay the Spire를 자동 플레이.
 목표: 승천 0 심장 클리어. Hindsight 장기기억으로 런 간 학습.
 
-## 현재 상태 (2026-05-02)
+## 현재 상태 (2026-05-03)
 
 ### 실행 중
 - `sts-ai`, `sts-proxy`, `hs-api`, `hs-web` tmux 세션 정상
@@ -31,15 +31,17 @@ LLM은 recall 텍스트보다 state JSON을 직접 보고 판단.
 
 ### messages 구조
 ```
-messages (순수 히스토리, 시스템 프롬프트 없음):
+messages (순수 히스토리, 시스템 프롬프트 없음, 이미지 없음):
   {role: "assistant", content: ..., tool_calls: [...]}
   {role: "tool", tool_call_id: ..., content: ...}
   ...
 
-각 call_llm() 호출 시:
-  RecallAgent: [system: RECALL_AGENT_PROMPT] + messages + [user: state JSON]
-  PlayAgent:   [system: PLAY_AGENT_PROMPT] + messages + [user: state + recall 분석]
-  RetainAgent: [system: RETAIN_AGENT_PROMPT] + messages + [user: trigger 설명]
+각 call_llm() 호출 시 (user content는 text+image multimodal):
+  RecallAgent: [system] + messages + [user: state JSON + screenshot]
+  PlayAgent:   [system] + messages + [user: state + recall 분석 + screenshot]
+  RetainAgent: [system] + messages + [user: trigger 설명 + screenshot]
+
+스크린샷은 messages에 저장되지 않음 — 루프당 1회 캡처, ephemeral.
 ```
 
 ### LLM 재시도
@@ -81,15 +83,18 @@ ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생
 while True:
     trim_messages(messages)
 
-    ① recall_analysis = RecallAgent(messages, current_state_json)
-    ② PlayAgent(PLAY_AGENT_PROMPT + messages + state/analysis) → tool_calls
-    ③ messages += assistant_msg
-    ④ for each tool_call:
+    ① screenshot_before = _capture_screenshot()  # 현재 화면
+    ② recall_analysis = RecallAgent(messages, state, screenshot)
+    ③ PlayAgent(system + messages + state/recall + screenshot) → tool_calls
+    ④ messages += assistant_msg
+    ⑤ for each tool_call:
          result = execute_tool(...)
          messages += tool_result
          if send_command: current_state = result
-    ⑤ trigger = _detect_trigger(command, current_state, new_state)
-       if trigger: RetainAgent(messages, trigger) → game_cli("retain", ...)
+    ⑥ trigger = _detect_trigger(prev_state, new_state)
+       if trigger:
+           screenshot_after = _capture_screenshot()  # 결과 화면
+           RetainAgent(messages, trigger, screenshot) → game_cli("retain", ...)
 ```
 
 ### 에이전트별 구성
@@ -98,7 +103,7 @@ while True:
 |---|---|---|---|
 | 시스템 프롬프트 | `RECALL_AGENT_PROMPT` | `PLAY_AGENT_PROMPT` | `RETAIN_AGENT_PROMPT` |
 | 도구 | `recall` | `send_command` | 없음 |
-| 사용자 메시지 | 게임 state JSON | state + recall 분석 | 트리거 설명 |
+| 사용자 메시지 | state JSON + screenshot | state + recall + screenshot | 트리거 설명 + screenshot |
 | 출력 | 분석 텍스트 | tool_calls | retain content |
 
 ### 패키지
@@ -117,10 +122,11 @@ AI → subprocess game CLI → httpx proxy(8766) → websocket bridge(8765)
 ```
 
 ### 핵심 파일
-- `packages/ai/src/ai/main.py` — 메인 루프, trigger detection, `_build_user_message`
-- `packages/ai/src/ai/llm.py` — `call_llm()`, `parse_llm_response()`, `build_assistant_message()`
+- `packages/ai/src/ai/main.py` — 메인 루프, trigger detection, `_capture_screenshot()`, `_build_user_message()`
+- `packages/ai/src/ai/llm.py` — `call_llm()`, `parse_llm_response()`, `build_assistant_message()`, `build_multimodal_content()`
 - `packages/ai/src/ai/recall_agent.py` — `run_recall_agent()`, RecallAgent 프롬프트/툴
 - `packages/ai/src/ai/retain_agent.py` — `run_retain_agent()`, RetainAgent 프롬프트/트리거
+- `packages/ai/src/ai/window.py` — `find_window()`, `capture()` — CoreGraphics 윈도우 탐색 + 스크린샷
 - `packages/ai/src/ai/constants.py` — 시스템 프롬프트 3종, TOOLS, 설정 상수
 - `packages/game/src/game/cli.py` — 게임 CLI, Hindsight SDK 호출
 - `packages/proxy/src/proxy/main.py` — HTTP 서버 + WebSocket 클라이언트

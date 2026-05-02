@@ -41,32 +41,36 @@ Harry는 코드를 직접 쓰지 않습니다. AI 에이전트(Pi)와 협업합�
 - **MAX_OUTPUT truncation** — `game_cli()`의 20K 제한이 recall JSON을 깨뜨림. 제거하고 recall 자체의 `max_tokens=2048`로 응답 크기 제한.
 - **시스템 프롬프트 분리** — 단일 시스템 프롬프트를 에이전트별로 분리. messages는 순수 대화 히스토리만 보관.
 - **타입 안전성** — `cast`, `Any`, `type: ignore` 최소화. `isinstance`로 타입 좁히기, `ParsedResponse` 도입.
+- **스크린샷 비전 지원** — kimi-k2.6-precision이 vision을 지원하여 세 에이전트(Recall/Play/Retain) 모두 현재 화면 스크린샷을 받음. 이미지는 `messages`에 축적되지 않고 루프당 ephemeral하게 주입.
 
 ## 아키텍처
 
 ### 3-Agent 루프
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  while True:                                         │
-│    trim_messages(messages)                           │
-│                                                       │
-│  ① recall_analysis = RecallAgent(messages, state)   │
-│                                                       │
-│  ② PlayAgent(system + messages + state/analysis)    │
-│     → tool_calls                                     │
-│     messages += assistant_msg                        │
-│                                                       │
-│  ③ for each tool_call:                               │
-│       result = execute_tool(...)                     │
-│       messages += tool_result                        │
-│       if send_command: state = result                │
-│                                                       │
-│  ④ trigger = detect_trigger(prev_state, new_state)  │
-│     if trigger:                                       │
-│       content = RetainAgent(messages, trigger)       │
-│       game_cli("retain", content)                    │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│  while True:                                             │
+│    trim_messages(messages)                               │
+│                                                           │
+│  ① screenshot_before = capture (현재 화면)                │
+│                                                           │
+│  ② RecallAgent(messages, state, screenshot)              │
+│                                                           │
+│  ③ PlayAgent(system + messages + state/recall + screenshot) │
+│     → tool_calls                                         │
+│     messages += assistant_msg                            │
+│                                                           │
+│  ④ for each tool_call:                                   │
+│       result = execute_tool(...)                         │
+│       messages += tool_result                            │
+│       if send_command: state = result                    │
+│                                                           │
+│  ⑤ trigger = detect_trigger(prev_state, new_state)      │
+│     if trigger:                                           │
+│       screenshot_after = capture (결과 화면)              │
+│       RetainAgent(messages, trigger, screenshot)         │
+│       game_cli("retain", content)                        │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ### 에이전트별 구성
@@ -75,7 +79,7 @@ Harry는 코드를 직접 쓰지 않습니다. AI 에이전트(Pi)와 협업합�
 |---|---|---|---|
 | **시스템 프롬프트** | `RECALL_AGENT_PROMPT` | `PLAY_AGENT_PROMPT` | `RETAIN_AGENT_PROMPT` |
 | **히스토리** | messages (공유) | messages (공유) | messages (공유) |
-| **사용자 메시지** | 게임 state JSON | 게임 state + recall 분석 | 트리거 설명 (turn_end, combat_end 등) |
+| **사용자 메시지** | 게임 state JSON + screenshot | 게임 state + recall 분석 + screenshot | 트리거 설명 + screenshot |
 | **도구** | `recall` | `send_command` | 없음 (text 응답) |
 | **출력** | 분석 텍스트 | tool_calls | retain content 문자열 |
 
@@ -99,10 +103,11 @@ messages = [
 
 | 파일 | 역할 |
 |------|------|
-| `packages/ai/src/ai/main.py` | 메인 루프, trigger detection, recall/retain/play 조율 |
-| `packages/ai/src/ai/llm.py` | `call_llm()` retry + client lifecycle, `parse_llm_response()`, `build_assistant_message()` |
+| `packages/ai/src/ai/main.py` | 메인 루프, trigger detection, `_capture_screenshot()`, `_build_user_message()` |
+| `packages/ai/src/ai/llm.py` | `call_llm()` retry + client lifecycle, `parse_llm_response()`, `build_assistant_message()`, `build_multimodal_content()` |
 | `packages/ai/src/ai/recall_agent.py` | `run_recall_agent()`, RecallAgent 프롬프트, recall 툴 |
 | `packages/ai/src/ai/retain_agent.py` | `run_retain_agent()`, RetainAgent 프롬프트, 트리거별 메시지 |
+| `packages/ai/src/ai/window.py` | `find_window()`, `capture()` — CoreGraphics 윈도우 탐색 + 스크린샷 |
 | `packages/ai/src/ai/constants.py` | 시스템 프롬프트, TOOLS, 설정 상수 |
 | `packages/game/src/game/cli.py` | 게임 CLI, Hindsight SDK 호출 |
 | `packages/proxy/src/proxy/main.py` | HTTP 서버 + WebSocket 클라이언트 |
@@ -137,6 +142,7 @@ uv run ai      # AI 에이전트
 - [x] PlayAgent 경량화 (send_command 단일 툴)
 - [x] 시스템 프롬프트 분리, messages 히스토리 순수화
 - [x] 루프 평탄화 (_handle_send_command 해체)
+- [x] 스크린샷 비전 — 세 에이전트 모두 현재 화면 이미지 수신 (ephemeral, messages에 축적 안 됨)
 - [~] 뱅크 확장 (다양한 클래스/빌드 런)
 - [ ] RecallAgent 쿼리 전략 튜닝
 - [ ] Tags, entity labels 도입
