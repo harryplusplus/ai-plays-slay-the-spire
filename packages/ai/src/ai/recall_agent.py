@@ -127,6 +127,7 @@ def run_recall_agent(
             [RECALL_TOOL],
             model,
             reasoning_effort,
+            caller="recall",
         )
         choice = response.choices[0]
         msg = choice.message
@@ -159,6 +160,6 @@ def run_recall_agent(
             )
 
     # Max turns reached — force final analysis without tools
-    response = call_llm(messages, [], model, reasoning_effort)
+    response = call_llm(messages, [], model, reasoning_effort, caller="recall")
     final = response.choices[0].message
     return final.content or ""

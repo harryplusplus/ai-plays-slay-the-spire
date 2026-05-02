@@ -311,6 +311,7 @@ def _run_agent() -> None:
             TOOLS,
             MODEL,
             REASONING_EFFORT,
+            caller="play",
         )
         duration_ms = int((time.monotonic() - start_time) * 1000)
 

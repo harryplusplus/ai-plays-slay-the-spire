@@ -92,5 +92,5 @@ def run_retain_agent(
         {"role": "user", "content": trigger_prompt},
     ]
 
-    response = call_llm(prompt, [], model, reasoning_effort)
+    response = call_llm(prompt, [], model, reasoning_effort, caller="retain")
     return response.choices[0].message.content or ""

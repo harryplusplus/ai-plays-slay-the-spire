@@ -29,14 +29,19 @@ def _backoff(attempt: int, max_seconds: float) -> float:
     return min(RETRY_DELAY * (2 ** (attempt - 1)), max_seconds)
 
 
-def call_llm(
+def call_llm(  # noqa: PLR0913
     messages: list[ChatCompletionMessageParam],
     tools: list[ChatCompletionToolUnionParam],
     model: str,
     reasoning_effort: str,
     temperature: float = 0.0,
+    caller: str = "",
 ) -> ChatCompletion:
-    """Call LLM with retry. Creates and closes client per request."""
+    """Call LLM with retry. Creates and closes client per request.
+
+    Args:
+        caller: Agent name for log context (e.g. "play", "recall", "retain").
+    """
     attempt = 0
     while True:
         attempt += 1
@@ -57,7 +62,11 @@ def call_llm(
             if attempt >= MAX_ATTEMPTS:
                 logger.exception(
                     "LLM API 500 error persisted after max attempts",
-                    extra={"event": "error", "error_type": "llm_500_max_attempts"},
+                    extra={
+                        "event": "error",
+                        "error_type": "llm_500_max_attempts",
+                        "caller": caller,
+                    },
                 )
                 time.sleep(30)
                 attempt = 0
@@ -68,6 +77,7 @@ def call_llm(
                         "event": "error",
                         "error_type": "llm_500",
                         "attempt": attempt,
+                        "caller": caller,
                     },
                 )
                 time.sleep(_backoff(attempt, 60))
@@ -78,6 +88,7 @@ def call_llm(
                     "event": "error",
                     "error_type": "llm_429",
                     "attempt": attempt,
+                    "caller": caller,
                 },
             )
             time.sleep(_backoff(attempt, 120))
@@ -88,6 +99,7 @@ def call_llm(
                     "event": "error",
                     "error_type": "llm_connection",
                     "attempt": attempt,
+                    "caller": caller,
                 },
             )
             time.sleep(RETRY_DELAY)
@@ -99,6 +111,7 @@ def call_llm(
                         "event": "error",
                         "error_type": "llm_status_max_attempts",
                         "status_code": e.status_code,
+                        "caller": caller,
                     },
                 )
                 time.sleep(30)
@@ -111,13 +124,14 @@ def call_llm(
                         "error_type": "llm_status",
                         "status_code": e.status_code,
                         "attempt": attempt,
+                        "caller": caller,
                     },
                 )
                 time.sleep(_backoff(attempt, 60))
         except Exception:
             logger.exception(
                 "LLM API call failed",
-                extra={"event": "error", "error_type": "llm_api"},
+                extra={"event": "error", "error_type": "llm_api", "caller": caller},
             )
             time.sleep(RETRY_DELAY)
         finally:
