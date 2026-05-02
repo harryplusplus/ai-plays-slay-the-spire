@@ -61,43 +61,40 @@ class JsonlFormatter(logging.Formatter):
         return json.dumps(entry, ensure_ascii=False, default=str)
 
 
-def init_logger() -> None:
+def _create_handler(path: Path) -> RotatingFileHandler:
     handler = RotatingFileHandler(
-        Path.home() / ".sts" / "logs" / "ai.jsonl",
+        path,
         maxBytes=10_000_000,
         backupCount=5,
         encoding="utf-8",
     )
     handler.setFormatter(JsonlFormatter())
-
-    root = logging.getLogger()
-    root.setLevel(logging.INFO)
-    root.addHandler(handler)
-
-    logging.getLogger("ai").setLevel(logging.DEBUG)
+    return handler
 
 
-def init_run_handler() -> RotatingFileHandler:
-    return RotatingFileHandler(
-        RUN_LOG,
-        maxBytes=10_000_000,
-        backupCount=5,
-        encoding="utf-8",
-    )
+def init_ai_logger() -> None:
+    handler = _create_handler(Path.home() / ".sts" / "logs" / "ai.jsonl")
+    logger = logging.getLogger("ai")
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
+    logger.propagate = False
 
 
-def log_run_end(handler: RotatingFileHandler, state_json: str) -> None:
-    handler.emit(
-        logging.LogRecord(
-            name="run",
-            level=logging.INFO,
-            pathname="",
-            lineno=0,
-            msg=state_json,
-            args=(),
-            exc_info=None,
-        ),
-    )
+def init_run_logger() -> None:
+    handler = _create_handler(RUN_LOG)
+    logger = logging.getLogger("run")
+    logger.setLevel(logging.INFO)
+    logger.addHandler(handler)
+    logger.propagate = False
+
+
+def init_reasoning_logger() -> None:
+    """Set up reasoning.jsonl handler on reasoning logger."""
+    handler = _create_handler(REASONING_LOG)
+    logger = logging.getLogger("reasoning")
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
+    logger.propagate = False
 
 
 def dump_messages(messages: list[dict[str, Any]]) -> None:
@@ -116,23 +113,3 @@ def dump_messages(messages: list[dict[str, Any]]) -> None:
     while len(dumps) > MAX_DUMPS:
         oldest = dumps.pop(0)
         oldest.unlink()
-
-
-def init_reasoning_logger() -> logging.Logger:
-    """Create a dedicated logger for reasoning.jsonl.
-
-    Each line pairs the recall result that was in context with the
-    full reasoning_content from the LLM response.
-    """
-    handler = RotatingFileHandler(
-        REASONING_LOG,
-        maxBytes=10_000_000,
-        backupCount=5,
-        encoding="utf-8",
-    )
-    handler.setFormatter(JsonlFormatter())
-    logger = logging.getLogger("ai.reasoning")
-    logger.setLevel(logging.DEBUG)
-    logger.addHandler(handler)
-    logger.propagate = False
-    return logger

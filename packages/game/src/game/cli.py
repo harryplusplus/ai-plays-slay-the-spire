@@ -76,14 +76,19 @@ HINDSIGHT_URL = "http://localhost:8888"
 NOISE_KEYS = {"deck", "map"}
 
 
-def init_logger() -> None:
+def _create_handler(path: Path) -> RotatingFileHandler:
     handler = RotatingFileHandler(
-        Path.home() / ".sts" / "logs" / "game.jsonl",
+        path,
         maxBytes=10_000_000,
         backupCount=5,
         encoding="utf-8",
     )
     handler.setFormatter(JsonlFormatter())
+    return handler
+
+
+def init_logger() -> None:
+    handler = _create_handler(Path.home() / ".sts" / "logs" / "game.jsonl")
 
     root = logging.getLogger()
     root.setLevel(logging.INFO)

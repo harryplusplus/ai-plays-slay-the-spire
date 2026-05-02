@@ -168,10 +168,20 @@ jq -r '.ts' ~/.sts/logs/ai.jsonl | tail -1
 
 ### 알려진 이슈
 - **메시지 트리밍**: 1MB 초과 시 오래된 턴부터 드롭. system message는 보존.
-- **LLM 재시도**: 실패 시 10초 후. OpenAI SDK 자체 재시도(crof.ai 524 등)는 더 빠름(0.5~0.8초).
+- **LLM 재시도**: SDK 재시도 꺼짐(max_retries=0). 앱 레벨에서 exponential backoff로 처리 (524, 500, 429, connection error).
 - **런 종료**: `in_game=false` → runs.log 기록 + retain 유도.
 - **retain/recall 동일 턴 금지**: retain은 write, recall은 read. indexing 시간 필요.
 - **START 직후 오탐지**: 새 런 시작 시 `in_game=null`을 run_end로 착각해 불필요한 retain 발생.
+
+## 개발 워크플로우
+
+Python 파일 변경 후 반드시:
+```bash
+uv run ruff format
+uv run ruff check --fix
+uv run pyright
+```
+셋 다 통과해야 커밋.
 
 ## AI 에이전트 지침
 
