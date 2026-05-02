@@ -73,7 +73,7 @@ Harry는 코드를 직접 쓰지 않습니다. AI 에이전트(Pi)와 협업합�
 
 | | RecallAgent | PlayAgent | RetainAgent |
 |---|---|---|---|
-| **시스템 프롬프트** | `RECALL_AGENT_PROMPT` | `PLAY_SYSTEM_PROMPT` | `RETAIN_AGENT_PROMPT` |
+| **시스템 프롬프트** | `RECALL_AGENT_PROMPT` | `PLAY_AGENT_PROMPT` | `RETAIN_AGENT_PROMPT` |
 | **히스토리** | messages (공유) | messages (공유) | messages (공유) |
 | **사용자 메시지** | 게임 state JSON | 게임 state + recall 분석 | 트리거 설명 (turn_end, combat_end 등) |
 | **도구** | `recall` | `send_command` | 없음 (text 응답) |

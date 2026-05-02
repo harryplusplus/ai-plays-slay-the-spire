@@ -70,7 +70,7 @@ messages (순수 히스토리, 시스템 프롬프트 없음):
 
 각 call_llm() 호출 시:
   RecallAgent: [system: RECALL_AGENT_PROMPT] + messages + [user: state JSON]
-  PlayAgent:   [system: PLAY_SYSTEM_PROMPT] + messages + [user: state + recall 분석]
+  PlayAgent:   [system: PLAY_AGENT_PROMPT] + messages + [user: state + recall 분석]
   RetainAgent: [system: RETAIN_AGENT_PROMPT] + messages + [user: trigger 설명]
 ```
 
@@ -103,7 +103,7 @@ while True:
     trim_messages(messages)
 
     ① recall_analysis = RecallAgent(messages, current_state_json)
-    ② PlayAgent(PLAY_SYSTEM_PROMPT + messages + state/analysis) → tool_calls
+    ② PlayAgent(PLAY_AGENT_PROMPT + messages + state/analysis) → tool_calls
     ③ messages += assistant_msg
     ④ for each tool_call:
          result = execute_tool(...)
@@ -117,7 +117,7 @@ while True:
 
 | | RecallAgent | PlayAgent | RetainAgent |
 |---|---|---|---|
-| 시스템 프롬프트 | `RECALL_AGENT_PROMPT` | `PLAY_SYSTEM_PROMPT` | `RETAIN_AGENT_PROMPT` |
+| 시스템 프롬프트 | `RECALL_AGENT_PROMPT` | `PLAY_AGENT_PROMPT` | `RETAIN_AGENT_PROMPT` |
 | 도구 | `recall` | `send_command` | 없음 |
 | 사용자 메시지 | 게임 state JSON | state + recall 분석 | 트리거 설명 |
 | 출력 | 분석 텍스트 | tool_calls | retain content |
