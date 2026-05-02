@@ -19,7 +19,7 @@ LLM_DUMP_DIR = Path.home() / ".sts" / "logs" / "llm_dump"
 MAX_DUMPS = 10
 REASONING_LOG = Path.home() / ".sts" / "logs" / "reasoning.jsonl"
 
-PLAY_SYSTEM_PROMPT = """\
+PLAY_AGENT_PROMPT = """\
 You are an AI playing Slay the Spire.
 
 Game commands (case insensitive):

@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 from .constants import (
     MAX_MESSAGES_CHARS,
     MODEL,
-    PLAY_SYSTEM_PROMPT,
+    PLAY_AGENT_PROMPT,
     REASONING_EFFORT,
     RETRY_DELAY,
     RUN_ENDED_PROMPT,
@@ -221,7 +221,7 @@ def _run_agent() -> None:  # noqa: PLR0915
 
         # 2. Build play prompt with system prompt + history + state
         play_messages: list[ChatCompletionMessageParam] = [
-            {"role": "system", "content": PLAY_SYSTEM_PROMPT},
+            {"role": "system", "content": PLAY_AGENT_PROMPT},
             *messages,
             {
                 "role": "user",
