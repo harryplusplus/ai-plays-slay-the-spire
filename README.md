@@ -83,21 +83,23 @@ Harry는 코드를 직접 쓰지 않습니다. AI 에이전트(Pi)와 협업합�
 | **도구** | `recall` | `send_command` | 없음 (text 응답) |
 | **출력** | 분석 텍스트 | tool_calls | retain content 문자열 |
 
-### 메시지 히스토리 (슬라이딩 윈도우)
+### 메시지 히스토리
 
-`messages`는 시스템 프롬프트 없이 user/assistant/tool 메시지만 보관한다.
-`MAX_MESSAGES_CHARS=500K` 초과 시 오래된 턴부터 드롭.
+`messages`는 시스템 프롬프트 없이 assistant/tool 메시지만 보관한다.
+루프 시작 시 `trim_messages()`가 최근 2턴(assistant + tool 쌍)만
+남기고 오래된 메시지를 삭제한다. 컨텍스트 약 50KB 유지.
 
 ```
 messages = [
   {role: "assistant", content: ..., tool_calls: [...]},
   {role: "tool", tool_call_id: ..., content: ...},
-  {role: "user", content: "You must use a tool."},
   ...
 ]
 ```
 
 각 에이전트 호출 시 시스템 프롬프트를 앞에 붙여서 `call_llm()`에 전달한다.
+스크린샷과 state JSON은 각 호출마다 ephemeral하게 user 메시지로 주입되며
+`messages`에 축적되지 않는다.
 
 ### 핵심 파일
 

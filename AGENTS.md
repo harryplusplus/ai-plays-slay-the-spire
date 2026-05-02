@@ -36,6 +36,9 @@ messages (순수 히스토리, 시스템 프롬프트 없음, 이미지 없음):
   {role: "tool", tool_call_id: ..., content: ...}
   ...
 
+messages는 최근 2턴(assistant + tool 쌍)만 유지. 오래된 상태 JSON은
+루프 시작 시 trim_messages()가 삭제. 컨텍스트 ~50KB 유지.
+
 각 call_llm() 호출 시 (user content는 text+image multimodal):
   RecallAgent: [system] + messages + [user: state JSON + screenshot]
   PlayAgent:   [system] + messages + [user: state + recall 분석 + screenshot]
@@ -70,6 +73,9 @@ ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생
 1. [ ] 다양한 클래스/빌드로 런 돌려서 뱅크 확장
 2. [ ] Tags 도입 (class, topic, enemy)
 3. [ ] RecallAgent 쿼리 전략 튜닝 (multi-query merge 등)
+
+### 완료
+- [x] **메시지 트리밍 개선** — char 기반(MAX_MESSAGES_CHARS=500K)에서 최근 2턴(assistant+tool) 고정 유지로 변경. 상태 JSON 축적으로 인한 컨텍스트 오염 제거.
 
 ### 나중
 4. [ ] Reflect로 전략 조언
@@ -190,7 +196,7 @@ jq -r '.ts' ~/.sts/logs/ai.jsonl | tail -1
 모두 RotatingFileHandler(10MB×5). `jq`로 필터링 가능.
 
 ### 알려진 이슈
-- **메시지 트리밍**: `MAX_MESSAGES_CHARS=500K` 초과 시 오래된 턴부터 드롭.
+- **메시지 트리밍**: `trim_messages()`가 루프 시작 시 최근 2턴(assistant + tool 쌍)만 남기고 오래된 턴 전부 삭제. 컨텍스트 ~50KB 유지.
 - **LLM 재시도**: `call_llm()`이 `MAX_ATTEMPTS=5`까지 exponential backoff. 초과 시 30s sleep 후 리셋.
 - **런 종료**: `in_game=false` → runs.log 기록 + RetainAgent("run_end") 호출.
 - **START 직후 오탐지**: 새 런 시작 시 `in_game=null`을 run_end로 착각해 불필요한 retain 발생 가능.

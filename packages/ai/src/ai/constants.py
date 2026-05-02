@@ -11,7 +11,6 @@ OPENAI_BASE_URL = "https://crof.ai/v1"
 OPENAI_API_KEY = os.environ["CROF_API_KEY"]
 MODEL = "kimi-k2.6-precision"
 REASONING_EFFORT = "high"
-MAX_MESSAGES_CHARS = 500_000
 RETRY_DELAY = 10.0
 MAX_ATTEMPTS = 5
 RUN_LOG = Path.home() / ".sts" / "logs" / "runs.log"
