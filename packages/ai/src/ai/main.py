@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 
 
 from .constants import (
-    MAX_MESSAGES_CHARS,
     MODEL,
     PLAY_AGENT_PROMPT,
     REASONING_EFFORT,
@@ -183,35 +182,36 @@ def _build_document_id(state: dict[str, Any]) -> str | None:
 
 
 def trim_messages(messages: list[ChatCompletionMessageParam]) -> None:
-    """Drop oldest complete turns until total chars under limit.
+    """Keep only the last 2 complete turns (assistant + tool pairs).
 
-    A turn is: user + assistant + tool(s). We remove whole turns
-    so tool_call/tool_result pairs stay intact.
+    A turn = one assistant message + all following tool messages.
+    Older state JSONs (~24KB each) are discarded to keep context
+    small and focused on recent actions.
     """
-    while True:
-        total = sum(len(str(m.get("content", ""))) for m in messages)
-        if total <= MAX_MESSAGES_CHARS or len(messages) <= 1:
-            break
+    keep_turns = 2
 
-        end = 1
-        while end < len(messages):
-            if messages[end].get("role") == "user" and end > 1:
-                break
-            end += 1
+    if len(messages) <= 1:
+        return
 
-        if end <= 1:
-            break
+    assistant_positions = [
+        i for i, m in enumerate(messages) if m.get("role") == "assistant"
+    ]
 
-        removed = messages[:end]
-        logger.info(
-            "message trim",
-            extra={
-                "event": "message_trim",
-                "dropped_count": len(removed),
-                "dropped_roles": [m.get("role") for m in removed],
-            },
-        )
-        del messages[:end]
+    if len(assistant_positions) <= keep_turns:
+        return
+
+    keep_from = assistant_positions[-keep_turns]
+    logger.info(
+        "message trim",
+        extra={
+            "event": "message_trim",
+            "dropped_count": keep_from,
+            "dropped_roles": [m.get("role") for m in messages[:keep_from]],
+            "kept": len(messages) - keep_from,
+            "total_before": len(messages),
+        },
+    )
+    del messages[:keep_from]
 
 
 def _detect_trigger(
