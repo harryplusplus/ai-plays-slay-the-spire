@@ -1,12 +1,10 @@
-import base64
-import io
 import json
 import logging
 import subprocess
 import time
 from typing import TYPE_CHECKING, Any
 
-from PIL import Image
+from .window import capture_screenshot
 
 if TYPE_CHECKING:
     from openai.types.chat import (
@@ -30,14 +28,10 @@ from .llm import (
     parse_llm_response,
 )
 from .log import (
-    dump_messages,
-    init_ai_logger,
-    init_reasoning_logger,
-    init_run_logger,
+    init_logger,
 )
 from .recall_agent import run_recall_agent
 from .retain_agent import run_retain_agent
-from .window import capture, find_window
 
 logger = logging.getLogger(__name__)
 run_logger = logging.getLogger("run")
@@ -131,43 +125,6 @@ def execute_tool(
     if name == "send_command":
         return game_cli("command", arguments["command"])
     return f"error: unknown tool {name}"
-
-
-_MAX_SCREENSHOT_DIMENSION = 800
-_SCREENSHOT_JPEG_QUALITY = 70
-
-
-def _capture_screenshot() -> str:
-    """Capture, resize, and return base64-encoded JPEG.
-
-    Resizes to at most 800px on the longest edge to keep context small.
-    Raises on failure — no fallback. Screenshot is mandatory.
-    """
-    window = find_window("Modded Slay the Spire")
-    if window is None:
-        msg = "Slay the Spire window not found"
-        raise RuntimeError(msg)
-    raw_b64 = capture(window["id"])
-    img = Image.open(io.BytesIO(base64.b64decode(raw_b64)))
-    w, h = img.size
-    if w > _MAX_SCREENSHOT_DIMENSION or h > _MAX_SCREENSHOT_DIMENSION:
-        ratio = _MAX_SCREENSHOT_DIMENSION / max(w, h)
-        img = img.resize((int(w * ratio), int(h * ratio)), Image.Resampling.LANCZOS)  # pyright: ignore[reportUnknownMemberType,reportAttributeAccessIssue]
-    buf = io.BytesIO()
-    img = img.convert("RGB")
-    img.save(buf, format="JPEG", quality=_SCREENSHOT_JPEG_QUALITY)
-    b64 = base64.b64encode(buf.getvalue()).decode()
-    logger.info(
-        "screenshot captured",
-        extra={
-            "event": "screenshot",
-            "window_id": window["id"],
-            "original_size": len(raw_b64),
-            "resized_size": len(b64),
-            "original_dims": f"{w}x{h}",
-        },
-    )
-    return b64
 
 
 def _build_document_id(state: dict[str, Any]) -> str | None:
@@ -352,7 +309,7 @@ def _run_agent() -> None:  # noqa: PLR0915
         trim_messages(messages)
 
         # 1. Screenshot (before action — for Recall + Play)
-        screenshot_before = _capture_screenshot()
+        screenshot_before = capture_screenshot()
 
         # 2. Recall
         recall_analysis = run_recall_agent(
@@ -379,7 +336,6 @@ def _run_agent() -> None:  # noqa: PLR0915
             extra={"event": "call_llm", "message_count": len(play_messages)},
         )
         start_time = time.monotonic()
-        dump_messages(play_messages)
         response = call_llm(
             play_messages,
             TOOLS,
@@ -484,7 +440,7 @@ def _run_agent() -> None:  # noqa: PLR0915
                         "run ended",
                         extra={"event": "run_end", "state": _state_summary(result)},
                     )
-                    run_logger.info(result)
+                    run_logger.info("run", extra={"result": result})
                     messages.append(
                         {"role": "user", "content": RUN_ENDED_PROMPT},
                     )
@@ -492,7 +448,7 @@ def _run_agent() -> None:  # noqa: PLR0915
                 # 8. Retain
                 trigger = _detect_trigger(current_state, new_state)
                 if trigger:
-                    screenshot_after = _capture_screenshot()
+                    screenshot_after = capture_screenshot()
                     retain_content = run_retain_agent(
                         messages, trigger, screenshot_b64=screenshot_after
                     )
@@ -521,7 +477,5 @@ def _run_agent() -> None:  # noqa: PLR0915
 
 
 def main() -> None:
-    init_ai_logger()
-    init_run_logger()
-    init_reasoning_logger()
+    init_logger()
     _run_agent()

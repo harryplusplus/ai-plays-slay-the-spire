@@ -29,6 +29,7 @@ from openai.types.chat import (
 )
 
 logger = logging.getLogger(__name__)
+llm_logger = logging.getLogger("llm")
 
 
 @dataclass
@@ -115,13 +116,30 @@ def call_llm(
             base_url=OPENAI_BASE_URL,
             max_retries=0,
         )
+        llm_logger.debug(
+            "call_llm_before",
+            extra={
+                "event": "call_llm_before",
+                "caller": caller,
+                "messages": messages,
+                "tools": tools,
+            },
+        )
         try:
-            return client.chat.completions.create(
+            response = client.chat.completions.create(
                 model=model,
                 messages=messages,
                 tools=tools,
                 temperature=temperature,
                 reasoning_effort=reasoning_effort,  # pyright: ignore[reportArgumentType]
+            )
+            llm_logger.debug(
+                "call_llm_after",
+                extra={
+                    "event": "call_llm_after",
+                    "caller": caller,
+                    "response": response,
+                },
             )
         except InternalServerError:
             if attempt >= MAX_ATTEMPTS:
@@ -199,5 +217,7 @@ def call_llm(
                 extra={"event": "error", "error_type": "llm_api", "caller": caller},
             )
             time.sleep(RETRY_DELAY)
+        else:
+            return response
         finally:
             client.close()

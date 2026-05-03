@@ -2,15 +2,12 @@
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, override
+from typing import Any, override
 
-from .constants import LLM_DUMP_DIR, MAX_DUMPS, REASONING_LOG, RUN_LOG
-
-if TYPE_CHECKING:
-    from openai.types.chat import ChatCompletionMessageParam
+from .constants import LLM_LOG, REASONING_LOG, RUN_LOG
 
 
 class JsonlFormatter(logging.Formatter):
@@ -75,7 +72,7 @@ def _create_handler(path: Path) -> RotatingFileHandler:
     return handler
 
 
-def init_ai_logger() -> None:
+def _init_ai_logger() -> None:
     handler = _create_handler(Path.home() / ".sts" / "logs" / "ai.jsonl")
     logger = logging.getLogger("ai")
     logger.setLevel(logging.DEBUG)
@@ -83,7 +80,7 @@ def init_ai_logger() -> None:
     logger.propagate = False
 
 
-def init_run_logger() -> None:
+def _init_run_logger() -> None:
     handler = _create_handler(RUN_LOG)
     logger = logging.getLogger("run")
     logger.setLevel(logging.INFO)
@@ -91,8 +88,7 @@ def init_run_logger() -> None:
     logger.propagate = False
 
 
-def init_reasoning_logger() -> None:
-    """Set up reasoning.jsonl handler on reasoning logger."""
+def _init_reasoning_logger() -> None:
     handler = _create_handler(REASONING_LOG)
     logger = logging.getLogger("reasoning")
     logger.setLevel(logging.DEBUG)
@@ -100,19 +96,16 @@ def init_reasoning_logger() -> None:
     logger.propagate = False
 
 
-def dump_messages(messages: list[ChatCompletionMessageParam]) -> None:
-    """Dump the messages array to a file before LLM API call.
-    Keeps only the last MAX_DUMPS dumps (action-based rotation).
-    """
-    LLM_DUMP_DIR.mkdir(parents=True, exist_ok=True)
+def _init_llm_logger() -> None:
+    handler = _create_handler(LLM_LOG)
+    logger = logging.getLogger("llm")
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
+    logger.propagate = False
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")  # noqa: UP017
-    filepath = LLM_DUMP_DIR / f"llm_dump_{timestamp}.json"
 
-    with filepath.open("w", encoding="utf-8") as f:
-        json.dump(messages, f, ensure_ascii=False, indent=2)
-
-    dumps = sorted(LLM_DUMP_DIR.glob("llm_dump_*.json"))
-    while len(dumps) > MAX_DUMPS:
-        oldest = dumps.pop(0)
-        oldest.unlink()
+def init_logger() -> None:
+    _init_ai_logger()
+    _init_run_logger()
+    _init_reasoning_logger()
+    _init_llm_logger()

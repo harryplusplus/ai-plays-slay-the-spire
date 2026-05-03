@@ -7,15 +7,14 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionToolUnionParam
 
-OPENAI_BASE_URL = "https://crof.ai/v1"
-OPENAI_API_KEY = os.environ["CROF_API_KEY"]
-MODEL = "kimi-k2.6-precision"
+OPENAI_BASE_URL = "https://ollama.com/v1"
+OPENAI_API_KEY = os.environ["OLLAMA_API_KEY"]
+MODEL = "kimi-k2.6:cloud"
 REASONING_EFFORT = "high"
 RETRY_DELAY = 10.0
 MAX_ATTEMPTS = 5
-RUN_LOG = Path.home() / ".sts" / "logs" / "runs.log"
-LLM_DUMP_DIR = Path.home() / ".sts" / "logs" / "llm_dump"
-MAX_DUMPS = 10
+RUN_LOG = Path.home() / ".sts" / "logs" / "run.jsonl"
+LLM_LOG = Path.home() / ".sts" / "logs" / "llm.jsonl"
 REASONING_LOG = Path.home() / ".sts" / "logs" / "reasoning.jsonl"
 
 PLAY_AGENT_PROMPT = """\
