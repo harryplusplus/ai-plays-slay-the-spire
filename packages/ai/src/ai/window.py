@@ -149,6 +149,7 @@ def capture_screenshot() -> str:
     for _ in range(5):
         try:
             raw_b64 = _capture(window["id"])
+            break
         except:  # noqa: E722, S112
             continue
     if not raw_b64:
