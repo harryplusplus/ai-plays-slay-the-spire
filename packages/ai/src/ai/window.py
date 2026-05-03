@@ -126,7 +126,7 @@ def _capture(window_id: int) -> str:
             ["screencapture", "-l", str(window_id), tmp.name],
             check=True,
             capture_output=True,
-            timeout=60,
+            timeout=10,
         )
         return base64.b64encode(Path(tmp.name).read_bytes()).decode()
 
@@ -145,7 +145,15 @@ def capture_screenshot() -> str:
     if window is None:
         msg = "Slay the Spire window not found"
         raise RuntimeError(msg)
-    raw_b64 = _capture(window["id"])
+    raw_b64 = ""
+    for _ in range(5):
+        try:
+            raw_b64 = _capture(window["id"])
+        except:  # noqa: E722, S112
+            continue
+    if not raw_b64:
+        msg = "Failed to capture StS"
+        raise RuntimeError(msg)
     img = Image.open(io.BytesIO(base64.b64decode(raw_b64)))
     w, h = img.size
     if w > _MAX_SCREENSHOT_DIMENSION or h > _MAX_SCREENSHOT_DIMENSION:
