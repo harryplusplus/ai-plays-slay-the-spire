@@ -478,4 +478,10 @@ def _run_agent() -> None:  # noqa: PLR0915
 
 def main() -> None:
     init_logger()
-    _run_agent()
+    while True:
+        try:
+            _run_agent()
+        except Exception:
+            logger.exception("unexpected error in agent loop, restarting")
+            time.sleep(RETRY_DELAY)
+            continue

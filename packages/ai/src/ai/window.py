@@ -256,7 +256,7 @@ def capture_screenshot() -> str:
         try:
             raw_bytes = _capture(window["id"])
             break
-        except:  # noqa: E722, S112
+        except Exception:  # noqa: BLE001, S112
             continue
     if not raw_bytes:
         msg = "Failed to capture StS"
