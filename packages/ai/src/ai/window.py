@@ -8,9 +8,6 @@ import ctypes
 import ctypes.util
 import io
 import logging
-import subprocess
-from pathlib import Path
-from tempfile import NamedTemporaryFile
 from typing import Any
 
 from PIL import Image
@@ -49,6 +46,80 @@ _CFARRAY_GET_VALUE.argtypes = [ctypes.c_void_p, ctypes.c_int64]
 _CFDICT_GET_VALUE = _cg.CFDictionaryGetValue
 _CFDICT_GET_VALUE.restype = ctypes.c_void_p
 _CFDICT_GET_VALUE.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+
+# --- CoreFoundation / CoreGraphics additions for cross-space capture ---
+
+
+class _CGPoint(ctypes.Structure):
+    _fields_ = [("x", ctypes.c_double), ("y", ctypes.c_double)]
+
+
+class _CGSize(ctypes.Structure):
+    _fields_ = [("width", ctypes.c_double), ("height", ctypes.c_double)]
+
+
+class _CGRect(ctypes.Structure):
+    _fields_ = [("origin", _CGPoint), ("size", _CGSize)]
+
+
+_CGRectNull = _CGRect(_CGPoint(float("inf"), float("inf")), _CGSize(0, 0))
+
+
+_CGWindowListCreateImage = _cg.CGWindowListCreateImage
+_CGWindowListCreateImage.restype = ctypes.c_void_p
+_CGWindowListCreateImage.argtypes = [
+    _CGRect,
+    ctypes.c_uint32,
+    ctypes.c_uint32,
+    ctypes.c_uint32,
+]
+
+_CFRelease = _cg.CFRelease
+_CFRelease.restype = None
+_CFRelease.argtypes = [ctypes.c_void_p]
+
+_CFDataCreateMutable = _cg.CFDataCreateMutable
+_CFDataCreateMutable.restype = ctypes.c_void_p
+_CFDataCreateMutable.argtypes = [ctypes.c_void_p, ctypes.c_int64]
+
+_CFDataGetLength = _cg.CFDataGetLength
+_CFDataGetLength.restype = ctypes.c_int64
+_CFDataGetLength.argtypes = [ctypes.c_void_p]
+
+_CFDataGetBytePtr = _cg.CFDataGetBytePtr
+_CFDataGetBytePtr.restype = ctypes.POINTER(ctypes.c_uint8)
+_CFDataGetBytePtr.argtypes = [ctypes.c_void_p]
+
+_imageio_path = ctypes.util.find_library("ImageIO")
+if _imageio_path is None:
+    _msg = "ImageIO framework not found"
+    raise RuntimeError(_msg)
+_imageio: Any = ctypes.cdll.LoadLibrary(_imageio_path)
+
+_CGImageDestinationCreateWithData = _imageio.CGImageDestinationCreateWithData
+_CGImageDestinationCreateWithData.restype = ctypes.c_void_p
+_CGImageDestinationCreateWithData.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_size_t,
+    ctypes.c_void_p,
+]
+
+_CGImageDestinationAddImage = _imageio.CGImageDestinationAddImage
+_CGImageDestinationAddImage.restype = None
+_CGImageDestinationAddImage.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+]
+
+_CGImageDestinationFinalize = _imageio.CGImageDestinationFinalize
+_CGImageDestinationFinalize.restype = ctypes.c_bool
+_CGImageDestinationFinalize.argtypes = [ctypes.c_void_p]
+
+_PNG_UTI = "public.png"
+_K_CG_INCLUDE_WINDOW = 8
+_K_CG_IGNORE_FRAMING = 1
 
 
 def _cfstr(s: str) -> ctypes.c_void_p:
@@ -119,16 +190,51 @@ def _find_window(
     return fallback
 
 
-def _capture(window_id: int) -> str:
-    """Capture a window by id, return base64-encoded PNG."""
-    with NamedTemporaryFile(suffix=".png") as tmp:
-        subprocess.run(
-            ["screencapture", "-l", str(window_id), tmp.name],
-            check=True,
-            capture_output=True,
-            timeout=10,
-        )
-        return base64.b64encode(Path(tmp.name).read_bytes()).decode()
+def _capture(window_id: int) -> bytes:
+    """Capture a window by id, return raw PNG bytes (cross-space safe).
+
+    Uses CGWindowListCreateImage + ImageIO instead of screencapture(1),
+    so it works even when the window is on a different macOS Space.
+    """
+    cg_img = _CGWindowListCreateImage(
+        _CGRectNull,
+        _K_CG_INCLUDE_WINDOW,
+        window_id,
+        _K_CG_IGNORE_FRAMING,
+    )
+    if not cg_img:
+        msg = f"CGWindowListCreateImage returned NULL for window {window_id}"
+        raise RuntimeError(msg)
+
+    data: Any = None
+    dest: Any = None
+    try:
+        data = _CFDataCreateMutable(None, 0)
+        if not data:
+            msg = "CFDataCreateMutable failed"
+            raise RuntimeError(msg)
+
+        uti = _cfstr(_PNG_UTI)
+        dest = _CGImageDestinationCreateWithData(data, uti, 1, None)
+        if not dest:
+            msg = "CGImageDestinationCreateWithData failed"
+            raise RuntimeError(msg)
+
+        _CGImageDestinationAddImage(dest, cg_img, None)
+
+        if not _CGImageDestinationFinalize(dest):
+            msg = "CGImageDestinationFinalize failed"
+            raise RuntimeError(msg)
+
+        length = _CFDataGetLength(data)
+        ptr = _CFDataGetBytePtr(data)
+        return ctypes.string_at(ptr, length)
+    finally:
+        if dest:
+            _CFRelease(dest)
+        if data:
+            _CFRelease(data)
+        _CFRelease(cg_img)
 
 
 _MAX_SCREENSHOT_DIMENSION = 800
@@ -145,17 +251,17 @@ def capture_screenshot() -> str:
     if window is None:
         msg = "Slay the Spire window not found"
         raise RuntimeError(msg)
-    raw_b64 = ""
+    raw_bytes = b""
     for _ in range(5):
         try:
-            raw_b64 = _capture(window["id"])
+            raw_bytes = _capture(window["id"])
             break
         except:  # noqa: E722, S112
             continue
-    if not raw_b64:
+    if not raw_bytes:
         msg = "Failed to capture StS"
         raise RuntimeError(msg)
-    img = Image.open(io.BytesIO(base64.b64decode(raw_b64)))
+    img = Image.open(io.BytesIO(raw_bytes))
     w, h = img.size
     if w > _MAX_SCREENSHOT_DIMENSION or h > _MAX_SCREENSHOT_DIMENSION:
         ratio = _MAX_SCREENSHOT_DIMENSION / max(w, h)
@@ -169,9 +275,26 @@ def capture_screenshot() -> str:
         extra={
             "event": "screenshot",
             "window_id": window["id"],
-            "original_size": len(raw_b64),
+            "original_size": len(raw_bytes),
             "resized_size": len(b64),
             "original_dims": f"{w}x{h}",
         },
     )
     return b64
+
+
+if __name__ == "__main__":
+    import tempfile
+
+    b64 = capture_screenshot()
+    jpg_bytes = base64.b64decode(b64)
+
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        tmp.write(jpg_bytes)
+        tmp_path = tmp.name
+
+    img = Image.open(tmp_path)
+    print(f"file://{tmp_path}")
+    print(f"size={len(jpg_bytes)} bytes")
+    print(f"dims={img.size[0]}x{img.size[1]}")
+    print(f"b64={b64[:120]}...")
