@@ -82,7 +82,7 @@ def run_recall_agent(
     Args:
         messages: Conversation history (user/assistant/tool only).
         current_state_json: Raw JSON game state to analyze.
-        screenshot_b64: Base64-encoded PNG screenshot of the current game screen.
+        screenshot_b64: Base64-encoded JPEG screenshot of the current game screen.
         model: LLM model name.
         reasoning_effort: Reasoning effort level.
         max_attempts: Maximum LLM calls before giving up.

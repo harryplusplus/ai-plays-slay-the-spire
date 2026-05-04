@@ -26,13 +26,14 @@ Giant Head in Act 3?"` 같은 자연어 쿼리는 Giant Head 관련 메모리를
 ### reasoning은 recall보다 game state에 의존한다
 reasoning 내용 분석 결과, recall 개념이 reasoning에 등장해도 그건 현재 덱에 있는 카드 이름일 뿐.
 LLM은 recall 텍스트보다 state JSON을 직접 보고 판단.
-→ `reasoning_logger`가 recall_analysis와 reasoning_content를 함께 기록하여 상관관계 추적 중.
+→ `reasoning_logger`가 recall_results와 reasoning_content를 함께 기록하여 상관관계 추적 중.
 
 ### Retain 시스템 — 알려진 문제와 대응법
 
 #### `_detect_trigger` 검증되지 않은 브랜치
 `packages/ai/src/ai/main.py`의 `_detect_trigger()`는 다음 SCREEN 전환에서
-아직 테스트되지 않음: EVENT→MAP, SHOP_ROOM→MAP, CHEST→COMBAT_REWARD.
+아직 테스트되지 않음: EVENT→MAP, CHEST→COMBAT_REWARD.
+(`SHOP_ROOM→MAP`은 `SHOP_ROOM`이 room_type이라 screen_type 기준인 prev_screen으로 도달 불가 → dead code.)
 
 ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생 여부를
 비교해서 검증 필요. 수정 시 `packages/ai/tests/`에 단위 테스트 추가.
@@ -57,7 +58,7 @@ ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생
 3. [ ] RecallAgent 쿼리 전략 튜닝 (multi-query merge 등)
 
 ### 완료
-- [x] **메시지 트리밍 개선** — char 기반(MAX_MESSAGES_CHARS=500K)에서 최근 2턴(assistant+tool) 고정 유지로 변경. 상태 JSON 축적으로 인한 컨텍스트 오염 제거.
+- [x] **메시지 트리밍 개선** — char 기반(MAX_MESSAGES_CHARS=500K)에서 turn 기반으로 변경. 최근 2턴 full + 이전 20턴 summarized(assistant content 보존, tool content placeholder) 구조. 상태 JSON 축적으로 인한 컨텍스트 오염 제거.
 - [x] **루프 평탄화** — `_handle_send_command` 해체, 단일 루프 구조로 단순화.
 - [x] **스크린샷 비전 지원** — Recall/Play/Retain 세 에이전트 모두 현재 화면 이미지를 ephemeral하게 수신. messages에 축적 안 됨.
 
@@ -75,10 +76,10 @@ ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생
 
 ## 알려진 이슈
 
-- **메시지 트리밍**: `trim_messages()`가 루프 시작 시 최근 2턴(assistant + tool 쌍)만 남기고 오래된 턴 전부 삭제. 컨텍스트 ~50KB 유지.
-- **LLM 재시도**: `call_llm()`이 `MAX_ATTEMPTS=5`까지 exponential backoff. 초과 시 30s sleep 후 리셋.
+- **메시지 트리밍**: `trim_messages()`가 루프 시작 시 assistant 메시지 기준 최근 2개(fully preserved) + 이전 20개(assistant content 보존, tool content placeholder)까지 유지. 그 이전은 전부 삭제. byte 기반 트리밍은 폐기됨.
+- **LLM 재시도**: `call_llm()`이 에러 타입별로 재시도. 500/4xx: `MAX_ATTEMPTS=5`까지 exponential backoff, 초과 시 30s sleep 후 리셋. 429: attempt 리셋 없이 backoff(최대 120s). connection/기타 에러: RETRY_DELAY(10s) 고정 재시도.
 - **런 종료**: `in_game=false` → run.jsonl 기록 + RetainAgent("run_end") 호출.
-- **START 직후 오탐지**: 새 런 시작 시 `in_game=null`을 run_end로 착각해 불필요한 retain 발생 가능.
+- **START 직후 오탐지**: (해결됨) `_detect_trigger()`가 `in_game is False` strict 비교를 사용하므로 `null`/`None`은 run_end로 감지되지 않음.
 
 ## 운영
 

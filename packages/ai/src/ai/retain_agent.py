@@ -76,7 +76,7 @@ def run_retain_agent(
     Args:
         messages: Recent conversation history.
         trigger: What triggered the retain (turn_end, combat_end, etc.).
-        screenshot_b64: Base64-encoded PNG screenshot of the result screen.
+        screenshot_b64: Base64-encoded JPEG screenshot of the result screen.
         model: LLM model name.
         reasoning_effort: Reasoning effort level.
 
