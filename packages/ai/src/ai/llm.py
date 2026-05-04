@@ -42,6 +42,13 @@ class ParsedResponse:
 def parse_llm_response(response: ChatCompletion) -> ParsedResponse:
     """Extract typed fields from an LLM response."""
     msg = response.choices[0].message
+    reasoning = getattr(msg, "reasoning_content", None)
+    if reasoning is None and hasattr(msg, "model_extra"):
+        reasoning = (msg.model_extra or {}).get("reasoning_content")
+    if reasoning is None:
+        reasoning = getattr(msg, "reasoning", None)
+    if reasoning is None and hasattr(msg, "model_extra"):
+        reasoning = (msg.model_extra or {}).get("reasoning")
     return ParsedResponse(
         content=msg.content,
         tool_calls=[
@@ -49,7 +56,7 @@ def parse_llm_response(response: ChatCompletion) -> ParsedResponse:
             for tc in (msg.tool_calls or [])
             if isinstance(tc, ChatCompletionMessageToolCall)
         ],
-        reasoning_content=getattr(msg, "reasoning_content", None),
+        reasoning_content=reasoning,
     )
 
 
