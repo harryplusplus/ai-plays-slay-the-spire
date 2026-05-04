@@ -30,9 +30,9 @@ Harry는 코드를 직접 쓰지 않습니다. AI 에이전트(Pi)와 협업합�
 ## 현재 상태
 
 ### 인프라
-- LLM: crof.ai (reasoning_effort="high")
+- LLM: OpenAI 호환 API
 - 장기기억: Hindsight `sts-v2` 뱅크 (371개 memory units, Python SDK)
-- 로깅: JSONL (ai.jsonl, game.jsonl, reasoning.jsonl) + llm_dump
+- 로깅: JSONL (ai.jsonl, game.jsonl, reasoning.jsonl, llm.jsonl)
 
 ### 발견하고 해결한 문제들
 - **recall 쿼리 formulation** — keyword-style 쿼리는 enemy-specific memory를 잘 못 건짐. RecallAgent가 자연어 쿼리를 생성하면서 개선.
@@ -68,8 +68,12 @@ Harry는 코드를 직접 쓰지 않습니다. AI 에이전트(Pi)와 협업합�
 │  ⑤ trigger = detect_trigger(prev_state, new_state)      │
 │     if trigger:                                           │
 │       screenshot_after = capture (결과 화면)              │
-│       RetainAgent(messages, trigger, screenshot)         │
-│       game_cli("retain", content)                        │
+│       retain_content = RetainAgent(messages, trigger, screenshot)│
+│       doc_id = _build_document_id(new_state)              │
+│       if doc_id:                                          │
+│         game_cli("retain", retain_content, "--document-id", doc_id)│
+│       else:                                               │
+│         game_cli("retain", retain_content)                │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -105,7 +109,7 @@ messages = [
 
 | 파일 | 역할 |
 |------|------|
-| `packages/ai/src/ai/main.py` | 메인 루프, trigger detection, `_capture_screenshot()`, `_build_user_message()` |
+| `packages/ai/src/ai/main.py` | 메인 루프, trigger detection, `capture_screenshot()`, `_build_user_message()`, `_build_document_id()` |
 | `packages/ai/src/ai/llm.py` | `call_llm()` retry + client lifecycle, `parse_llm_response()`, `build_assistant_message()`, `build_multimodal_content()` |
 | `packages/ai/src/ai/recall_agent.py` | `run_recall_agent()`, RecallAgent 프롬프트, recall 툴 |
 | `packages/ai/src/ai/retain_agent.py` | `run_retain_agent()`, RetainAgent 프롬프트, 트리거별 메시지 |
@@ -127,7 +131,7 @@ AI → subprocess game CLI → httpx proxy(8766) → websocket bridge(8765)
 ```sh
 uv sync --all-packages --locked
 git submodule update --init --recursive
-export CROF_API_KEY=...
+export OLLAMA_API_KEY=...
 uv run proxy   # 프록시 서버
 uv run ai      # AI 에이전트
 ```

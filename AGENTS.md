@@ -1,7 +1,7 @@
 # AI 에이전트 노트 — Slay the Spire
 
 ## 개요
-LLM(crof.ai)이 CommunicationMod로 Slay the Spire를 자동 플레이.
+LLM이 CommunicationMod로 Slay the Spire를 자동 플레이.
 목표: 승천 0 심장 클리어. Hindsight 장기기억으로 런 간 학습.
 
 ## 현재 상태 (2026-05-03)
@@ -61,6 +61,12 @@ messages는 최근 2턴(assistant + tool 쌍)만 유지. 오래된 상태 JSON�
 ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생 여부를
 비교해서 검증 필요. 수정 시 `packages/ai/tests/`에 단위 테스트 추가.
 
+#### COMBAT_END 트리거
+전투 종료 감지는 `NONE`/`HAND_SELECT` → `COMBAT_REWARD` screen 전환으로 처리:
+- 직전 screen이 `NONE`(첫 전투) 또는 `HAND_SELECT`(멀티페이즈 전투 끝)이고
+  새 screen이 `COMBAT_REWARD`이면 `combat_end` 트리거 발생.
+- 다른 전투 관련 screen 전환(예: COMBAT_REWARD→MAP)은 retain 대상이 아님.
+
 #### GRID 스크린 (2026-05-02 처리 완료)
 `_detect_trigger` 로직:
 - `new_screen == "GRID"` → suppress (REST→GRID, SHOP_SCREEN→GRID FALSE POSITIVE 방지)
@@ -89,7 +95,7 @@ ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생
 while True:
     trim_messages(messages)
 
-    ① screenshot_before = _capture_screenshot()  # 현재 화면
+    ① screenshot_before = capture_screenshot()  # 현재 화면
     ② recall_analysis = RecallAgent(messages, state, screenshot)
     ③ PlayAgent(system + messages + state/recall + screenshot) → tool_calls
     ④ messages += assistant_msg
@@ -99,8 +105,13 @@ while True:
          if send_command: current_state = result
     ⑥ trigger = _detect_trigger(prev_state, new_state)
        if trigger:
-           screenshot_after = _capture_screenshot()  # 결과 화면
-           RetainAgent(messages, trigger, screenshot) → game_cli("retain", ...)
+           screenshot_after = capture_screenshot()  # 결과 화면
+           retain_content = RetainAgent(messages, trigger, screenshot)
+           doc_id = _build_document_id(new_state)  # combat-scoped grouping
+           if doc_id:
+               game_cli("retain", retain_content, "--document-id", doc_id)
+           else:
+               game_cli("retain", retain_content)
 ```
 
 ### 에이전트별 구성
@@ -128,7 +139,7 @@ AI → subprocess game CLI → httpx proxy(8766) → websocket bridge(8765)
 ```
 
 ### 핵심 파일
-- `packages/ai/src/ai/main.py` — 메인 루프, trigger detection, `_capture_screenshot()`, `_build_user_message()`
+- `packages/ai/src/ai/main.py` — 메인 루프, trigger detection, `capture_screenshot()`, `_build_user_message()`, `_build_document_id()`
 - `packages/ai/src/ai/llm.py` — `call_llm()`, `parse_llm_response()`, `build_assistant_message()`, `build_multimodal_content()`
 - `packages/ai/src/ai/recall_agent.py` — `run_recall_agent()`, RecallAgent 프롬프트/툴
 - `packages/ai/src/ai/retain_agent.py` — `run_retain_agent()`, RetainAgent 프롬프트/트리거
@@ -152,7 +163,7 @@ AI → subprocess game CLI → httpx proxy(8766) → websocket bridge(8765)
 ### 환경변수
 | 변수 | 설명 |
 |------|------|
-| `CROF_API_KEY` | LLM API 키 (crof.ai) |
+| `OLLAMA_API_KEY` | LLM API 키 (Ollama OpenAI 호환 엔드포인트, model: kimi-k2.6) |
 
 ### tmux 세션
 | 세션 | 역할 | 재시작 |
@@ -188,17 +199,17 @@ jq -r '.ts' ~/.sts/logs/ai.jsonl | tail -1
 | `~/.sts/logs/ai.jsonl` | AI 결정, 툴 호출, LLM 응답, agent 이벤트 | JSONL |
 | `~/.sts/logs/game.jsonl` | 게임 CLI, Hindsight 호출 | JSONL |
 | `~/.sts/logs/reasoning.jsonl` | recall_analysis↔reasoning_content 쌍 | JSONL |
-| `~/.sts/logs/llm_dump/` | LLM 호출 직전 messages (시스템 프롬프트 포함) | JSON (최근 10개) |
+| `~/.sts/logs/llm.jsonl` | LLM 요청/응답 전문 (DEBUG) | JSONL (10MB×5) |
 | `~/.sts/logs/proxy.log` | proxy 연결, 타임아웃 | 텍스트 |
 | `~/.sts/logs/bridge.log` | stdin/stdout 프로토콜 | 텍스트 |
-| `~/.sts/logs/runs.log` | 런 종료 시 전체 상태 | 텍스트 |
+| `~/.sts/logs/run.jsonl` | 런 종료 시 전체 상태 | JSONL |
 
 모두 RotatingFileHandler(10MB×5). `jq`로 필터링 가능.
 
 ### 알려진 이슈
 - **메시지 트리밍**: `trim_messages()`가 루프 시작 시 최근 2턴(assistant + tool 쌍)만 남기고 오래된 턴 전부 삭제. 컨텍스트 ~50KB 유지.
 - **LLM 재시도**: `call_llm()`이 `MAX_ATTEMPTS=5`까지 exponential backoff. 초과 시 30s sleep 후 리셋.
-- **런 종료**: `in_game=false` → runs.log 기록 + RetainAgent("run_end") 호출.
+- **런 종료**: `in_game=false` → run.jsonl 기록 + RetainAgent("run_end") 호출.
 - **START 직후 오탐지**: 새 런 시작 시 `in_game=null`을 run_end로 착각해 불필요한 retain 발생 가능.
 
 ## 개발 워크플로우
