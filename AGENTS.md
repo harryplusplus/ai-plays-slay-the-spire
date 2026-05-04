@@ -1,19 +1,18 @@
 # AI 에이전트 노트 — Slay the Spire
 
+> **아키텍처, 에이전트 구성, 데이터 흐름, 핵심 파일, Recall/Retain 파라미터 등은 README.md를 참고.**
+> 이 파일은 프로젝트 내부자를 위한 운영 노트, 발견한 것들, 할 일만 다룬다.
+
 ## 개요
 LLM이 CommunicationMod로 Slay the Spire를 자동 플레이.
 목표: 승천 0 심장 클리어. Hindsight 장기기억으로 런 간 학습.
 
-## 현재 상태 (2026-05-03)
+## 현재 상태 (2026-05-04)
 
-### 실행 중
 - `sts-ai`, `sts-proxy`, `hs-api`, `hs-web` tmux 세션 정상
 - Ironclad 런 진행 중
-
-### 뱅크: `sts-v2`
-- **371개** memory units (experience 199, observation 163, world 9)
-- 전부 Ironclad, 전부 Strength 빌드 관련
-- 9,107 links, 202 documents
+- 뱅크 `sts-v2`: **921** memory units (experience 463, observation 437, world 21), 25,462 links, 281 documents
+- 전부 Ironclad/Strength 빌드
 
 ## 발견한 것들
 
@@ -28,29 +27,6 @@ Giant Head in Act 3?"` 같은 자연어 쿼리는 Giant Head 관련 메모리를
 reasoning 내용 분석 결과, recall 개념이 reasoning에 등장해도 그건 현재 덱에 있는 카드 이름일 뿐.
 LLM은 recall 텍스트보다 state JSON을 직접 보고 판단.
 → `reasoning_logger`가 recall_analysis와 reasoning_content를 함께 기록하여 상관관계 추적 중.
-
-### messages 구조
-```
-messages (순수 히스토리, 시스템 프롬프트 없음, 이미지 없음):
-  {role: "assistant", content: ..., tool_calls: [...]}
-  {role: "tool", tool_call_id: ..., content: ...}
-  ...
-
-messages는 최근 2턴(assistant + tool 쌍)만 유지. 오래된 상태 JSON은
-루프 시작 시 trim_messages()가 삭제. 컨텍스트 ~50KB 유지.
-
-각 call_llm() 호출 시 (user content는 text+image multimodal):
-  RecallAgent: [system] + messages + [user: state JSON + screenshot]
-  PlayAgent:   [system] + messages + [user: state + recall 분석 + screenshot]
-  RetainAgent: [system] + messages + [user: trigger 설명 + screenshot]
-
-스크린샷은 messages에 저장되지 않음 — 루프당 1회 캡처, ephemeral.
-```
-
-### LLM 재시도
-`call_llm()`이 `MAX_ATTEMPTS=5`까지 exponential backoff. 초과 시 30s sleep 후 리셋.
-매 요청마다 client를 새로 생성하고 `close()`하여 connection leak 방지.
-`caller` 파라미터로 로그에서 에이전트 식별 가능.
 
 ### Retain 시스템 — 알려진 문제와 대응법
 
@@ -88,75 +64,19 @@ ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생
 5. [ ] Mental model 생성
 6. [ ] 심장 클리어
 
-## 아키텍처
-
-### 메인 루프
-```
-while True:
-    trim_messages(messages)
-
-    ① screenshot_before = capture_screenshot()  # 현재 화면
-    ② recall_analysis = RecallAgent(messages, state, screenshot)
-    ③ PlayAgent(system + messages + state/recall + screenshot) → tool_calls
-    ④ messages += assistant_msg
-    ⑤ for each tool_call:
-         result = execute_tool(...)
-         messages += tool_result
-         if send_command: current_state = result
-    ⑥ trigger = _detect_trigger(prev_state, new_state)
-       if trigger:
-           screenshot_after = capture_screenshot()  # 결과 화면
-           retain_content = RetainAgent(messages, trigger, screenshot)
-           doc_id = _build_document_id(new_state)  # combat-scoped grouping
-           if doc_id:
-               game_cli("retain", retain_content, "--document-id", doc_id)
-           else:
-               game_cli("retain", retain_content)
-```
-
-### 에이전트별 구성
-
-| | RecallAgent | PlayAgent | RetainAgent |
-|---|---|---|---|
-| 시스템 프롬프트 | `RECALL_AGENT_PROMPT` | `PLAY_AGENT_PROMPT` | `RETAIN_AGENT_PROMPT` |
-| 도구 | `recall` | `send_command` | 없음 |
-| 사용자 메시지 | state JSON + screenshot | state + recall + screenshot | 트리거 설명 + screenshot |
-| 출력 | 분석 텍스트 | tool_calls | retain content |
-
-### 패키지
-| 패키지 | 진입점 | 역할 |
-|--------|--------|------|
-| `packages/ai` | `uv run ai` | 3-agent 루프. OpenAI 호환 API로 tool-calling |
-| `packages/game` | `uv run game <cmd>` | Typer CLI. proxy HTTP(8766)와 통신. Hindsight SDK |
-| `packages/proxy` | `uv run proxy` | FastAPI HTTP 서버(8766) + WebSocket 클라이언트 |
-| `packages/bridge` | `uv run bridge` | WebSocket 서버(8765). CommunicationMod stdin/stdout 브리지 |
-| `packages/tools` | `uv run tools` | 개발 헬퍼 (게임과 무관) |
-
-### 데이터 흐름
-```
-AI → subprocess game CLI → httpx proxy(8766) → websocket bridge(8765)
-       → stdin → CommunicationMod → Slay the Spire
-```
-
-### 핵심 파일
-- `packages/ai/src/ai/main.py` — 메인 루프, trigger detection, `capture_screenshot()`, `_build_user_message()`, `_build_document_id()`
-- `packages/ai/src/ai/llm.py` — `call_llm()`, `parse_llm_response()`, `build_assistant_message()`, `build_multimodal_content()`
-- `packages/ai/src/ai/recall_agent.py` — `run_recall_agent()`, RecallAgent 프롬프트/툴
-- `packages/ai/src/ai/retain_agent.py` — `run_retain_agent()`, RetainAgent 프롬프트/트리거
-- `packages/ai/src/ai/window.py` — `find_window()`, `capture()` — CoreGraphics 윈도우 탐색 + 스크린샷
-- `packages/ai/src/ai/constants.py` — 시스템 프롬프트 3종, TOOLS, 설정 상수
-- `packages/game/src/game/cli.py` — 게임 CLI, Hindsight SDK 호출
-- `packages/proxy/src/proxy/main.py` — HTTP 서버 + WebSocket 클라이언트
-- `packages/bridge/src/bridge/main.py` — WebSocket 서버 + stdin/stdout 브리지
-
 ## Hindsight
 
 소스코드: `/Users/harry/repo/nailed-it/external/hindsight/`
 
-### recall 파라미터
-- `max_tokens=2048` (28개 결과, 24K JSON)
-- `types=["world", "experience", "observation"]`
-- `budget`은 SDK 기본값(`"mid"`) 사용, 명시적으로 넘기지 않음
+- 뱅크 `sts-v2`: **921** memory units (experience 463, observation 437, world 21), 25,462 links, 281 documents
+- 전부 Ironclad/Strength 빌드
+
+## 알려진 이슈
+
+- **메시지 트리밍**: `trim_messages()`가 루프 시작 시 최근 2턴(assistant + tool 쌍)만 남기고 오래된 턴 전부 삭제. 컨텍스트 ~50KB 유지.
+- **LLM 재시도**: `call_llm()`이 `MAX_ATTEMPTS=5`까지 exponential backoff. 초과 시 30s sleep 후 리셋.
+- **런 종료**: `in_game=false` → run.jsonl 기록 + RetainAgent("run_end") 호출.
+- **START 직후 오탐지**: 새 런 시작 시 `in_game=null`을 run_end로 착각해 불필요한 retain 발생 가능.
 
 ## 운영
 
@@ -205,12 +125,6 @@ jq -r '.ts' ~/.sts/logs/ai.jsonl | tail -1
 | `~/.sts/logs/run.jsonl` | 런 종료 시 전체 상태 | JSONL |
 
 모두 RotatingFileHandler(10MB×5). `jq`로 필터링 가능.
-
-### 알려진 이슈
-- **메시지 트리밍**: `trim_messages()`가 루프 시작 시 최근 2턴(assistant + tool 쌍)만 남기고 오래된 턴 전부 삭제. 컨텍스트 ~50KB 유지.
-- **LLM 재시도**: `call_llm()`이 `MAX_ATTEMPTS=5`까지 exponential backoff. 초과 시 30s sleep 후 리셋.
-- **런 종료**: `in_game=false` → run.jsonl 기록 + RetainAgent("run_end") 호출.
-- **START 직후 오탐지**: 새 런 시작 시 `in_game=null`을 run_end로 착각해 불필요한 retain 발생 가능.
 
 ## 개발 워크플로우
 

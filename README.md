@@ -31,7 +31,7 @@ Harry는 코드를 직접 쓰지 않습니다. AI 에이전트(Pi)와 협업합�
 
 ### 인프라
 - LLM: OpenAI 호환 API
-- 장기기억: Hindsight `sts-v2` 뱅크 (371개 memory units, Python SDK)
+- 장기기억: Hindsight `sts-v2` 뱅크 (921 memory units, Python SDK)
 - 로깅: JSONL (ai.jsonl, game.jsonl, reasoning.jsonl, llm.jsonl)
 
 ### 발견하고 해결한 문제들
@@ -47,35 +47,23 @@ Harry는 코드를 직접 쓰지 않습니다. AI 에이전트(Pi)와 협업합�
 
 ### 3-Agent 루프
 
+### Recall/Retain 흐름
+
+```mermaid
+flowchart TD
+    A["루프 시작"] --> B["대화 히스토리 최근 2턴만 유지"]
+    B --> C["화면 캡처"]
+    C --> D["Recall: 과거 기억 검색"]
+    D --> E["Play: 행동 결정"]
+    E --> F["명령 실행 → 상태 갱신"]
+    F --> G{"화면 전환?"}
+    G -->|"Yes"| H["Retain: 기억 저장"]
+    G -->|"No"| A
+    H --> A
 ```
-┌─────────────────────────────────────────────────────────┐
-│  while True:                                             │
-│    trim_messages(messages)                               │
-│                                                           │
-│  ① screenshot_before = capture (현재 화면)                │
-│                                                           │
-│  ② RecallAgent(messages, state, screenshot)              │
-│                                                           │
-│  ③ PlayAgent(system + messages + state/recall + screenshot) │
-│     → tool_calls                                         │
-│     messages += assistant_msg                            │
-│                                                           │
-│  ④ for each tool_call:                                   │
-│       result = execute_tool(...)                         │
-│       messages += tool_result                            │
-│       if send_command: state = result                    │
-│                                                           │
-│  ⑤ trigger = detect_trigger(prev_state, new_state)      │
-│     if trigger:                                           │
-│       screenshot_after = capture (결과 화면)              │
-│       retain_content = RetainAgent(messages, trigger, screenshot)│
-│       doc_id = _build_document_id(new_state)              │
-│       if doc_id:                                          │
-│         game_cli("retain", retain_content, "--document-id", doc_id)│
-│       else:                                               │
-│         game_cli("retain", retain_content)                │
-└─────────────────────────────────────────────────────────┘
-```
+
+- **Recall**: RecallAgent가 LLM으로 자연어 쿼리를 생성 → `game CLI` → Hindsight SDK(`sts-v2`, types=world/experience/observation, max_tokens=2048). tool 미사용 시 최대 5회 재시도.
+- **Retain**: screen 전환 감지 시 RetainAgent가 전략적 요약을 생성 → `game CLI` → Hindsight SDK(async, context=전투/빌드 교훈). `document_id=combat-{seed}-{act}-{floor}`로 전투별 그룹핑.
 
 ### 에이전트별 구성
 
@@ -85,7 +73,7 @@ Harry는 코드를 직접 쓰지 않습니다. AI 에이전트(Pi)와 협업합�
 | **히스토리** | messages (공유) | messages (공유) | messages (공유) |
 | **사용자 메시지** | 게임 state JSON + screenshot | 게임 state + recall 분석 + screenshot | 트리거 설명 + screenshot |
 | **도구** | `recall` | `send_command` | 없음 (text 응답) |
-| **출력** | 분석 텍스트 | tool_calls | retain content 문자열 |
+| **출력** | recall 검색 결과 | 게임 명령 | 전략적 요약 |
 
 ### 메시지 히스토리
 
