@@ -28,6 +28,14 @@ reasoning 내용 분석 결과, recall 개념이 reasoning에 등장해도 그�
 LLM은 recall 텍스트보다 state JSON을 직접 보고 판단.
 → `reasoning_logger`가 recall_results와 reasoning_content를 함께 기록하여 상관관계 추적 중.
 
+### retain 품질은 단기기억 깊이에 비례한다
+RetainAgent는 현재 messages(단기기억)를 컨텍스트로 받아 전략적 고찰을 생성한다.
+messages가 충분히 길어야 — 즉 최근 여러 게임 턴의 선택과 결과를 모두 볼 수 있어야 —
+단순한 플레이-by-플레이 관찰이 아닌 `"왜 그 선택이 좋았는가"` 수준의 통찰이 나온다.
+단기기억이 짧으면 retain 결과물이 근시안적이다: "HP 5 손실" 같은 표면 관찰에 머무르고
+"손실을 감수한 대신 Strength 3을 얻었다" 같은 트레이드오프 분석이 안 나온다.
+따라서 summarize_turns를 늘린 것은 play뿐 아니라 retain 품질 향상에도 기여한다.
+
 ### Retain 시스템 — 알려진 문제와 대응법
 
 #### `_detect_trigger` 검증되지 않은 브랜치
@@ -58,7 +66,8 @@ ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생
 3. [ ] RecallAgent 쿼리 전략 튜닝 (multi-query merge 등)
 
 ### 완료
-- [x] **메시지 트리밍 개선** — char 기반(MAX_MESSAGES_CHARS=500K)에서 turn 기반으로 변경. 최근 2턴 full + 이전 20턴 summarized(assistant content 보존, tool content placeholder) 구조. 상태 JSON 축적으로 인한 컨텍스트 오염 제거.
+- [x] **메시지 트리밍 개선** — char 기반(MAX_MESSAGES_CHARS=500K)에서 turn 기반으로 변경. 최근 3턴 full + 이전 32턴 summarized(assistant content 보존, tool content placeholder) 구조. 상태 JSON 축적으로 인한 컨텍스트 오염 제거.
+- [x] **트리밍 범위 확장** — 20→32 summarized turns, 2→3 full keep으로 증가. StS는 덱 순환이 핵심인데, 한 게임 턴이 평균 7행위(14메시지)라 20턴으로는 ~3게임턴밖에 기억 못 함. 32턴으로 ~5게임턴 기억 가능해 웬만한 덱 순환 커버. 200K 컨텍스트 기준 60K근처이므로 문제 없음.
 - [x] **루프 평탄화** — `_handle_send_command` 해체, 단일 루프 구조로 단순화.
 - [x] **스크린샷 비전 지원** — Recall/Play/Retain 세 에이전트 모두 현재 화면 이미지를 ephemeral하게 수신. messages에 축적 안 됨.
 
@@ -76,7 +85,9 @@ ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생
 
 ## 알려진 이슈
 
-- **메시지 트리밍**: `trim_messages()`가 루프 시작 시 assistant 메시지 기준 최근 2개(fully preserved) + 이전 20개(assistant content 보존, tool content placeholder)까지 유지. 그 이전은 전부 삭제. byte 기반 트리밍은 폐기됨.
+- **메시지 트리밍**: `trim_messages()`가 루프 시작 시 assistant 메시지 기준 최근 3개(fully preserved) + 이전 32개(assistant content 보존, tool content placeholder)까지 유지. 그 이전은 전부 삭제. byte 기반 트리밍은 폐기됨.
+  200K 컨텍스트 중 text tokens는 ~60K (play 기준). 32+3으로 늘려도 ~63K, 여유 있음.
+  StS 특성상 행위 1번이 메시지 2개를 차지. 한 게임 턴은 평균 7행위(패에 따라 10+). 35개 메시지(assistant 기준) 이상을 확보해야 덱 순환을 따라잡을 수 있음.
 - **LLM 재시도**: `call_llm()`이 에러 타입별로 재시도. 500/4xx: `MAX_ATTEMPTS=5`까지 exponential backoff, 초과 시 30s sleep 후 리셋. 429: attempt 리셋 없이 backoff(최대 120s). connection/기타 에러: RETRY_DELAY(10s) 고정 재시도.
 - **런 종료**: `in_game=false` → run.jsonl 기록 + RetainAgent("run_end") 호출.
 - **START 직후 오탐지**: (해결됨) `_detect_trigger()`가 `in_game is False` strict 비교를 사용하므로 `null`/`None`은 run_end로 감지되지 않음.

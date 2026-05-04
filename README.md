@@ -49,7 +49,7 @@ Harry는 코드를 직접 쓰지 않습니다. AI 에이전트(Pi)와 협업합�
 
 ```mermaid
 flowchart TD
-    A["루프 시작"] --> B["대화 히스토리 트리밍 (최근 2턴 full + 20턴 summarized)"]
+    A["루프 시작"] --> B["대화 히스토리 트리밍 (최근 3턴 full + 32턴 summarized)"]
     B --> C["화면 캡처"]
     C --> D["Recall: 과거 기억 검색"]
     D --> E["Play: 행동 결정"]
@@ -76,9 +76,12 @@ flowchart TD
 ### 메시지 히스토리
 
 `messages`는 시스템 프롬프트 없이 assistant/tool 메시지만 보관한다.
-루프 시작 시 `trim_messages()`가 assistant 메시지 기준 최근 2개(fully preserved) +
-이전 20개(assistant content 보존, tool content placeholder)까지 유지하고
+루프 시작 시 `trim_messages()`가 assistant 메시지 기준 최근 3개(fully preserved) +
+이전 32개(assistant content 보존, tool content placeholder)까지 유지하고
 그 이전은 전부 삭제한다.
+
+StS는 한 게임 턴이 평균 7행위(메시지 14개, assistant 기준)를 소모하므로,
+32턴이면 약 4-5 게임 턴을 기억할 수 있어 웬만한 덱 순환을 커버한다.
 
 ```
 messages = [

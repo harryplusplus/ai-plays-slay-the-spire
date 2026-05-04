@@ -149,8 +149,8 @@ def trim_messages(messages: list[ChatCompletionMessageParam]) -> None:
     This keeps the agent's own reasoning (assistant content) in
     short-term memory while avoiding token bloat from old state JSONs.
     """
-    full_keep_turns = 2
-    summarize_turns = 20
+    full_keep_turns = 3
+    summarize_turns = 32
 
     if len(messages) <= 1:
         return
