@@ -139,13 +139,18 @@ def _build_document_id(state: dict[str, Any]) -> str | None:
 
 
 def trim_messages(messages: list[ChatCompletionMessageParam]) -> None:
-    """Keep only the last 2 complete turns (assistant + tool pairs).
+    """Keep recent turns with full content, summarize older turns.
 
-    A turn = one assistant message + all following tool messages.
-    Older state JSONs (~24KB each) are discarded to keep context
-    small and focused on recent actions.
+    - Last FULL_KEEP_TURNS: assistant + tool content fully preserved.
+    - Previous SUMMARIZE_TURNS: assistant content preserved, tool
+      content replaced with a placeholder to save tokens.
+    - Older turns: dropped entirely.
+
+    This keeps the agent's own reasoning (assistant content) in
+    short-term memory while avoiding token bloat from old state JSONs.
     """
-    keep_turns = 2
+    full_keep_turns = 2
+    summarize_turns = 20
 
     if len(messages) <= 1:
         return
@@ -154,10 +159,23 @@ def trim_messages(messages: list[ChatCompletionMessageParam]) -> None:
         i for i, m in enumerate(messages) if m.get("role") == "assistant"
     ]
 
-    if len(assistant_positions) <= keep_turns:
+    if len(assistant_positions) <= full_keep_turns:
         return
 
-    keep_from = assistant_positions[-keep_turns]
+    total_keep = full_keep_turns + summarize_turns
+
+    if len(assistant_positions) <= total_keep:
+        return
+
+    keep_from = assistant_positions[-total_keep]
+    full_keep_from = assistant_positions[-full_keep_turns]
+
+    # Summarize region: keep assistant content, replace tool content
+    for i in range(keep_from, full_keep_from):
+        msg = messages[i]
+        if msg.get("role") == "tool":
+            msg["content"] = "[Previous turn tool result — content removed]"
+
     logger.info(
         "message trim",
         extra={
@@ -292,15 +310,18 @@ def _detect_trigger(
 
 
 def _build_user_message(
-    state_json: str, recall_results: str, screenshot_b64: str
+    state_json: str, recall_results: str, screenshot_b64: str, prefix: str = ""
 ) -> list[ChatCompletionContentPartParam]:
     text = f"State:\n```json\n{state_json}\n```\n\nRecall Results:\n{recall_results}"
+    if prefix:
+        text = f"{prefix}\n\n{text}"
     return build_multimodal_content(text, screenshot_b64)
 
 
 def _run_agent() -> None:  # noqa: PLR0915
     """Main agent loop."""
     messages: list[ChatCompletionMessageParam] = []
+    user_prefix = ""
 
     current_state_json = game_cli("command", "state")
     current_state = json.loads(current_state_json)
@@ -326,9 +347,11 @@ def _run_agent() -> None:  # noqa: PLR0915
                     current_state_json,
                     recall_results,
                     screenshot_b64=screenshot_before,
+                    prefix=user_prefix,
                 ),
             },
         ]
+        user_prefix = ""
 
         # 4. Play
         logger.debug(
@@ -402,9 +425,7 @@ def _run_agent() -> None:  # noqa: PLR0915
                     "content_preview": str(parsed.content or "")[:200],
                 },
             )
-            messages.append(
-                {"role": "user", "content": "You must use a tool."},
-            )
+            user_prefix = "You must use a tool."
             continue
 
         for tool_call in parsed.tool_calls:
@@ -441,9 +462,7 @@ def _run_agent() -> None:  # noqa: PLR0915
                         extra={"event": "run_end", "state": _state_summary(result)},
                     )
                     run_logger.info("run", extra={"result": result})
-                    messages.append(
-                        {"role": "user", "content": RUN_ENDED_PROMPT},
-                    )
+                    user_prefix = RUN_ENDED_PROMPT
 
                 # 8. Retain
                 trigger = _detect_trigger(current_state, new_state)
