@@ -32,7 +32,7 @@ Harry는 코드를 직접 쓰지 않습니다. AI 에이전트(Pi)와 협업합�
 ### 인프라
 - LLM: OpenAI 호환 API
 - 장기기억: Hindsight `sts-v2` 뱅크 (921 memory units, Python SDK)
-- 로깅: JSONL (ai.jsonl, game.jsonl, reasoning.jsonl, llm.jsonl)
+- 로깅: JSONL (ai.jsonl, game.jsonl, reasoning.jsonl, llm.jsonl, run.jsonl, proxy.log, bridge.log)
 
 ### 발견하고 해결한 문제들
 - **recall 쿼리 formulation** — keyword-style 쿼리는 enemy-specific memory를 잘 못 건짐. RecallAgent가 자연어 쿼리를 생성하면서 개선.
@@ -122,24 +122,20 @@ uv run proxy   # 프록시 서버
 uv run ai      # AI 에이전트
 ```
 
-## 로드맵
+## 구축된 기능
 
-- [x] 기본 AI 루프, Hindsight 통합
-- [x] Python SDK 전환, JSONL 로깅
-- [x] reasoning.jsonl (recall↔reasoning 분석 인프라)
-- [x] State 필터링 완전 폐기 (deck, map, relics, potions 모두 state에 포함)
-- [x] MAX_OUTPUT 제거, call_llm() 추출
-- [x] RecallAgent 도입 (auto_recall 대체)
-- [x] RetainAgent 도입 (수동 retain 대체)
-- [x] PlayAgent 경량화 (send_command 단일 툴)
-- [x] 시스템 프롬프트 분리, messages 히스토리 순수화
-- [x] 루프 평탄화 (_handle_send_command 해체)
-- [x] 스크린샷 비전 — 세 에이전트 모두 현재 화면 이미지 수신 (ephemeral, messages에 축적 안 됨)
-- [~] 뱅크 확장 (다양한 클래스/빌드 런)
-- [ ] RecallAgent 쿼리 전략 튜닝
-- [ ] Tags, entity labels 도입
-- [ ] Reflect 기반 전략 조언
-- [ ] **심장 클리어**
+- 기본 AI 루프, Hindsight 통합
+- Python SDK 전환, JSONL 로깅
+- reasoning.jsonl (recall↔reasoning 분석 인프라)
+- State 필터링 완전 폐기 (deck, map, relics, potions 모두 state에 포함)
+- MAX_OUTPUT 제거, call_llm() 추출
+- RecallAgent 도입 (auto_recall 대체)
+- RetainAgent 도입 (수동 retain 대체)
+- PlayAgent 경량화 (send_command 단일 툴)
+- 시스템 프롬프트 분리, messages 히스토리 순수화
+- 루프 평탄화 (_handle_send_command 해체)
+- 스크린샷 비전 — 세 에이전트 모두 현재 화면 이미지 수신 (ephemeral, messages에 축적 안 됨)
+- 메시지 트리밍 개선 — char 기반에서 최근 2턴(assistant+tool) 고정 유지로 변경
 
 ---
 

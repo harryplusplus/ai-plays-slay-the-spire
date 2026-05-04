@@ -58,6 +58,8 @@ ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생
 
 ### 완료
 - [x] **메시지 트리밍 개선** — char 기반(MAX_MESSAGES_CHARS=500K)에서 최근 2턴(assistant+tool) 고정 유지로 변경. 상태 JSON 축적으로 인한 컨텍스트 오염 제거.
+- [x] **루프 평탄화** — `_handle_send_command` 해체, 단일 루프 구조로 단순화.
+- [x] **스크린샷 비전 지원** — Recall/Play/Retain 세 에이전트 모두 현재 화면 이미지를 ephemeral하게 수신. messages에 축적 안 됨.
 
 ### 나중
 4. [ ] Reflect로 전략 조언
