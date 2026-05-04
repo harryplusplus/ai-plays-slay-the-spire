@@ -45,8 +45,6 @@ Harry는 코드를 직접 쓰지 않습니다. AI 에이전트(Pi)와 협업합�
 
 ## 아키텍처
 
-### 3-Agent 루프
-
 ### Recall/Retain 흐름
 
 ```mermaid
