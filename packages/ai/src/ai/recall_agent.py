@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     )
 
 
-from .constants import MODEL, REASONING_EFFORT
+from .constants import MODEL, REASONING_EFFORT, RECALL_MAX_TOKENS
 from .llm import (
     build_multimodal_content,
     call_llm,
@@ -31,8 +31,8 @@ the current situation.
 Use recall with targeted queries. You may call recall multiple times
 with different queries to cover different aspects of the situation.
 
-Do NOT respond with analysis text — use the recall tool to gather
-information."""
+IMPORTANT: You MUST call the recall tool. Do NOT respond with analysis
+text. Only use the recall tool to gather information."""
 
 RECALL_TOOL: ChatCompletionFunctionToolParam = {
     "type": "function",
@@ -65,32 +65,28 @@ def _execute_recall(query_json: str) -> str:
     return result.stdout
 
 
+NUDGE_MESSAGES = [
+    "\n\nYou did not call the recall tool. Use it now.",
+    "\n\nYou STILL did not call recall. Call recall() now.",
+    "\n\nFinal attempt. You WILL call recall() immediately.",
+]
+
+
 def run_recall_agent(
     messages: list[ChatCompletionMessageParam],
     current_state_json: str,
     screenshot_b64: str,
     model: str = MODEL,
     reasoning_effort: str = REASONING_EFFORT,
-    max_attempts: int = 5,
+    max_attempts: int = 10,
 ) -> str:
-    """Run recall with retry if LLM doesn't use the recall tool.
-
-    Calls LLM once; if no tool calls, retries with a nudge message up to
-    max_attempts times. Returns raw recall results as a block, or empty
-    string if all attempts fail.
-
-    Args:
-        messages: Conversation history (user/assistant/tool only).
-        current_state_json: Raw JSON game state to analyze.
-        screenshot_b64: Base64-encoded JPEG screenshot of the current game screen.
-        model: LLM model name.
-        reasoning_effort: Reasoning effort level.
-        max_attempts: Maximum LLM calls before giving up.
-
-    Returns:
-        Raw recall results block, or "" if no data.
-    """
-    for attempt in range(max_attempts):
+    """Run recall with retry. Returns raw recall results or ""."""
+    for attempt in range(1, max_attempts + 1):
+        nudge = (
+            ""
+            if attempt == 1
+            else NUDGE_MESSAGES[min(attempt - 2, len(NUDGE_MESSAGES) - 1)]
+        )
         prompt: list[ChatCompletionMessageParam] = [
             {"role": "system", "content": RECALL_AGENT_PROMPT},
             *messages,
@@ -98,7 +94,8 @@ def run_recall_agent(
                 "role": "user",
                 "content": build_multimodal_content(
                     f"Game state:\n```json\n{current_state_json}\n```\n\n"
-                    "Search memory for relevant past experiences and strategies.",
+                    "Search memory for relevant past experiences and strategies."
+                    + nudge,
                     screenshot_b64,
                 ),
             },
@@ -110,6 +107,7 @@ def run_recall_agent(
             model,
             reasoning_effort,
             caller="recall",
+            max_tokens=RECALL_MAX_TOKENS,
         )
         parsed = parse_llm_response(response)
 
@@ -128,9 +126,9 @@ def run_recall_agent(
 
         logger.warning(
             "recall: no tool calls, retry %d/%d",
-            attempt + 1,
+            attempt,
             max_attempts,
-            extra={"event": "recall_no_tool_calls", "attempt": attempt + 1},
+            extra={"event": "recall_no_tool_calls", "attempt": attempt},
         )
 
     logger.warning(

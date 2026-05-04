@@ -12,6 +12,7 @@ from openai import (
     OpenAI,
     RateLimitError,
 )
+from openai._types import Omit, omit
 
 from .constants import MAX_ATTEMPTS, OPENAI_API_KEY, OPENAI_BASE_URL, RETRY_DELAY
 
@@ -109,11 +110,13 @@ def call_llm(
     reasoning_effort: str,
     temperature: float = 0.0,
     caller: str = "",
+    max_tokens: int | None | Omit = omit,
 ) -> ChatCompletion:
     """Call LLM with retry. Creates and closes client per request.
 
     Args:
         caller: Agent name for log context (e.g. "play", "recall", "retain").
+        max_tokens: Maximum completion tokens. omit = server default.
     """
     attempt = 0
     while True:
@@ -139,6 +142,7 @@ def call_llm(
                 tools=tools,
                 temperature=temperature,
                 reasoning_effort=reasoning_effort,  # pyright: ignore[reportArgumentType]
+                max_tokens=max_tokens,
             )
             llm_logger.debug(
                 "call_llm_after",
