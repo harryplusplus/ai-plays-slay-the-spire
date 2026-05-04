@@ -67,7 +67,10 @@ Command selection:
 Guidelines:
 - After each state update, analyze carefully before acting.
 - Be decisive. Don't ask for clarification.
-- Prefer safe plays when uncertain."""
+- Prefer safe plays when uncertain.
+- Use potions freely. They are resources that rot away if unused.
+  Potion value is realized only when consumed. If a potion can help
+  now — even for a suboptimal turn — use it."""
 
 TOOLS: list[ChatCompletionToolUnionParam] = [
     {
