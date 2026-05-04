@@ -14,7 +14,6 @@ if TYPE_CHECKING:
 
 from .constants import MODEL, REASONING_EFFORT
 from .llm import (
-    build_assistant_message,
     build_multimodal_content,
     call_llm,
     parse_llm_response,
@@ -26,19 +25,14 @@ RECALL_AGENT_PROMPT = """\
 You are a Recall agent for Slay the Spire. Your ONLY tool is recall.
 
 Read the game state carefully, then use recall to search memory for
-relevant past experiences, strategies, and lessons.
+relevant past experiences, strategies, and lessons that could help
+the current situation.
 
-You may call recall multiple times with different queries to gather
-enough context. When you have sufficient information, output a concise
-analysis as plain text (no tool calls).
+Use recall with targeted queries. You may call recall multiple times
+with different queries to cover different aspects of the situation.
 
-Output format:
-- Situation: [1 sentence describing current game state]
-- Key memories: [2-4 bullet points of relevant findings from recall]
-- Considerations: [1-2 sentences on what to watch out for]
-
-Do NOT suggest specific card plays. Focus on strategic context and
-lessons from past runs."""
+Do NOT respond with analysis text — use the recall tool to gather
+information."""
 
 RECALL_TOOL: ChatCompletionFunctionToolParam = {
     "type": "function",
@@ -77,9 +71,13 @@ def run_recall_agent(
     screenshot_b64: str,
     model: str = MODEL,
     reasoning_effort: str = REASONING_EFFORT,
-    max_turns: int = 2,
+    max_attempts: int = 5,
 ) -> str:
-    """Run a mini agent loop with only the recall tool.
+    """Run recall with retry if LLM doesn't use the recall tool.
+
+    Calls LLM once; if no tool calls, retries with a nudge message up to
+    max_attempts times. Returns raw recall results as a block, or empty
+    string if all attempts fail.
 
     Args:
         messages: Conversation history (user/assistant/tool only).
@@ -87,25 +85,25 @@ def run_recall_agent(
         screenshot_b64: Base64-encoded PNG screenshot of the current game screen.
         model: LLM model name.
         reasoning_effort: Reasoning effort level.
-        max_turns: Maximum recall calls before forcing output.
+        max_attempts: Maximum LLM calls before giving up.
 
     Returns:
-        Analysis text.
+        Raw recall results block, or "" if no data.
     """
-    prompt: list[ChatCompletionMessageParam] = [
-        {"role": "system", "content": RECALL_AGENT_PROMPT},
-        *messages,
-        {
-            "role": "user",
-            "content": build_multimodal_content(
-                f"Game state:\n```json\n{current_state_json}\n```\n\n"
-                "Analyze this state and recall relevant memories.",
-                screenshot_b64,
-            ),
-        },
-    ]
+    for attempt in range(max_attempts):
+        prompt: list[ChatCompletionMessageParam] = [
+            {"role": "system", "content": RECALL_AGENT_PROMPT},
+            *messages,
+            {
+                "role": "user",
+                "content": build_multimodal_content(
+                    f"Game state:\n```json\n{current_state_json}\n```\n\n"
+                    "Search memory for relevant past experiences and strategies.",
+                    screenshot_b64,
+                ),
+            },
+        ]
 
-    for _ in range(max_turns):
         response = call_llm(
             prompt,
             [RECALL_TOOL],
@@ -115,28 +113,28 @@ def run_recall_agent(
         )
         parsed = parse_llm_response(response)
 
-        prompt.append(build_assistant_message(parsed.content, parsed.tool_calls))
+        if parsed.tool_calls:
+            results: list[str] = []
+            for tc in parsed.tool_calls:
+                fn_args = json.loads(tc.function.arguments)
+                query = fn_args.get("query", "")
+                logger.info(
+                    "recall query",
+                    extra={"event": "recall_query", "query": query},
+                )
+                result = _execute_recall(query)
+                results.append(f"--- Query: {query} ---\n{result}")
+            return "\n\n".join(results)
 
-        if not parsed.tool_calls:
-            return parsed.content or ""
+        logger.warning(
+            "recall: no tool calls, retry %d/%d",
+            attempt + 1,
+            max_attempts,
+            extra={"event": "recall_no_tool_calls", "attempt": attempt + 1},
+        )
 
-        for tc in parsed.tool_calls:
-            fn_args = json.loads(tc.function.arguments)
-            query = fn_args.get("query", "")
-            logger.info(
-                "recall agent query",
-                extra={"event": "recall_agent_query", "query": query},
-            )
-            result = _execute_recall(query)
-            prompt.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tc.id,
-                    "content": result,
-                },
-            )
-
-    # Max turns reached — force final analysis without tools
-    response = call_llm(prompt, [], model, reasoning_effort, caller="recall")
-    final = response.choices[0].message
-    return final.content or ""
+    logger.warning(
+        "recall exhausted all attempts",
+        extra={"event": "recall_exhausted", "max_attempts": max_attempts},
+    )
+    return ""

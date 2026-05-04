@@ -138,7 +138,7 @@ def call_llm(
                 extra={
                     "event": "call_llm_after",
                     "caller": caller,
-                    "response": response,
+                    "response": response.model_dump(),
                 },
             )
         except InternalServerError:

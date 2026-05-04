@@ -292,9 +292,9 @@ def _detect_trigger(
 
 
 def _build_user_message(
-    state_json: str, recall_analysis: str, screenshot_b64: str
+    state_json: str, recall_results: str, screenshot_b64: str
 ) -> list[ChatCompletionContentPartParam]:
-    text = f"State:\n```json\n{state_json}\n```\n\nRecall Analysis:\n{recall_analysis}"
+    text = f"State:\n```json\n{state_json}\n```\n\nRecall Results:\n{recall_results}"
     return build_multimodal_content(text, screenshot_b64)
 
 
@@ -312,7 +312,7 @@ def _run_agent() -> None:  # noqa: PLR0915
         screenshot_before = capture_screenshot()
 
         # 2. Recall
-        recall_analysis = run_recall_agent(
+        recall_results = run_recall_agent(
             messages, current_state_json, screenshot_b64=screenshot_before
         )
 
@@ -324,7 +324,7 @@ def _run_agent() -> None:  # noqa: PLR0915
                 "role": "user",
                 "content": _build_user_message(
                     current_state_json,
-                    recall_analysis,
+                    recall_results,
                     screenshot_b64=screenshot_before,
                 ),
             },
@@ -382,7 +382,7 @@ def _run_agent() -> None:  # noqa: PLR0915
                 "reasoning",
                 extra={
                     "event": "reasoning",
-                    "recall_analysis": recall_analysis,
+                    "recall_results": recall_results,
                     "reasoning_content": parsed.reasoning_content,
                     "message_count": len(messages),
                     "duration_ms": duration_ms,
