@@ -114,6 +114,15 @@ def run_recall_agent(
         if parsed.tool_calls:
             results: list[str] = []
             for tc in parsed.tool_calls:
+                if tc.function.name != "recall":
+                    logger.info(
+                        "recall: ignoring non-recall tool call",
+                        extra={
+                            "event": "recall_skip_tool",
+                            "tool_name": tc.function.name,
+                        },
+                    )
+                    continue
                 fn_args = json.loads(tc.function.arguments)
                 query = fn_args.get("query", "")
                 logger.info(
@@ -122,7 +131,8 @@ def run_recall_agent(
                 )
                 result = _execute_recall(query)
                 results.append(f"--- Query: {query} ---\n{result}")
-            return "\n\n".join(results)
+            if results:
+                return "\n\n".join(results)
 
         logger.warning(
             "recall: no tool calls, retry %d/%d",
