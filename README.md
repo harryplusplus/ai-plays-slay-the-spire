@@ -33,6 +33,7 @@ Harry는 코드를 직접 쓰지 않습니다. AI 에이전트(Pi)와 협업합�
 - LLM: OpenAI 호환 API
 - 장기기억: Hindsight `sts-v2` 뱅크 (921 memory units, Python SDK)
 - 로깅: JSONL (ai.jsonl, game.jsonl, reasoning.jsonl, llm.jsonl, run.jsonl, proxy.log, bridge.log)
+- **클래스 고정**: 시스템 프롬프트에서 DEFECT 전용 플레이 강제. 다른 클래스로 시작 불가.
 
 ### 발견하고 해결한 문제들
 - **recall 쿼리 formulation** — keyword-style 쿼리는 enemy-specific memory를 잘 못 건짐. RecallAgent가 자연어 쿼리를 생성하면서 개선.

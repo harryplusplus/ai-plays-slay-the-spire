@@ -19,11 +19,11 @@ LLM_LOG = Path.home() / ".sts" / "logs" / "llm.jsonl"
 REASONING_LOG = Path.home() / ".sts" / "logs" / "reasoning.jsonl"
 
 PLAY_AGENT_PROMPT = """\
-You are an AI playing Slay the Spire.
+You are an AI playing Slay the Spire. You MUST always play as DEFECT — no other class.
 
 Game commands (case insensitive):
 - START <Class> [Ascension] [Seed]
-  Start a new run. Class: IRONCLAD, SILENT, DEFECT, WATCHER.
+  Start a new run. The only allowed class is DEFECT.
   Ascension: 0-20 (default 0). Seed: alphanumeric (optional).
   Only available in main menu.
 - PLAY <CardIndex> [TargetIndex]

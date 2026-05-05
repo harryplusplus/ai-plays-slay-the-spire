@@ -7,12 +7,12 @@
 LLM이 CommunicationMod로 Slay the Spire를 자동 플레이.
 목표: 승천 0 심장 클리어. Hindsight 장기기억으로 런 간 학습.
 
-## 현재 상태 (2026-05-04)
+## 현재 상태 (2026-05-05)
 
 - `sts-ai`, `sts-proxy`, `hs-api`, `hs-web` tmux 세션 정상
-- Ironclad 런 진행 중
+- **Defect 전용 플레이로 전환** — 시스템 프롬프트에서 DEFECT만 사용하도록 강제
 - 뱅크 `sts-v2`: **921** memory units (experience 463, observation 437, world 21), 25,462 links, 281 documents
-- 전부 Ironclad/Strength 빌드
+- 현재까지는 전부 Ironclad/Strength 빌드 (Defect 런 시작 시점)
 
 ## 발견한 것들
 
@@ -61,7 +61,7 @@ ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생
 ## 할 일
 
 ### 다음
-1. [ ] 다양한 클래스/빌드로 런 돌려서 뱅크 확장
+1. [~] Defect 전용 플레이 — 시스템 프롬프트에서 DEFECT 강제, Defect 빌드 메모리 축적 시작
 2. [ ] Tags 도입 (class, topic, enemy)
 3. [ ] RecallAgent 쿼리 전략 튜닝 (multi-query merge 등)
 
@@ -81,7 +81,7 @@ ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생
 소스코드: `/Users/harry/repo/nailed-it/external/hindsight/`
 
 - 뱅크 `sts-v2`: **921** memory units (experience 463, observation 437, world 21), 25,462 links, 281 documents
-- 전부 Ironclad/Strength 빌드
+- 현재까지는 전부 Ironclad/Strength 빌드. Defect 런 쌓이면 업데이트.
 
 ## 알려진 이슈
 

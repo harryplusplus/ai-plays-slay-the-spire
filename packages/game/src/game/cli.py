@@ -110,9 +110,28 @@ def extract_game_state_field(data: dict[str, Any], key: str) -> Any:  # noqa: AN
     return game_state.get(key)
 
 
+def _check_start_class(cmd: str) -> bool:
+    """Block START commands for classes other than DEFECT. Returns True if blocked."""
+    parts = cmd.strip().split()
+    if len(parts) >= 2 and parts[0].upper() == "START" and parts[1].upper() != "DEFECT":  # noqa: PLR2004
+        error = {
+            "error": f"Only DEFECT class is allowed. Got: {parts[1].upper()}",
+            "valid_classes": ["DEFECT"],
+        }
+        typer.echo(json.dumps(error, indent=2))
+        logger.warning(
+            "blocked non-DEFECT start",
+            extra={"event": "start_blocked", "attempted_class": parts[1].upper()},
+        )
+        return True
+    return False
+
+
 @app.command()
 def command(cmd: str) -> None:
     """Send a raw command to the game."""
+    if _check_start_class(cmd):
+        return
     logger.info("command executed", extra={"event": "command", "cmd": cmd})
     result = send_command(cmd)
     typer.echo(json.dumps(result, indent=2))
