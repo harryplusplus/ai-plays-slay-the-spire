@@ -308,7 +308,7 @@ def screenshot() -> ScreenshotResult:
         try:
             raw_bytes = _capture_raw(window["id"])
             break
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.debug(
                 "capture attempt failed",
                 extra={"event": "capture_retry", "attempt": attempt + 1},
