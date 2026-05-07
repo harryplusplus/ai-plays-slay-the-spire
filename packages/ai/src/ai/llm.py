@@ -3,7 +3,7 @@
 import logging
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from openai import (
     APIConnectionError,
@@ -13,6 +13,7 @@ from openai import (
     RateLimitError,
 )
 from openai._types import Omit, omit
+from openai.types import ReasoningEffort
 
 from .constants import MAX_ATTEMPTS, OPENAI_API_KEY, OPENAI_BASE_URL, RETRY_DELAY
 
@@ -40,16 +41,22 @@ class ParsedResponse:
     reasoning_content: str | None
 
 
+def resolve_reasoning(msg: dict[str, Any]) -> str | None:
+    """4단계 fallback으로 메시지 dict에서 reasoning 추출.
+
+    모델마다 reasoning 필드명/위치가 다르므로 공통 조건 로직으로 분리.
+    parse_llm_response와 조립 시점(_build_play_context)에서 재사용.
+    """
+    r: str | None = msg.get("reasoning_content") or msg.get("reasoning")  # type: ignore[return-value,arg-type]
+    if r is None:
+        extra: dict[str, Any] = msg.get("model_extra") or {}  # type: ignore[arg-type]
+        r = extra.get("reasoning_content") or extra.get("reasoning")  # type: ignore[return-value,arg-type]
+    return r
+
+
 def parse_llm_response(response: ChatCompletion) -> ParsedResponse:
     """Extract typed fields from an LLM response."""
     msg = response.choices[0].message
-    reasoning = getattr(msg, "reasoning_content", None)
-    if reasoning is None and hasattr(msg, "model_extra"):
-        reasoning = (msg.model_extra or {}).get("reasoning_content")
-    if reasoning is None:
-        reasoning = getattr(msg, "reasoning", None)
-    if reasoning is None and hasattr(msg, "model_extra"):
-        reasoning = (msg.model_extra or {}).get("reasoning")
     return ParsedResponse(
         content=msg.content,
         tool_calls=[
@@ -57,7 +64,7 @@ def parse_llm_response(response: ChatCompletion) -> ParsedResponse:
             for tc in (msg.tool_calls or [])
             if isinstance(tc, ChatCompletionMessageToolCall)
         ],
-        reasoning_content=reasoning,
+        reasoning_content=resolve_reasoning(msg.model_dump()),
     )
 
 
@@ -107,17 +114,11 @@ def call_llm(
     messages: list[ChatCompletionMessageParam],
     tools: list[ChatCompletionToolUnionParam],
     model: str,
-    reasoning_effort: str,
-    temperature: float = 0.0,
-    caller: str = "",
+    reasoning_effort: ReasoningEffort | Omit = omit,
+    temperature: float | Omit | None = omit,
     max_tokens: int | None | Omit = omit,
+    caller: str = "",
 ) -> ChatCompletion:
-    """Call LLM with retry. Creates and closes client per request.
-
-    Args:
-        caller: Agent name for log context (e.g. "play", "recall", "retain").
-        max_tokens: Maximum completion tokens. omit = server default.
-    """
     attempt = 0
     while True:
         attempt += 1

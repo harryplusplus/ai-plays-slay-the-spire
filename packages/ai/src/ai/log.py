@@ -11,8 +11,6 @@ from .constants import LLM_LOG, REASONING_LOG, RUN_LOG
 
 
 class JsonlFormatter(logging.Formatter):
-    """Format log records as JSON Lines."""
-
     _STANDARD_ATTRS = frozenset(
         {
             "name",
@@ -72,17 +70,16 @@ def _create_handler(path: Path) -> RotatingFileHandler:
     return handler
 
 
-def _init_ai_logger() -> None:
+def _init_root_logger() -> None:
     handler = _create_handler(Path.home() / ".sts" / "logs" / "ai.jsonl")
-    logger = logging.getLogger("ai")
-    logger.setLevel(logging.DEBUG)
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
     logger.addHandler(handler)
-    logger.propagate = False
 
 
 def _init_run_logger() -> None:
     handler = _create_handler(RUN_LOG)
-    logger = logging.getLogger("run")
+    logger = logging.getLogger("ai.run")
     logger.setLevel(logging.INFO)
     logger.addHandler(handler)
     logger.propagate = False
@@ -90,7 +87,7 @@ def _init_run_logger() -> None:
 
 def _init_reasoning_logger() -> None:
     handler = _create_handler(REASONING_LOG)
-    logger = logging.getLogger("reasoning")
+    logger = logging.getLogger("ai.reasoning")
     logger.setLevel(logging.DEBUG)
     logger.addHandler(handler)
     logger.propagate = False
@@ -98,14 +95,14 @@ def _init_reasoning_logger() -> None:
 
 def _init_llm_logger() -> None:
     handler = _create_handler(LLM_LOG)
-    logger = logging.getLogger("llm")
+    logger = logging.getLogger("ai.llm")
     logger.setLevel(logging.DEBUG)
     logger.addHandler(handler)
     logger.propagate = False
 
 
 def init_logger() -> None:
-    _init_ai_logger()
+    _init_root_logger()
     _init_run_logger()
     _init_reasoning_logger()
     _init_llm_logger()

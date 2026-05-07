@@ -18,7 +18,7 @@ _cg_lib_path = ctypes.util.find_library("CoreGraphics")
 if _cg_lib_path is None:
     _msg = "CoreGraphics framework not found"
     raise RuntimeError(_msg)
-_cg: Any = ctypes.cdll.LoadLibrary(_cg_lib_path)
+_cg = ctypes.cdll.LoadLibrary(_cg_lib_path)
 
 _CFSTRING_ENCODING_UTF8 = 0x08000100
 _CFNUMBER_TYPE_SINT64 = 4

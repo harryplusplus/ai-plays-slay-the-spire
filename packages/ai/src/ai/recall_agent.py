@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     )
 
 
-from .constants import MODEL, REASONING_EFFORT, RECALL_MAX_TOKENS
+from .constants import MODEL, REASONING_EFFORT
 from .llm import (
     build_multimodal_content,
     call_llm,
@@ -107,7 +107,6 @@ def run_recall_agent(
             model,
             reasoning_effort,
             caller="recall",
-            max_tokens=RECALL_MAX_TOKENS,
         )
         parsed = parse_llm_response(response)
 

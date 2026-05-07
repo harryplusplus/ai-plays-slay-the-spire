@@ -2,12 +2,13 @@ import json
 import logging
 import subprocess
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from .window import capture_screenshot
 
 if TYPE_CHECKING:
     from openai.types.chat import (
+        ChatCompletionAssistantMessageParam,
         ChatCompletionContentPartParam,
         ChatCompletionMessageParam,
     )
@@ -22,10 +23,10 @@ from .constants import (
     TOOLS,
 )
 from .llm import (
-    build_assistant_message,
     build_multimodal_content,
     call_llm,
     parse_llm_response,
+    resolve_reasoning,
 )
 from .log import (
     init_logger,
@@ -139,15 +140,11 @@ def _build_document_id(state: dict[str, Any]) -> str | None:
 
 
 def trim_messages(messages: list[ChatCompletionMessageParam]) -> None:
-    """Keep recent turns with full content, summarize older turns.
+    """Cut oldest messages beyond keep window. No content modification.
 
-    - Last FULL_KEEP_TURNS: assistant + tool content fully preserved.
-    - Previous SUMMARIZE_TURNS: assistant content preserved, tool
-      content replaced with a placeholder to save tokens.
-    - Older turns: dropped entirely.
-
-    This keeps the agent's own reasoning (assistant content) in
-    short-term memory while avoiding token bloat from old state JSONs.
+    - Last FULL_KEEP_TURNS + SUMMARIZE_TURNS assistant messages kept.
+    - Older messages (assistant + tool pairs) dropped entirely.
+    - reasoning, tool_calls 등 모든 필드 보존.
     """
     full_keep_turns = 3
     summarize_turns = 32
@@ -159,22 +156,12 @@ def trim_messages(messages: list[ChatCompletionMessageParam]) -> None:
         i for i, m in enumerate(messages) if m.get("role") == "assistant"
     ]
 
-    if len(assistant_positions) <= full_keep_turns:
-        return
-
     total_keep = full_keep_turns + summarize_turns
 
     if len(assistant_positions) <= total_keep:
         return
 
     keep_from = assistant_positions[-total_keep]
-    full_keep_from = assistant_positions[-full_keep_turns]
-
-    # Summarize region: keep assistant content, replace tool content
-    for i in range(keep_from, full_keep_from):
-        msg = messages[i]
-        if msg.get("role") == "tool":
-            msg["content"] = "[Previous turn tool result — content removed]"
 
     logger.info(
         "message trim",
@@ -309,6 +296,30 @@ def _detect_trigger(
     return None
 
 
+def _build_play_context(
+    messages: list[ChatCompletionMessageParam],
+) -> list[ChatCompletionMessageParam]:
+    """assistant content에 <reasoning> 태그 병합. tool은 그대로."""
+    result: list[ChatCompletionMessageParam] = []
+    for msg in messages:
+        if msg.get("role") == "tool":
+            result.append(msg)
+            continue
+        reasoning = resolve_reasoning(cast("dict[str, Any]", msg))
+        content = (msg.get("content") or "") or ""
+        if reasoning:
+            content = f"<reasoning>{reasoning}</reasoning>\n{content}"
+        entry: ChatCompletionAssistantMessageParam = {
+            "role": "assistant",
+            "content": cast("str", content),
+        }
+        tool_calls = msg.get("tool_calls")
+        if tool_calls:
+            entry["tool_calls"] = cast("Any", tool_calls)  # type: ignore[typeddict-item]
+        result.append(cast("ChatCompletionMessageParam", entry))
+    return result
+
+
 def _build_user_message(
     state_json: str, recall_results: str, screenshot_b64: str, prefix: str = ""
 ) -> list[ChatCompletionContentPartParam]:
@@ -332,15 +343,18 @@ def _run_agent() -> None:  # noqa: PLR0915
         # 1. Screenshot (before action — for Recall + Play)
         screenshot_before = capture_screenshot()
 
-        # 2. Recall
+        # 2. Recall — tool 메시지 제거 (send_command 패턴 bias 방지)
+        recall_context: list[ChatCompletionMessageParam] = [
+            m for m in messages if m.get("role") != "tool"
+        ]
         recall_results = run_recall_agent(
-            messages, current_state_json, screenshot_b64=screenshot_before
+            recall_context, current_state_json, screenshot_b64=screenshot_before
         )
 
-        # 3. Build play prompt with system prompt + history + state
+        # 3. Build play prompt with system prompt + history(변형) + state
         play_messages: list[ChatCompletionMessageParam] = [
             {"role": "system", "content": PLAY_AGENT_PROMPT},
-            *messages,
+            *_build_play_context(messages),
             {
                 "role": "user",
                 "content": _build_user_message(
@@ -412,8 +426,10 @@ def _run_agent() -> None:  # noqa: PLR0915
                 },
             )
 
-        # 6. Assistant message
-        messages.append(build_assistant_message(parsed.content, parsed.tool_calls))
+        # 6. Assistant message — raw 저장 (모든 필드 보존)
+        messages.append(
+            cast("ChatCompletionMessageParam", response.choices[0].message.model_dump())
+        )
 
         # 7. Execute tools
         if not parsed.tool_calls:

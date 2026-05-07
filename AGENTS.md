@@ -91,6 +91,8 @@ ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생
 - **LLM 재시도**: `call_llm()`이 에러 타입별로 재시도. 500/4xx: `MAX_ATTEMPTS=5`까지 exponential backoff, 초과 시 30s sleep 후 리셋. 429: attempt 리셋 없이 backoff(최대 120s). connection/기타 에러: RETRY_DELAY(10s) 고정 재시도.
 - **런 종료**: `in_game=false` → run.jsonl 기록 + RetainAgent("run_end") 호출.
 - **START 직후 오탐지**: (해결됨) `_detect_trigger()`가 `in_game is False` strict 비교를 사용하므로 `null`/`None`은 run_end로 감지되지 않음.
+- **`tool_choice` 미지원**: OpenAI compat API는 `tool_choice` 파라미터를 지원하지 않음. 따라서 모델이 무조건 tool call을 하도록 강제하거나, 특정 tool(`recall`)만 선택하게 강제할 수 없음. 이 제약으로 인해 recall agent가 tool call을 생략하고 텍스트로 응답하거나(no_tool_calls), 제공된 tools 목록에 없는 `send_command`를 hallucination하는 문제가 발생. 해결은 구조적 접근(prompt/history 정제)에 의존해야 함.
+- **History contamination (recall agent)**: `run_recall_agent()`가 shared play history(`*messages`)를 그대로 LLM context에 주입. 이 history는 `assistant → send_command → tool result` 패턴이 지배적이라 recall agent의 행동을 bias함. 2026-05-05 기준 recall 호출의 47.2%가 tool call 생략(no_tool_calls), 4.4%가 send_command hallucination. 해결 방안은 AGENTS.md "할 일" 참고.
 
 ## 운영
 
