@@ -6,6 +6,7 @@ dependencies = [
     "httpx>=0.28.1",
     "typer>=0.24.2",
     "hindsight-client @ file:///Users/harry/repo/nailed-it/external/hindsight/hindsight-clients/python",
+    "common",
 ]
 
 [project.scripts]
@@ -13,3 +14,6 @@ game = "game.cli:main"
 
 [tool.uv]
 package = true
+
+[tool.uv.sources]
+common = { workspace = true }

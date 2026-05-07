@@ -1,0 +1,8 @@
+[project]
+name = "common"
+version = "0.0.0"
+description = "Shared utilities for AI plays Slay the Spire"
+dependencies = ["python-json-logger>=4.1.0"]
+
+[tool.uv]
+package = true
