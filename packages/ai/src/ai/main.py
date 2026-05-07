@@ -35,8 +35,8 @@ from .recall_agent import run_recall_agent
 from .retain_agent import run_retain_agent
 
 logger = logging.getLogger(__name__)
-run_logger = logging.getLogger("run")
-reasoning_logger = logging.getLogger("reasoning")
+run_logger = logging.getLogger("ai.run")
+reasoning_logger = logging.getLogger("ai.reasoning")
 
 
 def game_cli(*args: str) -> str:

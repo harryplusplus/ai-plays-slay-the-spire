@@ -18,12 +18,14 @@ name = "ai"
 version = "0.0.0"
 source = { editable = "packages/ai" }
 dependencies = [
+    { name = "common" },
     { name = "openai" },
     { name = "pillow" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "common", editable = "packages/common" },
     { name = "openai", specifier = ">=2.32.0" },
     { name = "pillow", specifier = ">=12.2.0" },
 ]

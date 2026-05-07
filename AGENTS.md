@@ -131,16 +131,16 @@ ai.jsonl에서 `tool_result`의 screen 전환과 `retain_agent` 이벤트 발생
 tmux ls
 
 # 최근 이벤트
-tail -3 ~/.sts/logs/ai.jsonl | jq -r '"[\(.event)] \(.msg)"'
+tail -3 ~/.sts/logs/ai.jsonl | jq -r '"[\(.event)] \(.message)"'
 
 # 에러 확인 (caller 필드로 에이전트 식별)
-jq 'select(.lvl == "ERROR") | {ts, msg, caller}' ~/.sts/logs/ai.jsonl | tail -5
+jq 'select(.levelname == "ERROR") | {timestamp, message, caller}' ~/.sts/logs/ai.jsonl | tail -5
 
 # reasoning.jsonl 증가 체크
 wc -l ~/.sts/logs/reasoning.jsonl
 
 # AI 멈춤 감지
-jq -r '.ts' ~/.sts/logs/ai.jsonl | tail -1
+jq -r '.timestamp' ~/.sts/logs/ai.jsonl | tail -1
 ```
 
 ### 로그

@@ -1,7 +1,6 @@
 """AI agent constants and configuration."""
 
 import os
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -13,10 +12,6 @@ MODEL = "kimi-k2.6:cloud"
 REASONING_EFFORT = "high"
 RETRY_DELAY = 10.0
 MAX_ATTEMPTS = 5
-RUN_LOG = Path.home() / ".sts" / "logs" / "run.jsonl"
-LLM_LOG = Path.home() / ".sts" / "logs" / "llm.jsonl"
-REASONING_LOG = Path.home() / ".sts" / "logs" / "reasoning.jsonl"
-
 PLAY_AGENT_PROMPT = """\
 You are an AI playing Slay the Spire. You MUST always play as DEFECT — no other class.
 

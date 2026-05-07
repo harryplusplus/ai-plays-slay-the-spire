@@ -31,7 +31,7 @@ from openai.types.chat import (
 )
 
 logger = logging.getLogger(__name__)
-llm_logger = logging.getLogger("llm")
+llm_logger = logging.getLogger("ai.llm")
 
 
 @dataclass

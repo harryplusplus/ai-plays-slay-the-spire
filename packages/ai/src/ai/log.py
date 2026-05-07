@@ -1,108 +1,33 @@
-"""JSON Lines logging for the AI agent."""
+"""Logging setup for the AI agent."""
 
-import json
 import logging
-from datetime import datetime
-from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, override
 
-from .constants import LLM_LOG, REASONING_LOG, RUN_LOG
+from common.log import create_local_json_formatter, create_rotating_file_handler
 
-
-class JsonlFormatter(logging.Formatter):
-    _STANDARD_ATTRS = frozenset(
-        {
-            "name",
-            "msg",
-            "args",
-            "levelname",
-            "levelno",
-            "pathname",
-            "filename",
-            "module",
-            "exc_info",
-            "exc_text",
-            "stack_info",
-            "lineno",
-            "funcName",
-            "created",
-            "msecs",
-            "relativeCreated",
-            "thread",
-            "threadName",
-            "processName",
-            "process",
-            "message",
-            "asctime",
-            "taskName",
-        },
-    )
-
-    @override
-    def format(self, record: logging.LogRecord) -> str:
-        entry: dict[str, Any] = {
-            "ts": (
-                datetime.fromtimestamp(record.created)
-                .astimezone()
-                .isoformat(timespec="milliseconds")
-            ),
-            "lvl": record.levelname,
-            "logger": record.name,
-            "msg": record.getMessage(),
-        }
-        entry |= {
-            key: value
-            for key, value in record.__dict__.items()
-            if key not in self._STANDARD_ATTRS and not key.startswith("_")
-        }
-        return json.dumps(entry, ensure_ascii=False, default=str)
+AI_LOG = Path.home() / ".sts" / "logs" / "ai.jsonl"
+LLM_LOG = Path.home() / ".sts" / "logs" / "llm.jsonl"
+REASONING_LOG = Path.home() / ".sts" / "logs" / "reasoning.jsonl"
+RUN_LOG = Path.home() / ".sts" / "logs" / "run.jsonl"
 
 
-def _create_handler(path: Path) -> RotatingFileHandler:
-    handler = RotatingFileHandler(
-        path,
-        maxBytes=10_000_000,
-        backupCount=5,
-        encoding="utf-8",
-    )
-    handler.setFormatter(JsonlFormatter())
-    return handler
-
-
-def _init_root_logger() -> None:
-    handler = _create_handler(Path.home() / ".sts" / "logs" / "ai.jsonl")
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+def _init_named_logger(
+    name: str,
+    path: Path,
+    level: int = logging.INFO,
+    *,
+    propagate: bool = False,
+) -> None:
+    handler = create_rotating_file_handler(path)
+    handler.setFormatter(create_local_json_formatter())
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
     logger.addHandler(handler)
-
-
-def _init_run_logger() -> None:
-    handler = _create_handler(RUN_LOG)
-    logger = logging.getLogger("ai.run")
-    logger.setLevel(logging.INFO)
-    logger.addHandler(handler)
-    logger.propagate = False
-
-
-def _init_reasoning_logger() -> None:
-    handler = _create_handler(REASONING_LOG)
-    logger = logging.getLogger("ai.reasoning")
-    logger.setLevel(logging.DEBUG)
-    logger.addHandler(handler)
-    logger.propagate = False
-
-
-def _init_llm_logger() -> None:
-    handler = _create_handler(LLM_LOG)
-    logger = logging.getLogger("ai.llm")
-    logger.setLevel(logging.DEBUG)
-    logger.addHandler(handler)
-    logger.propagate = False
+    logger.propagate = propagate
 
 
 def init_logger() -> None:
-    _init_root_logger()
-    _init_run_logger()
-    _init_reasoning_logger()
-    _init_llm_logger()
+    _init_named_logger("", Path.home() / ".sts" / "logs" / "ai.jsonl")
+    _init_named_logger("ai.run", RUN_LOG)
+    _init_named_logger("ai.reasoning", REASONING_LOG, logging.DEBUG)
+    _init_named_logger("ai.llm", LLM_LOG, logging.DEBUG)
