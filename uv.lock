@@ -302,6 +302,7 @@ dependencies = [
     { name = "common" },
     { name = "hindsight-client" },
     { name = "httpx" },
+    { name = "pillow" },
     { name = "typer" },
 ]
 
@@ -310,6 +311,7 @@ requires-dist = [
     { name = "common", editable = "packages/common" },
     { name = "hindsight-client", specifier = ">=0.6.0" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pillow", specifier = ">=12.2.0" },
     { name = "typer", specifier = ">=0.24.2" },
 ]
 

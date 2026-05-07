@@ -5,6 +5,7 @@ from typing import Any
 
 import httpx
 import typer
+from game.commands.screenshot import screenshot as execute_screenshot
 from game.log import init_logger
 from hindsight_client import Hindsight
 
@@ -156,6 +157,17 @@ def retain(content: str, document_id: str | None = None) -> None:
         output["operation_id"] = op_id
     logger.info("retain executed", extra=extra)
     typer.echo(json.dumps(output, indent=2, default=str))
+
+
+@app.command()
+def screenshot() -> None:
+    """Capture Slay the Spire window and save as JPEG."""
+    try:
+        result = execute_screenshot()
+        typer.echo(json.dumps(result))
+    except RuntimeError as e:
+        typer.echo(json.dumps({"error": str(e)}), err=True)
+        raise typer.Exit(1) from e
 
 
 def main() -> None:
