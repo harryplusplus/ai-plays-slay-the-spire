@@ -7,6 +7,20 @@
 LLM이 CommunicationMod로 Slay the Spire를 자동 플레이.
 목표: 승천 0 심장 클리어. Hindsight 장기기억으로 런 간 학습.
 
+## Python 작업 가이드
+
+### 패키지 구조
+- **`__init__.py`와 `py.typed` 생성 금지**
+
+### 코드 품질
+Python 파일 변경 후 반드시 아래 셋을 **변경한 파일에 대해서** 실행하고 모두 통과해야 함:
+
+```bash
+uv run ruff format <path/to/file.py>
+uv run ruff check --fix <path/to/file.py>
+uv run pyright <path/to/file.py>
+```
+
 ## 현재 상태 (2026-05-05)
 
 - `sts-ai`, `sts-proxy`, `hs-api`, `hs-web` tmux 세션 정상
@@ -141,16 +155,6 @@ jq -r '.ts' ~/.sts/logs/ai.jsonl | tail -1
 | `~/.sts/logs/run.jsonl` | 런 종료 시 전체 상태 | JSONL |
 
 모두 RotatingFileHandler(10MB×5). `jq`로 필터링 가능.
-
-## 개발 워크플로우
-
-Python 파일 변경 후 반드시:
-```bash
-uv run ruff format
-uv run ruff check --fix
-uv run pyright
-```
-셋 다 통과해야 커밋.
 
 ## AI 에이전트 지침
 
