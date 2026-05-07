@@ -308,7 +308,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "common", editable = "packages/common" },
-    { name = "hindsight-client", directory = "../nailed-it/external/hindsight/hindsight-clients/python" },
+    { name = "hindsight-client", specifier = ">=0.6.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "typer", specifier = ">=0.24.2" },
 ]
@@ -324,8 +324,8 @@ wheels = [
 
 [[package]]
 name = "hindsight-client"
-version = "0.5.6"
-source = { directory = "../nailed-it/external/hindsight/hindsight-clients/python" }
+version = "0.6.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
     { name = "aiohttp-retry" },
@@ -334,20 +334,10 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "urllib3" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", specifier = ">=3.8.4" },
-    { name = "aiohttp-retry", specifier = ">=2.8.3" },
-    { name = "pydantic", specifier = ">=2" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.21.0" },
-    { name = "python-dateutil", specifier = ">=2.8.2" },
-    { name = "requests", marker = "extra == 'test'", specifier = ">=2.33.0" },
-    { name = "typing-extensions", specifier = ">=4.7.1" },
-    { name = "urllib3", specifier = ">=2.1.0,<3.0.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/62/fb/38c5843295f8291e166d3b19692de51bff36ceab01048a4bf3d185f687ae/hindsight_client-0.6.0.tar.gz", hash = "sha256:d403eeda62274b109212e47d5d0c620da4da57b6c3e4c84c0b2f8a2f6bbfb188", size = 99758, upload-time = "2026-05-05T15:50:35.137Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/83/00/762d4f8c02af3ab7a4d802a8d03d26e7bd61a80b2b11000636bdf29637b6/hindsight_client-0.6.0-py3-none-any.whl", hash = "sha256:0c9bd08f0e3bdd0c462aa16dbff1e35c10f1ef4c9808a84de7fd6ca5839b6c38", size = 249264, upload-time = "2026-05-05T15:50:33.653Z" },
 ]
-provides-extras = ["test"]
 
 [[package]]
 name = "httpcore"

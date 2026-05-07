@@ -11,6 +11,3 @@ def init_logger() -> None:
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     root.addHandler(handler)
-
-    # Package-level logger gets DEBUG for more detail
-    logging.getLogger("game").setLevel(logging.DEBUG)

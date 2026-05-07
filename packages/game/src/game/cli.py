@@ -1,66 +1,14 @@
 import json
 import logging
 from datetime import UTC, datetime
-from logging.handlers import RotatingFileHandler
-from pathlib import Path
-from typing import Any, override
+from typing import Any
 
 import httpx
 import typer
+from game.log import init_logger
 from hindsight_client import Hindsight
 
 logger = logging.getLogger(__name__)
-
-
-class JsonlFormatter(logging.Formatter):
-    """Format log records as JSON Lines."""
-
-    _STANDARD_ATTRS = frozenset(
-        {
-            "name",
-            "msg",
-            "args",
-            "levelname",
-            "levelno",
-            "pathname",
-            "filename",
-            "module",
-            "exc_info",
-            "exc_text",
-            "stack_info",
-            "lineno",
-            "funcName",
-            "created",
-            "msecs",
-            "relativeCreated",
-            "thread",
-            "threadName",
-            "processName",
-            "process",
-            "message",
-            "asctime",
-            "taskName",
-        },
-    )
-
-    @override
-    def format(self, record: logging.LogRecord) -> str:
-        entry: dict[str, Any] = {
-            "ts": (
-                datetime.fromtimestamp(record.created)
-                .astimezone()
-                .isoformat(timespec="milliseconds")
-            ),
-            "lvl": record.levelname,
-            "logger": record.name,
-            "msg": record.getMessage(),
-        }
-        entry |= {
-            key: value
-            for key, value in record.__dict__.items()
-            if key not in self._STANDARD_ATTRS and not key.startswith("_")
-        }
-        return json.dumps(entry, ensure_ascii=False, default=str)
 
 
 BANK_ID = "sts-v2"
@@ -72,28 +20,6 @@ RETAIN_CONTEXT = (
 PROXY_URL = "http://127.0.0.1:8766/command"
 TIMEOUT = 30.0
 HINDSIGHT_URL = "http://localhost:8888"
-
-
-def _create_handler(path: Path) -> RotatingFileHandler:
-    handler = RotatingFileHandler(
-        path,
-        maxBytes=10_000_000,
-        backupCount=5,
-        encoding="utf-8",
-    )
-    handler.setFormatter(JsonlFormatter())
-    return handler
-
-
-def init_logger() -> None:
-    handler = _create_handler(Path.home() / ".sts" / "logs" / "game.jsonl")
-
-    root = logging.getLogger()
-    root.setLevel(logging.INFO)
-    root.addHandler(handler)
-
-    # Package logger at DEBUG for detailed output
-    logging.getLogger("game").setLevel(logging.DEBUG)
 
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
