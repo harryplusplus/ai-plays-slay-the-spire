@@ -5,15 +5,14 @@ import signal
 import sqlite3
 from contextlib import closing, suppress
 from dataclasses import dataclass, field
-from datetime import datetime
-from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, override
+from typing import Any
 
 import uvicorn
 import websockets
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from proxy.log import init_logger
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +83,7 @@ async def command(request: Request) -> JSONResponse:
 
 async def ws_loop(ws: websockets.ClientConnection, app_state: AppState) -> None:
     async for message in ws:
-        logger.debug("received from bridge: %s", message)
+        logger.info("received from bridge: %s", message)
         try:
             data = json.loads(message)
         except json.JSONDecodeError:
@@ -120,38 +119,6 @@ async def run(
 
         app_state.ws = None
         logger.info("disconnected from bridge, reconnecting...")
-
-
-def init_logger() -> None:
-    class Formatter(logging.Formatter):
-        @override
-        def formatTime(
-            self,
-            record: logging.LogRecord,
-            datefmt: str | None = None,
-        ) -> str:
-            return (
-                datetime.fromtimestamp(record.created)
-                .astimezone()
-                .isoformat(timespec="milliseconds")
-            )
-
-    handler = RotatingFileHandler(
-        Path.home() / ".sts" / "logs" / "proxy.log",
-        maxBytes=10_000_000,
-        backupCount=5,
-        encoding="utf-8",
-    )
-    handler.setFormatter(
-        Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"),
-    )
-
-    root = logging.getLogger()
-    root.setLevel(logging.INFO)
-    root.addHandler(handler)
-
-    # Package logger at DEBUG for detailed output
-    logging.getLogger("proxy").setLevel(logging.DEBUG)
 
 
 def main() -> None:

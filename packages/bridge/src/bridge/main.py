@@ -5,28 +5,10 @@ import signal
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from datetime import datetime
-from logging.handlers import RotatingFileHandler
-from pathlib import Path
-from typing import override
 
 import uvicorn
+from bridge.log import init_logger
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-
-
-class _Formatter(logging.Formatter):
-    @override
-    def formatTime(
-        self,
-        record: logging.LogRecord,
-        datefmt: str | None = None,
-    ) -> str:
-        return (
-            datetime.fromtimestamp(record.created)
-            .astimezone()
-            .isoformat(timespec="milliseconds")
-        )
-
 
 logger = logging.getLogger(__name__)
 
@@ -101,22 +83,7 @@ async def run(server: uvicorn.Server, app_state: AppState) -> None:
 
 
 def main() -> None:
-    handler = RotatingFileHandler(
-        Path.home() / ".sts" / "logs" / "bridge.log",
-        maxBytes=10_000_000,
-        backupCount=5,
-        encoding="utf-8",
-    )
-    handler.setFormatter(
-        _Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"),
-    )
-
-    root = logging.getLogger()
-    root.setLevel(logging.INFO)
-    root.addHandler(handler)
-
-    # Package logger at DEBUG for detailed output
-    logging.getLogger("bridge").setLevel(logging.DEBUG)
+    init_logger()
 
     logger.info("started.")
     app_state = AppState()

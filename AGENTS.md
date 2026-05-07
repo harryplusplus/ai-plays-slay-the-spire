@@ -150,8 +150,8 @@ jq -r '.ts' ~/.sts/logs/ai.jsonl | tail -1
 | `~/.sts/logs/game.jsonl` | 게임 CLI, Hindsight 호출 | JSONL |
 | `~/.sts/logs/reasoning.jsonl` | recall_analysis↔reasoning_content 쌍 | JSONL |
 | `~/.sts/logs/llm.jsonl` | LLM 요청/응답 전문 (DEBUG) | JSONL (10MB×5) |
-| `~/.sts/logs/proxy.log` | proxy 연결, 타임아웃 | 텍스트 |
-| `~/.sts/logs/bridge.log` | stdin/stdout 프로토콜 | 텍스트 |
+| `~/.sts/logs/proxy.jsonl` | proxy 연결, 타임아웃 | JSONL |
+| `~/.sts/logs/bridge.jsonl` | stdin/stdout 프로토콜 | JSONL |
 | `~/.sts/logs/run.jsonl` | 런 종료 시 전체 상태 | JSONL |
 
 모두 RotatingFileHandler(10MB×5). `jq`로 필터링 가능.

@@ -2,10 +2,13 @@
 name = "bridge"
 version = "0.0.0"
 description = "Bridge between Proxy and Slay the Spire"
-dependencies = ["fastapi>=0.136.1", "uvicorn>=0.46.0", "websockets>=16.0"]
+dependencies = ["common", "fastapi>=0.136.1", "uvicorn>=0.46.0", "websockets>=16.0"]
 
 [project.scripts]
 bridge = "bridge.main:main"
 
 [tool.uv]
 package = true
+
+[tool.uv.sources]
+common = { workspace = true }

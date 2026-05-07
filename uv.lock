@@ -175,6 +175,7 @@ name = "bridge"
 version = "0.0.0"
 source = { editable = "packages/bridge" }
 dependencies = [
+    { name = "common" },
     { name = "fastapi" },
     { name = "uvicorn" },
     { name = "websockets" },
@@ -182,6 +183,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "common", editable = "packages/common" },
     { name = "fastapi", specifier = ">=0.136.1" },
     { name = "uvicorn", specifier = ">=0.46.0" },
     { name = "websockets", specifier = ">=16.0" },
@@ -584,6 +586,7 @@ name = "proxy"
 version = "0.0.0"
 source = { editable = "packages/proxy" }
 dependencies = [
+    { name = "common" },
     { name = "fastapi" },
     { name = "uvicorn" },
     { name = "websockets" },
@@ -591,6 +594,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "common", editable = "packages/common" },
     { name = "fastapi", specifier = ">=0.136.1" },
     { name = "uvicorn", specifier = ">=0.46.0" },
     { name = "websockets", specifier = ">=16.0" },
